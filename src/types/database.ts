@@ -63,6 +63,7 @@ export interface UserProfile {
   id: string;
   nama_lengkap: string;
   email: string;
+  username?: string;
   no_telepon: string;
   role: UserRole;
   is_active: boolean;

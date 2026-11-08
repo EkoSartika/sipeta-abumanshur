@@ -1068,7 +1068,7 @@ export function WaliPortal() {
               </p>
 
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                <table className="w-full text-left border-collapse text-xs sm:text-sm min-w-[650px]">
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
                       <th className="py-2.5 pr-3">No. Transaksi & Waktu</th>

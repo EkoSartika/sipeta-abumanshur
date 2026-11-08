@@ -85,6 +85,11 @@ import {
   notifikasiService,
 } from "@/lib/services";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  normalizeUsername,
+  usernameToInternalEmail,
+  validatePasswordStrength,
+} from "@/lib/utils/auth-mapping";
 
 export interface ActionResponse {
   ok: boolean;
@@ -140,12 +145,19 @@ interface SipetaContextValue {
   // Superadmin Actions
   createUserAccount: (payload: {
     nama_lengkap: string;
-    email: string;
-    no_telepon: string;
+    username?: string;
+    email?: string;
+    password?: string;
+    no_telepon?: string;
     role: UserProfile["role"];
     santri_id?: string;
-  }) => ActionResponse;
-  toggleUserActive: (userId: string) => ActionResponse;
+  }) => Promise<ActionResponse>;
+  toggleUserActive: (userId: string) => Promise<ActionResponse>;
+  resetUserPassword: (userId: string, newPassword: string) => Promise<ActionResponse>;
+  updateUserProfile: (
+    userId: string,
+    data: { nama_lengkap: string; no_telepon?: string; role?: UserRole }
+  ) => Promise<ActionResponse>;
   updateRekeningResmi: (payload: Omit<RekeningPesantren, "id" | "is_active" | "updated_at">) => ActionResponse;
 
   // Admin Actions
@@ -758,13 +770,24 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   // SUPERADMIN ACTIONS
   // ============================================================================
 
-  const createUserAccount: SipetaContextValue["createUserAccount"] = (payload) => {
+  const createUserAccount: SipetaContextValue["createUserAccount"] = async (payload) => {
     if (!currentUser || currentUser.role !== "superadmin") {
       return { ok: false, message: "Hanya Superadmin yang dapat membuat akun pengguna." };
     }
-    if (users.some((u) => u.email.toLowerCase() === payload.email.toLowerCase())) {
-      return { ok: false, message: "Email sudah digunakan oleh akun lain." };
+
+    const normalizedUser = payload.username ? normalizeUsername(payload.username) : undefined;
+    const finalEmail =
+      payload.email ??
+      (normalizedUser ? usernameToInternalEmail(normalizedUser) : "");
+
+    // Validasi lokal untuk mode demo atau pre-check
+    if (normalizedUser && users.some((u) => u.username?.toLowerCase() === normalizedUser.toLowerCase())) {
+      return { ok: false, message: `Username '${normalizedUser}' sudah digunakan oleh akun lain.` };
     }
+    if (finalEmail && users.some((u) => u.email.toLowerCase() === finalEmail.toLowerCase())) {
+      return { ok: false, message: "Email / Username sudah digunakan oleh akun lain." };
+    }
+
     if (payload.role === "wali") {
       if (!payload.santri_id) {
         return {
@@ -781,11 +804,30 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Jika sedang dalam mode Supabase terhubung
+    if (authMode === "supabase") {
+      const res = await authService.createUserAccount({
+        nama_lengkap: payload.nama_lengkap,
+        username: normalizedUser ?? payload.email?.split("@")[0] ?? "user",
+        password: payload.password ?? "AbuManshur@123",
+        no_telepon: payload.no_telepon,
+        role: payload.role,
+        santri_id: payload.santri_id,
+      });
+
+      if (res.ok && res.user) {
+        setUsers((prev) => [...prev, res.user!]);
+      }
+      return { ok: res.ok, message: res.message };
+    }
+
+    // Mode Demo / Standalone
     const newUser: UserProfile = {
       id: `usr-${Date.now()}`,
       nama_lengkap: payload.nama_lengkap,
-      email: payload.email,
-      no_telepon: payload.no_telepon,
+      username: normalizedUser,
+      email: finalEmail,
+      no_telepon: payload.no_telepon ?? "-",
       role: payload.role,
       is_active: true,
       santri_id: payload.role === "wali" ? payload.santri_id : undefined,
@@ -794,15 +836,19 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
 
     setUsers((prev) => [...prev, newUser]);
     appendAuditLog("BUAT_AKUN_PENGGUNA", "profiles", newUser.id, {
+      username: newUser.username,
       email: newUser.email,
       role: newUser.role,
       santri_id: newUser.santri_id,
     });
 
-    return { ok: true, message: `Akun ${newUser.nama_lengkap} (${newUser.role}) berhasil dibuat.` };
+    return {
+      ok: true,
+      message: `Akun ${newUser.nama_lengkap} (${newUser.role}) dengan username '${newUser.username ?? newUser.email}' berhasil dibuat.`,
+    };
   };
 
-  const toggleUserActive: SipetaContextValue["toggleUserActive"] = (userId) => {
+  const toggleUserActive: SipetaContextValue["toggleUserActive"] = async (userId) => {
     if (!currentUser || currentUser.role !== "superadmin") {
       return { ok: false, message: "Hanya Superadmin yang dapat mengubah status akun." };
     }
@@ -813,6 +859,18 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     }
 
     const nextActive = !target.is_active;
+
+    if (authMode === "supabase") {
+      const res = await authService.toggleUserActive(userId, nextActive);
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, is_active: nextActive } : u))
+        );
+      }
+      return res;
+    }
+
+    // Demo Mode
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, is_active: nextActive } : u))
     );
@@ -828,6 +886,58 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       ok: true,
       message: `Akun ${target.nama_lengkap} berhasil ${nextActive ? "diaktifkan" : "dinonaktifkan"}.`,
     };
+  };
+
+  const resetUserPassword: SipetaContextValue["resetUserPassword"] = async (userId, newPassword) => {
+    if (!currentUser || currentUser.role !== "superadmin") {
+      return { ok: false, message: "Hanya Superadmin yang berwenang mengatur ulang kata sandi." };
+    }
+    const pwdCheck = validatePasswordStrength(newPassword);
+    if (!pwdCheck.valid) {
+      return { ok: false, message: pwdCheck.message ?? "Kata sandi tidak memenuhi kriteria keamanan." };
+    }
+
+    if (authMode === "supabase") {
+      return await authService.resetUserPassword(userId, newPassword);
+    }
+
+    const target = users.find((u) => u.id === userId);
+    if (!target) return { ok: false, message: "Pengguna tidak ditemukan." };
+
+    appendAuditLog("RESET_USER_PASSWORD", "profiles", userId, {
+      target_user: target.username ?? target.email,
+    });
+    return {
+      ok: true,
+      message: `Kata sandi akun ${target.nama_lengkap} (${target.username ?? target.email}) berhasil diatur ulang.`,
+    };
+  };
+
+  const updateUserProfile: SipetaContextValue["updateUserProfile"] = async (userId, data) => {
+    if (!currentUser || currentUser.role !== "superadmin") {
+      return { ok: false, message: "Hanya Superadmin yang berwenang memperbarui profil akun." };
+    }
+    const target = users.find((u) => u.id === userId);
+    if (!target) return { ok: false, message: "Akun tidak ditemukan." };
+
+    if (authMode === "supabase") {
+      const res = await authService.updateUserProfile(userId, data);
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, ...data } : u))
+        );
+      }
+      return res;
+    }
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, ...data } : u))
+    );
+    appendAuditLog("UPDATE_USER_PROFILE", "profiles", userId, data, undefined, {
+      nama_lengkap: target.nama_lengkap,
+      role: target.role,
+    });
+    return { ok: true, message: `Profil ${target.nama_lengkap} berhasil diperbarui.` };
   };
 
   const updateRekeningResmi: SipetaContextValue["updateRekeningResmi"] = (payload) => {
@@ -2100,6 +2210,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         resetDemoData,
         createUserAccount,
         toggleUserActive,
+        resetUserPassword,
+        updateUserProfile,
         updateRekeningResmi,
         createSantriWithWali,
         moveSantriPlacement,

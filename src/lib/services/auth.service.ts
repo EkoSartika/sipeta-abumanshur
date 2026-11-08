@@ -1,10 +1,14 @@
 // ============================================================================
 // SIPETA - Supabase Authentication & Profile Service
-// Mengelola login, logout, sesi, hak akses role, dan status aktif akun
-// Sesuai Bagian B PRD & Instruksi Autentikasi
+// Mengelola login username/email, logout, sesi, hak akses role, dan status aktif akun
+// Sesuai Kebijakan Identitas & Akun Pengguna Internal PRD
 // ============================================================================
 
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  extractUsername,
+  resolveLoginIdentifier,
+} from "@/lib/utils/auth-mapping";
 import type { UserProfile, UserRole } from "@/types/database";
 
 export interface AuthResponse {
@@ -55,11 +59,14 @@ export class AuthService {
         santriId = wali?.santri_id;
       }
 
+      const cleanUsername = extractUsername(profile.email, profile.username);
+
       return {
         id: profile.id,
         email: profile.email,
+        username: cleanUsername,
         nama_lengkap: profile.nama_lengkap,
-        no_telepon: profile.no_telepon,
+        no_telepon: profile.no_telepon ?? "-",
         role: profile.role as UserRole,
         is_active: profile.is_active,
         santri_id: santriId,
@@ -71,9 +78,9 @@ export class AuthService {
   }
 
   /**
-   * Login pengguna menggunakan email dan kata sandi Supabase Auth
+   * Login pengguna menggunakan username (akun internal) atau email resmi (Superadmin)
    */
-  async login(email: string, kataSandi: string): Promise<AuthResponse> {
+  async login(identifier: string, kataSandi: string): Promise<AuthResponse> {
     if (!isSupabaseConfigured()) {
       return {
         ok: false,
@@ -82,15 +89,17 @@ export class AuthService {
     }
 
     try {
+      const { email, displayIdentifier, username } = resolveLoginIdentifier(identifier);
+
       const { data, error } = await this.client.auth.signInWithPassword({
-        email: email.trim(),
+        email,
         password: kataSandi,
       });
 
       if (error || !data.user) {
         return {
           ok: false,
-          message: error?.message ?? "Email atau kata sandi tidak cocok.",
+          message: "Username / Email atau kata sandi tidak cocok. Silakan periksa kembali kredensial Anda.",
         };
       }
 
@@ -114,7 +123,7 @@ export class AuthService {
         return {
           ok: false,
           message:
-            "AKUN DINONAKTIFKAN: Akun Anda telah dinonaktifkan oleh Administrator. Silakan hubungi bagian administrasi pesantren.",
+            "AKUN DINONAKTIFKAN: Akun pengguna ini telah dinonaktifkan oleh Administrator. Hubungi pihak pesantren untuk aktivasi.",
         };
       }
 
@@ -128,11 +137,14 @@ export class AuthService {
         santriId = wali?.santri_id;
       }
 
+      const cleanUsername = username ?? extractUsername(profile.email, profile.username);
+
       const userProfile: UserProfile = {
         id: profile.id,
         email: profile.email,
+        username: cleanUsername,
         nama_lengkap: profile.nama_lengkap,
-        no_telepon: profile.no_telepon,
+        no_telepon: profile.no_telepon ?? "-",
         role: profile.role as UserRole,
         is_active: profile.is_active,
         santri_id: santriId,
@@ -144,10 +156,11 @@ export class AuthService {
         user: userProfile,
         message: `Selamat datang, ${profile.nama_lengkap} (${profile.role}).`,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       return {
         ok: false,
-        message: `Gagal melakukan login: ${err.message ?? err}`,
+        message: `Gagal melakukan login: ${msg}`,
       };
     }
   }
@@ -163,8 +176,9 @@ export class AuthService {
     try {
       await this.client.auth.signOut();
       return { ok: true, message: "Sesi berhasil ditutup." };
-    } catch (err: any) {
-      return { ok: false, message: `Gagal logout: ${err.message ?? err}` };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal logout: ${msg}` };
     }
   }
 
@@ -174,8 +188,9 @@ export class AuthService {
    */
   async createUserAccount(payload: {
     nama_lengkap: string;
-    email: string;
-    no_telepon: string;
+    username: string;
+    password: string;
+    no_telepon?: string;
     role: UserRole;
     santri_id?: string;
   }): Promise<AuthResponse> {
@@ -196,8 +211,90 @@ export class AuthService {
         user: data.data,
         message: data.message,
       };
-    } catch (err: any) {
-      return { ok: false, message: err.message ?? "Terjadi kesalahan jaringan saat membuat akun." };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: msg ?? "Terjadi kesalahan jaringan saat membuat akun." };
+    }
+  }
+
+  /**
+   * Reset password pengguna oleh Superadmin melalui Secure Server Endpoint
+   */
+  async resetUserPassword(userId: string, newPassword: string): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RESET_PASSWORD",
+          user_id: userId,
+          new_password: newPassword,
+        }),
+      });
+
+      const data = await res.json();
+      return {
+        ok: res.ok && data.ok,
+        message: data.message ?? (res.ok ? "Kata sandi berhasil diatur ulang." : "Gagal mengatur ulang kata sandi."),
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal reset password: ${msg}` };
+    }
+  }
+
+  /**
+   * Aktifkan atau nonaktifkan akun pengguna oleh Superadmin melalui Secure Server Endpoint
+   */
+  async toggleUserActive(userId: string, isActive: boolean): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "TOGGLE_ACTIVE",
+          user_id: userId,
+          is_active: isActive,
+        }),
+      });
+
+      const data = await res.json();
+      return {
+        ok: res.ok && data.ok,
+        message: data.message ?? (res.ok ? "Status akun berhasil diubah." : "Gagal mengubah status akun."),
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal mengubah status akun: ${msg}` };
+    }
+  }
+
+  /**
+   * Pembaruan data profil akun oleh Superadmin melalui Secure Server Endpoint
+   */
+  async updateUserProfile(
+    userId: string,
+    payload: { nama_lengkap: string; no_telepon?: string; role?: UserRole }
+  ): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_PROFILE",
+          user_id: userId,
+          ...payload,
+        }),
+      });
+
+      const data = await res.json();
+      return {
+        ok: res.ok && data.ok,
+        message: data.message ?? (res.ok ? "Profil akun berhasil diperbarui." : "Gagal memperbarui profil akun."),
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal memperbarui profil: ${msg}` };
     }
   }
 }

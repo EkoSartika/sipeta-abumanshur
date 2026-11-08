@@ -311,24 +311,35 @@ export default function SipetaHomePage() {
 
                 <form onSubmit={handleSupabaseLogin} className="mt-5 space-y-4">
                   <div>
-                    <label
-                      htmlFor="input-email-login"
-                      className="block text-xs font-bold text-slate-700 mb-1.5"
-                    >
-                      Email Akun SIPETA
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label
+                        htmlFor="input-identifier-login"
+                        className="block text-xs font-bold text-slate-700"
+                      >
+                        Username atau Email Superadmin
+                      </label>
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Akun Internal
+                      </span>
+                    </div>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                       <input
-                        id="input-email-login"
-                        type="email"
+                        id="input-identifier-login"
+                        type="text"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         required
-                        placeholder="contoh: user@pesantren.id"
+                        placeholder="contoh: bendahara01 atau email Superadmin"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none"
+                        className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none min-h-[44px]"
                       />
                     </div>
+                    <p className="mt-1 text-[11px] text-slate-500 leading-normal">
+                      Petugas internal &amp; Wali masuk dengan <strong>username</strong>. Tidak menggunakan Gmail / email pribadi.
+                    </p>
                   </div>
 
                   <div>
@@ -339,7 +350,7 @@ export default function SipetaHomePage() {
                       Kata Sandi
                     </label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                       <input
                         id="input-password-login"
                         type="password"
@@ -347,7 +358,7 @@ export default function SipetaHomePage() {
                         placeholder="••••••••"
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none"
+                        className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none min-h-[44px]"
                       />
                     </div>
                   </div>
@@ -355,7 +366,7 @@ export default function SipetaHomePage() {
                   <button
                     type="submit"
                     disabled={loginLoading}
-                    className="w-full rounded-xl bg-emerald-800 py-2.5 px-4 text-xs font-bold text-white shadow hover:bg-emerald-900 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full rounded-xl bg-emerald-800 py-3 px-4 text-xs font-bold text-white shadow hover:bg-emerald-900 transition flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px] touch-manipulation cursor-pointer"
                   >
                     {loginLoading ? (
                       <>

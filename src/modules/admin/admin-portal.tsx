@@ -304,7 +304,7 @@ export function AdminPortal() {
               Daftar Santri Terdaftar & Relasi 1:1 Akun Orang Tua/Wali ({santriList.length})
             </h3>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-200 uppercase text-slate-500">
                     <th className="py-2 pr-3">NIS & Nama Santri</th>
@@ -975,7 +975,7 @@ export function AdminPortal() {
               Daftar Tagihan Santri ({tagihanList.length})
             </h3>
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-200 uppercase text-slate-500">
                     <th className="py-2 pr-3">No. Tagihan</th>
@@ -1064,7 +1064,7 @@ export function AdminPortal() {
               </p>
             ) : (
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+                <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                   <thead>
                     <tr className="border-b border-slate-200 uppercase text-slate-500">
                       <th className="py-2 pr-3">Waktu</th>

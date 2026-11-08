@@ -74,6 +74,7 @@ export const INITIAL_USERS: UserProfile[] = [
     id: "usr-superadmin-01",
     nama_lengkap: "KH. Dr. Abdullah Manshur, M.A.",
     email: "superadmin@abumanshur.ponpes.id",
+    username: "superadmin",
     no_telepon: "081122334401",
     role: "superadmin",
     is_active: true,
@@ -82,7 +83,8 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: "usr-admin-01",
     nama_lengkap: "Ustadz Lukman Hakim, S.Kom.",
-    email: "admin@abumanshur.ponpes.id",
+    email: "admin01@akun.sipeta.invalid",
+    username: "admin01",
     no_telepon: "081122334402",
     role: "admin",
     is_active: true,
@@ -91,7 +93,8 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: "usr-bendahara-01",
     nama_lengkap: "Ustadzah Hj. Rahmawati, S.E., Ak.",
-    email: "bendahara@abumanshur.ponpes.id",
+    email: "bendahara01@akun.sipeta.invalid",
+    username: "bendahara01",
     no_telepon: "081122334403",
     role: "bendahara",
     is_active: true,
@@ -100,7 +103,8 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: "usr-pengelola-01",
     nama_lengkap: "Ustadz H. Fauzan Azima, Lc., Al-Hafidz",
-    email: "pengelola@abumanshur.ponpes.id",
+    email: "pengelola01@akun.sipeta.invalid",
+    username: "pengelola01",
     no_telepon: "081122334404",
     role: "pengelola",
     is_active: true,
@@ -109,7 +113,8 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: "usr-wali-01",
     nama_lengkap: "H. Ahmad Firdaus (Wali Muhammad Zaki)",
-    email: "ahmad.firdaus@gmail.com",
+    email: "wali_zaki@akun.sipeta.invalid",
+    username: "wali_zaki",
     no_telepon: "081298765432",
     role: "wali",
     is_active: true,
@@ -119,7 +124,8 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: "usr-wali-02",
     nama_lengkap: "Hj. Dewi Sartika (Wali Aisyah Humaira)",
-    email: "dewi.sartika@gmail.com",
+    email: "wali_aisyah@akun.sipeta.invalid",
+    username: "wali_aisyah",
     no_telepon: "081387654321",
     role: "wali",
     is_active: true,
@@ -129,7 +135,8 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: "usr-wali-03",
     nama_lengkap: "Ir. Ridwan Kamiluddin (Wali Farhan Syahputra)",
-    email: "ridwan.k@gmail.com",
+    email: "wali_farhan@akun.sipeta.invalid",
+    username: "wali_farhan",
     no_telepon: "081566778899",
     role: "wali",
     is_active: true,

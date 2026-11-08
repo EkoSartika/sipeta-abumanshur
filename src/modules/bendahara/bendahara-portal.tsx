@@ -387,7 +387,7 @@ export function BendaharaPortal() {
               Riwayat Seluruh Transaksi Pembayaran Tagihan
             </h3>
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-200 uppercase text-slate-500">
                     <th className="py-2.5 pr-3">No. Transaksi</th>
@@ -754,7 +754,7 @@ export function BendaharaPortal() {
                 Sah.
               </p>
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+                <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                   <thead>
                     <tr className="border-b border-slate-200 uppercase text-slate-500">
                       <th className="py-2 pr-3">Santri</th>

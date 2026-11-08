@@ -247,7 +247,7 @@ export function LaporanPortal() {
             <h3 className="text-base font-bold text-slate-900 mb-3">
               Rincian Tagihan & Status Kewajiban ({filteredTagihan.length} Baris)
             </h3>
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse text-xs min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-200 uppercase text-slate-500">
                   <th className="py-2 pr-3">No. Tagihan</th>
@@ -304,7 +304,7 @@ export function LaporanPortal() {
           <h3 className="text-base font-bold text-slate-900 mb-3">
             Rekapitulasi Uang Saku per Santri & Kelas
           </h3>
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs min-w-[700px]">
             <thead>
               <tr className="border-b border-slate-200 uppercase text-slate-500">
                 <th className="py-2 pr-3">NIS & Nama Santri</th>
@@ -354,7 +354,7 @@ export function LaporanPortal() {
           <h3 className="text-base font-bold text-slate-900 mb-3">
             Rekapitulasi Perkembangan Mengaji, Tahfidz, Prestasi, & Kedisiplinan Santri
           </h3>
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs min-w-[700px]">
             <thead>
               <tr className="border-b border-slate-200 uppercase text-slate-500">
                 <th className="py-2 pr-3">Santri</th>
