@@ -40,10 +40,12 @@ export async function GET() {
 
   try {
     const supabase = await createSupabaseServerClient();
+    // Gunakan tabel pengumuman (tabel resmi publik dengan GRANT SELECT ke anon)
+    // Hindari tabel keuangan rekening_pesantren yang memiliki hak akses terbatas (REVOKE SELECT dari anon)
     const { data, error, count } = await supabase
-      .from("rekening_pesantren")
-      .select("id, nama_bank", { count: "exact" })
-      .limit(5);
+      .from("pengumuman")
+      .select("id, judul", { count: "exact" })
+      .limit(1);
 
     const latencyMs = Date.now() - startTime;
 

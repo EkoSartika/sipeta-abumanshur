@@ -54,11 +54,13 @@ export async function checkSupabaseHealth(
   const client = customClient ?? createSupabaseBrowserClient();
 
   try {
-    // Query ringan ke tabel publik rekening_pesantren
+    // Query ringan ke tabel publik pengumuman (aman dan diizinkan untuk role anon / unauthenticated)
+    // Sesuai Bab 15.3 PRD: pengumuman adalah tabel publik dengan GRANT SELECT ke anon & RLS is_published = true.
+    // Menghindari tabel keuangan sensitif (rekening_pesantren) yang diproteksi REVOKE SELECT dari anon.
     const { data, error, count } = await client
-      .from("rekening_pesantren")
-      .select("id, nama_bank, is_active", { count: "exact" })
-      .limit(5);
+      .from("pengumuman")
+      .select("id, judul", { count: "exact" })
+      .limit(1);
 
     const latencyMs = Date.now() - startTime;
 

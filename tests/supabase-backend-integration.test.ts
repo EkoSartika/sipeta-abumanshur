@@ -71,6 +71,37 @@ describe("SIPETA Backend Integration & Service Layer Test Suite", () => {
       const parsedDate = Date.parse(status.checkedAt);
       expect(Number.isNaN(parsedDate)).toBe(false);
     });
+
+    it("health check tidak boleh membaca tabel keuangan sensitif rekening_pesantren", async () => {
+      const origUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const origKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+      try {
+        process.env.NEXT_PUBLIC_SUPABASE_URL = "https://jvhzrhfzkjqzlhsvvbgy.supabase.co";
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_test_key_minimum_length_20";
+
+        let queriedTable = "";
+        const mockClient = {
+          from: (table: string) => {
+            queriedTable = table;
+            return {
+              select: () => ({
+                limit: () => Promise.resolve({ data: [{ id: "1", judul: "Info" }], error: null, count: 1 }),
+              }),
+            };
+          },
+        } as any;
+
+        const res = await checkSupabaseHealth(mockClient);
+        // Health check HARUS menargetkan tabel publik 'pengumuman', BUKAN 'rekening_pesantren'
+        expect(queriedTable).toBe("pengumuman");
+        expect(queriedTable).not.toBe("rekening_pesantren");
+        expect(res.isConnected).toBe(true);
+        expect(res.connectionState).toBe("CONNECTED_HEALTHY");
+      } finally {
+        process.env.NEXT_PUBLIC_SUPABASE_URL = origUrl;
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = origKey;
+      }
+    });
   });
 
   // --------------------------------------------------------------------------
