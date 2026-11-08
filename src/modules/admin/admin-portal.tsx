@@ -303,7 +303,75 @@ export function AdminPortal() {
             <h3 className="text-base font-bold text-slate-900">
               Daftar Santri Terdaftar & Relasi 1:1 Akun Orang Tua/Wali ({santriList.length})
             </h3>
-            <div className="mt-4 overflow-x-auto">
+            {/* Tampilan Kartu Khusus Mobile (< 768px) */}
+            <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
+              {santriList.map((s) => {
+                const kls = kelasList.find((k) => k.id === s.kelas_id);
+                const kmr = kamarList.find((k) => k.id === s.kamar_id);
+                const wali = waliList.find((w) => w.santri_id === s.id);
+                const badge = getStatusSantriBadge(s.status);
+                return (
+                  <div
+                    key={s.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-emerald-800">
+                          NIS: {s.nis}
+                        </span>
+                        <h4 className="text-sm font-extrabold text-slate-900">{s.nama_lengkap}</h4>
+                        <p className="text-[11px] text-slate-500">
+                          {s.tempat_lahir}, {formatTanggal(s.tanggal_lahir)}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-2.5 text-xs space-y-1 text-slate-600">
+                      <div>
+                        <strong>Kelas &amp; Kamar:</strong> {kls?.nama_kelas || "-"} • {kmr?.nama_kamar || "-"}
+                      </div>
+                      <div>
+                        <strong>Orang Tua / Wali:</strong>{" "}
+                        {wali ? (
+                          <span className="font-semibold text-slate-800">
+                            {wali.nama_lengkap} ({wali.hubungan}) • {wali.no_telepon}
+                          </span>
+                        ) : (
+                          <span className="text-rose-600 font-semibold">Belum terhubung</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-600">Status Santri:</span>
+                      <select
+                        value={s.status}
+                        onChange={(e) => {
+                          const res = updateStatusSantri(s.id, e.target.value as StatusSantri);
+                          setFeedback({ ok: res.ok, text: res.message });
+                        }}
+                        className={`rounded-xl px-3 py-2 text-xs font-bold min-h-[44px] ${badge.className}`}
+                      >
+                        <option value="AKTIF">AKTIF</option>
+                        <option value="CUTI">CUTI</option>
+                        <option value="LULUS">LULUS</option>
+                        <option value="PINDAH">PINDAH</option>
+                        <option value="TIDAK_AKTIF">TIDAK AKTIF</option>
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Tampilan Tabel Desktop (>= 768px) */}
+            <div className="mt-4 hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-200 uppercase text-slate-500">
