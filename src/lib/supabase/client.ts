@@ -6,10 +6,31 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 /**
+ * Membersihkan string environment variable dari whitespace dan tanda kutip (quotes)
+ * yang sering tidak sengaja terbawa saat copy-paste ke dashboard Vercel.
+ */
+function cleanEnvValue(val: string | undefined): string {
+  if (!val) return "";
+  let clean = val.trim();
+  if (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'"))
+  ) {
+    clean = clean.slice(1, -1).trim();
+  }
+  return clean;
+}
+
+/**
  * Mengambil URL project Supabase resmi SIPETA
  */
 export function getSupabaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  const raw =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    "";
+  const cleaned = cleanEnvValue(raw);
+  return cleaned.replace(/\/+$/, "");
 }
 
 /**
@@ -18,11 +39,13 @@ export function getSupabaseUrl(): string {
  * dan format standar/legacy (NEXT_PUBLIC_SUPABASE_ANON_KEY).
  */
 export function getSupabasePublishableKey(): string {
-  return (
+  const raw =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    ""
-  ).trim();
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    "";
+  return cleanEnvValue(raw);
 }
 
 /**

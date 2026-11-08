@@ -5,18 +5,33 @@
 
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  getSupabasePublishableKey,
+  getSupabaseUrl,
+  isSupabaseConfigured,
+} from "@/lib/supabase/client";
 
 export async function GET() {
   const checkedAt = new Date().toISOString();
   const isConfigured = isSupabaseConfigured();
 
   if (!isConfigured) {
+    const hasUrl = Boolean(getSupabaseUrl());
+    const hasKey = Boolean(getSupabasePublishableKey());
+
     return NextResponse.json({
       status: "simulation",
       connectionState: "NOT_CONFIGURED",
       mode: "standalone_demo",
-      message: "MODE SIMULASI — MENUNGGU PROJECT SUPABASE KHUSUS",
+      message: "MODE SIMULASI — Supabase Environment Variables belum lengkap atau belum di-Redeploy di Vercel.",
+      diagnostics: {
+        hasSupabaseUrl: hasUrl,
+        hasSupabaseKey: hasKey,
+        hint:
+          !hasUrl || !hasKey
+            ? "Pastikan NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (atau NEXT_PUBLIC_SUPABASE_ANON_KEY) diset di Vercel Settings > Environment Variables, lalu lakukan REDEPLOY."
+            : "Format URL atau Key tidak valid. URL harus diawali https:// dan Key minimal 20 karakter.",
+      },
       checkedAt,
     });
   }

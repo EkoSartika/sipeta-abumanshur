@@ -10,17 +10,33 @@ import { cookies } from "next/headers";
 import { getSupabasePublishableKey, getSupabaseUrl, isSupabaseConfigured } from "./client";
 
 /**
+ * Membersihkan string environment variable dari whitespace dan tanda kutip
+ */
+function cleanEnvValue(val: string | undefined): string {
+  if (!val) return "";
+  let clean = val.trim();
+  if (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'"))
+  ) {
+    clean = clean.slice(1, -1).trim();
+  }
+  return clean;
+}
+
+/**
  * Mengambil Secret / Service Role Key khusus server runtime.
  * Mendukung format baru (SUPABASE_SECRET_KEY)
  * dan format standar/legacy (SUPABASE_SERVICE_ROLE_KEY).
  * DILARANG menyertakan prefiks NEXT_PUBLIC_ pada variabel ini.
  */
 export function getSupabaseSecretKey(): string {
-  return (
+  const raw =
     process.env.SUPABASE_SECRET_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    ""
-  ).trim();
+    process.env.SUPABASE_SERVICE_KEY ||
+    "";
+  return cleanEnvValue(raw);
 }
 
 /**
