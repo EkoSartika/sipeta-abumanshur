@@ -41,6 +41,7 @@ import type {
   TingkatPrestasi,
   TransaksiPembayaran,
   UserProfile,
+  UserRole,
   WaliSantri,
 } from "@/types/database";
 import {
@@ -91,7 +92,10 @@ export interface ActionResponse {
 }
 
 interface SipetaContextValue {
-  currentUser: UserProfile;
+  currentUser: UserProfile | null;
+  isAuthenticated: boolean;
+  authMode: "supabase" | "demo" | "unauthenticated";
+  authLoading: boolean;
   users: UserProfile[];
   rekeningResmi: RekeningPesantren;
   tahunAjaranList: TahunAjaran[];
@@ -116,14 +120,17 @@ interface SipetaContextValue {
   notifikasiList: NotifikasiItem[];
   auditLogs: AuditLogItem[];
 
-  // Status Koneksi Backend
+  // Status Koneksi Backend & Autentikasi
   connectionStatus: "checking" | "connected" | "demo";
   isLiveSupabase: boolean;
   dataSource: "supabase" | "demo";
   healthStatus: DatabaseHealthStatus | null;
   refreshFromSupabase: () => Promise<void>;
   loginWithSupabase: (email: string, kataSandi: string) => Promise<ActionResponse>;
-  logoutSupabase: () => Promise<void>;
+  logout: () => Promise<ActionResponse>;
+  logoutSupabase: () => Promise<ActionResponse>;
+  enterDemoMode: (demoRole?: UserRole) => void;
+  exitDemoMode: () => void;
 
   // Helpers
   switchActiveUser: (userId: string) => void;
@@ -273,8 +280,12 @@ const SipetaContext = createContext<SipetaContextValue | null>(null);
 const STORAGE_KEY = "sipeta_abu_manshur_state_v1";
 
 export function SipetaProvider({ children }: { children: React.ReactNode }) {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<"supabase" | "demo" | "unauthenticated">("unauthenticated");
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
-  const [currentUserId, setCurrentUserId] = useState<string>("usr-wali-01");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [rekeningResmi, setRekeningResmi] = useState<RekeningPesantren>(INITIAL_REKENING);
   const [tahunAjaranList] = useState<TahunAjaran[]>(INITIAL_TAHUN_AJARAN);
   const [kelasList, setKelasList] = useState<Kelas[]>(INITIAL_KELAS);
@@ -380,44 +391,69 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Inisialisasi Backend Health Check
+  // Inisialisasi Backend Health Check & Sesi Autentikasi
   useEffect(() => {
     let isMounted = true;
     async function initBackend() {
-      if (!isSupabaseConfigured()) {
-        if (isMounted) {
-          setHealthStatus({
-            isConfigured: false,
-            isConnected: false,
-            connectionState: "NOT_CONFIGURED",
-            mode: "demo_local",
-            message: "Supabase environment variables belum dikonfigurasi.",
-            checkedAt: new Date().toISOString(),
-          });
-          setConnectionStatus("demo");
-          setDataSource("demo");
-          setIsLiveSupabase(false);
-        }
-        return;
-      }
       try {
+        if (!isSupabaseConfigured()) {
+          if (isMounted) {
+            setHealthStatus({
+              isConfigured: false,
+              isConnected: false,
+              connectionState: "NOT_CONFIGURED",
+              mode: "demo_local",
+              message: "Supabase environment variables belum dikonfigurasi.",
+              checkedAt: new Date().toISOString(),
+            });
+            setConnectionStatus("demo");
+            setDataSource("demo");
+            setIsLiveSupabase(false);
+            setCurrentUser(null);
+            setCurrentUserId(null);
+            setIsAuthenticated(false);
+            setAuthMode("unauthenticated");
+          }
+          return;
+        }
+
         const health = await checkSupabaseHealth();
         if (!isMounted) return;
         setHealthStatus(health);
+
         if (health.isConnected) {
           setConnectionStatus("connected");
           setIsLiveSupabase(true);
           setDataSource("supabase");
           await refreshFromSupabase();
+
+          // Cek sesi autentikasi Supabase nyata dari cookies (@supabase/ssr)
           const profile = await authService.getCurrentProfile();
-          if (profile && isMounted) {
-            setUsers((prev) => [profile, ...prev.filter((p) => p.id !== profile.id)]);
-            setCurrentUserId(profile.id);
+          if (isMounted) {
+            if (profile && profile.is_active) {
+              setUsers((prev) => [profile, ...prev.filter((p) => p.id !== profile.id)]);
+              setCurrentUser(profile);
+              setCurrentUserId(profile.id);
+              setIsAuthenticated(true);
+              setAuthMode("supabase");
+            } else {
+              // Belum ada sesi auth Supabase atau akun tidak aktif
+              setCurrentUser(null);
+              setCurrentUserId(null);
+              setIsAuthenticated(false);
+              setAuthMode("unauthenticated");
+            }
           }
         } else {
           setConnectionStatus("demo");
           setIsLiveSupabase(false);
           setDataSource("demo");
+          if (isMounted) {
+            setCurrentUser(null);
+            setCurrentUserId(null);
+            setIsAuthenticated(false);
+            setAuthMode("unauthenticated");
+          }
         }
       } catch (err) {
         if (isMounted) {
@@ -433,6 +469,14 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
           setConnectionStatus("demo");
           setIsLiveSupabase(false);
           setDataSource("demo");
+          setCurrentUser(null);
+          setCurrentUserId(null);
+          setIsAuthenticated(false);
+          setAuthMode("unauthenticated");
+        }
+      } finally {
+        if (isMounted) {
+          setAuthLoading(false);
         }
       }
     }
@@ -448,27 +492,80 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   ): Promise<ActionResponse> => {
     const res = await authService.login(email, kataSandi);
     if (res.ok && res.user) {
+      if (!res.user.is_active) {
+        return {
+          ok: false,
+          message: "Akun Anda telah dinonaktifkan. Hubungi Administrator untuk informasi lebih lanjut.",
+        };
+      }
       setUsers((prev) => [res.user!, ...prev.filter((p) => p.id !== res.user!.id)]);
+      setCurrentUser(res.user);
       setCurrentUserId(res.user.id);
+      setIsAuthenticated(true);
+      setAuthMode("supabase");
       await refreshFromSupabase();
       return { ok: true, message: res.message };
     }
     return { ok: false, message: res.message };
   };
 
-  const logoutSupabase = async () => {
-    await authService.logout();
-    setCurrentUserId(INITIAL_USERS[4]?.id ?? "usr-wali-01");
+  const logout = async (): Promise<ActionResponse> => {
+    try {
+      if (authMode === "supabase") {
+        await authService.logout();
+      }
+    } catch (err) {
+      console.warn("Logout error:", err);
+    } finally {
+      setCurrentUser(null);
+      setCurrentUserId(null);
+      setIsAuthenticated(false);
+      setAuthMode("unauthenticated");
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+        if (typeof window !== "undefined" && window.localStorage) {
+          for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            if (k && (k.startsWith("sb-") || k.includes("supabase"))) {
+              window.localStorage.removeItem(k);
+            }
+          }
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return { ok: true, message: "Berhasil keluar dari sesi." };
   };
 
-  // Hydrate from localStorage on client mount
+  const logoutSupabase = logout;
+
+  const enterDemoMode = (demoRole?: UserRole) => {
+    const targetRole = demoRole ?? "wali";
+    const demoUser = users.find((u) => u.role === targetRole) ?? INITIAL_USERS[4]!;
+    setCurrentUser(demoUser);
+    setCurrentUserId(demoUser.id);
+    setIsAuthenticated(true);
+    setAuthMode("demo");
+  };
+
+  const exitDemoMode = () => {
+    setCurrentUser(null);
+    setCurrentUserId(null);
+    setIsAuthenticated(false);
+    setAuthMode("unauthenticated");
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  };
+
+  // Hydrate data operasional dari localStorage saat client mount (tanpa memulihkan sesi login otomatis)
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.users) setUsers(parsed.users);
-        if (parsed.currentUserId) setCurrentUserId(parsed.currentUserId);
         if (parsed.rekeningResmi) setRekeningResmi(parsed.rekeningResmi);
         if (parsed.kelasList) setKelasList(parsed.kelasList);
         if (parsed.kamarList) setKamarList(parsed.kamarList);
@@ -500,14 +597,13 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Jangan menimpa data operasional atau menyimpan ke localStorage jika Supabase aktif
-    if (!hydrated || dataSource === "supabase") return;
+    // Hanya simpan data jika hydrated dan mode demo aktif (tidak menyimpan data saat di Supabase atau unauthenticated)
+    if (!hydrated || authMode !== "demo" || dataSource === "supabase") return;
     try {
       window.localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
           users,
-          currentUserId,
           rekeningResmi,
           kelasList,
           kamarList,
@@ -535,8 +631,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     }
   }, [
     hydrated,
+    authMode,
+    dataSource,
     users,
-    currentUserId,
     rekeningResmi,
     kelasList,
     kamarList,
@@ -559,10 +656,6 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     auditLogs,
   ]);
 
-  const currentUser: UserProfile = useMemo(() => {
-    return users.find((u) => u.id === currentUserId) ?? users[0]!;
-  }, [users, currentUserId]);
-
   const appendAuditLog = (
     aktivitas: string,
     jenis_objek: string,
@@ -571,6 +664,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     alasan_perubahan?: string,
     data_sebelum?: Record<string, unknown>
   ) => {
+    if (!currentUser) return;
     const newLog: AuditLogItem = {
       id: `aud-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       user_id: currentUser.id,
@@ -611,16 +705,24 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const switchActiveUser = (userId: string) => {
+    if (authMode === "supabase") {
+      console.warn("Penggantian role langsung dinonaktifkan pada sesi Supabase Auth.");
+      return;
+    }
     const target = users.find((u) => u.id === userId);
     if (!target) return;
     setCurrentUserId(target.id);
+    setCurrentUser(target);
+    setIsAuthenticated(true);
+    setAuthMode("demo");
     setKeranjang([]);
   };
 
   const resetDemoData = () => {
-    window.localStorage.removeItem(STORAGE_KEY);
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {}
     setUsers(INITIAL_USERS);
-    setCurrentUserId("usr-wali-01");
     setRekeningResmi(INITIAL_REKENING);
     setKelasList(INITIAL_KELAS);
     setKamarList(INITIAL_KAMAR);
@@ -641,6 +743,11 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     setPengumumanList(INITIAL_PENGUMUMAN);
     setNotifikasiList(INITIAL_NOTIFIKASI);
     setAuditLogs(INITIAL_AUDIT_LOGS);
+    if (authMode === "demo") {
+      const defaultDemo = INITIAL_USERS[4]!;
+      setCurrentUser(defaultDemo);
+      setCurrentUserId(defaultDemo.id);
+    }
   };
 
   const getSaldoSantri = (santriId: string): SaldoUangSaku => {
@@ -652,7 +759,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   // ============================================================================
 
   const createUserAccount: SipetaContextValue["createUserAccount"] = (payload) => {
-    if (currentUser.role !== "superadmin") {
+    if (!currentUser || currentUser.role !== "superadmin") {
       return { ok: false, message: "Hanya Superadmin yang dapat membuat akun pengguna." };
     }
     if (users.some((u) => u.email.toLowerCase() === payload.email.toLowerCase())) {
@@ -696,7 +803,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleUserActive: SipetaContextValue["toggleUserActive"] = (userId) => {
-    if (currentUser.role !== "superadmin") {
+    if (!currentUser || currentUser.role !== "superadmin") {
       return { ok: false, message: "Hanya Superadmin yang dapat mengubah status akun." };
     }
     const target = users.find((u) => u.id === userId);
@@ -724,7 +831,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateRekeningResmi: SipetaContextValue["updateRekeningResmi"] = (payload) => {
-    if (currentUser.role !== "superadmin") {
+    if (!currentUser || currentUser.role !== "superadmin") {
       return { ok: false, message: "Hanya Superadmin yang dapat mengelola rekening resmi pesantren." };
     }
     const oldRek = { ...rekeningResmi };
@@ -750,7 +857,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   // ============================================================================
 
   const createSantriWithWali: SipetaContextValue["createSantriWithWali"] = (payload) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Admin atau Superadmin yang dapat mendaftarkan santri." };
     }
     if (santriList.some((s) => s.nis === payload.nis.trim())) {
@@ -829,7 +936,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const moveSantriPlacement: SipetaContextValue["moveSantriPlacement"] = (payload) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Tidak memiliki akses memindahkan kelas/kamar santri." };
     }
     const target = santriList.find((s) => s.id === payload.santri_id);
@@ -880,7 +987,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateStatusSantri: SipetaContextValue["updateStatusSantri"] = (santriId, statusBaru) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Tidak memiliki hak akses." };
     }
     const target = santriList.find((s) => s.id === santriId);
@@ -904,7 +1011,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createKelas: SipetaContextValue["createKelas"] = (payload) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Tidak memiliki hak akses." };
     }
     const item: Kelas = { ...payload, id: `kls-${Date.now()}`, is_active: true };
@@ -914,7 +1021,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createKamar: SipetaContextValue["createKamar"] = (payload) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Tidak memiliki hak akses." };
     }
     const item: Kamar = { ...payload, id: `kmr-${Date.now()}`, is_active: true };
@@ -924,7 +1031,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createJenisPembayaran: SipetaContextValue["createJenisPembayaran"] = (payload) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Admin yang dapat mengelola jenis pembayaran." };
     }
     if (payload.nominal <= 0) {
@@ -962,7 +1069,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const generateTagihan: SipetaContextValue["generateTagihan"] = (payload) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Admin yang dapat menerbitkan tagihan santri." };
     }
     const jenis = jenisPembayaranList.find((j) => j.id === payload.jenis_pembayaran_id);
@@ -1037,7 +1144,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const adjustTagihan: SipetaContextValue["adjustTagihan"] = (payload) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return {
         ok: false,
         message: "Hanya Admin atau Superadmin yang berwenang melakukan penyesuaian tagihan.",
@@ -1143,7 +1250,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createPengumuman: SipetaContextValue["createPengumuman"] = (payload) => {
-    if (currentUser.role !== "admin" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Tidak memiliki akses membuat pengumuman." };
     }
     const item: Pengumuman = {
@@ -1169,6 +1276,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     tagihanId,
     nominalBayar
   ) => {
+    if (!currentUser) {
+      return { ok: false, message: "Akses ditolak: Pengguna belum terautentikasi." };
+    }
     const tagihan = tagihanList.find((t) => t.id === tagihanId);
     if (!tagihan) return { ok: false, message: "Tagihan tidak ditemukan." };
 
@@ -1207,6 +1317,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   const clearKeranjang = () => setKeranjang([]);
 
   const submitCheckoutPembayaran: SipetaContextValue["submitCheckoutPembayaran"] = (payload) => {
+    if (!currentUser) {
+      return { ok: false, message: "Akses ditolak: Pengguna belum terautentikasi." };
+    }
     if (keranjang.length === 0) {
       return { ok: false, message: "Keranjang pembayaran masih kosong." };
     }
@@ -1281,6 +1394,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   const uploadBuktiTransferPembayaran: SipetaContextValue["uploadBuktiTransferPembayaran"] = (
     payload
   ) => {
+    if (!currentUser) {
+      return { ok: false, message: "Akses ditolak: Pengguna belum terautentikasi." };
+    }
     const trx = transaksiPembayaranList.find((t) => t.id === payload.transaksi_id);
     if (!trx) return { ok: false, message: "Transaksi pembayaran tidak ditemukan." };
     if (currentUser.role === "wali" && trx.wali_user_id !== currentUser.id) {
@@ -1323,6 +1439,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const submitTopupUangSaku: SipetaContextValue["submitTopupUangSaku"] = (payload) => {
+    if (!currentUser) {
+      return { ok: false, message: "Akses ditolak: Pengguna belum terautentikasi." };
+    }
     const activeSantriId = currentUser.santri_id ?? "snt-001";
     const parsed = pengajuanTopupSakuSchema.safeParse({
       santri_id: activeSantriId,
@@ -1379,6 +1498,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const markAllNotifikasiRead = () => {
+    if (!currentUser) return;
     setNotifikasiList((prev) =>
       prev.map((n) => (n.user_id === currentUser.id ? { ...n, is_read: true } : n))
     );
@@ -1394,7 +1514,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     catatan
   ) => {
     // Bab 2 & Bab 3.3 PRD: Hanya Bendahara yang berwenang mengesahkan transaksi keuangan
-    if (!canRoleApproveFinancialTransaction(currentUser.role)) {
+    if (!currentUser || !canRoleApproveFinancialTransaction(currentUser.role)) {
       return {
         ok: false,
         message:
@@ -1498,7 +1618,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     keputusan,
     catatan
   ) => {
-    if (!canRoleApproveFinancialTransaction(currentUser.role)) {
+    if (!currentUser || !canRoleApproveFinancialTransaction(currentUser.role)) {
       return {
         ok: false,
         message: "OTORISASI DITOLAK: Hanya Bendahara yang berwenang memverifikasi uang saku.",
@@ -1590,7 +1710,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const recordPenyerahanUangSaku: SipetaContextValue["recordPenyerahanUangSaku"] = (payload) => {
-    if (!canRoleApproveFinancialTransaction(currentUser.role)) {
+    if (!currentUser || !canRoleApproveFinancialTransaction(currentUser.role)) {
       return {
         ok: false,
         message: "OTORISASI DITOLAK: Hanya Bendahara yang berwenang mencatat pengeluaran uang saku.",
@@ -1667,7 +1787,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const recordKoreksiLedgerSaku: SipetaContextValue["recordKoreksiLedgerSaku"] = (payload) => {
-    if (currentUser.role !== "bendahara" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "bendahara" && currentUser.role !== "superadmin")) {
       return {
         ok: false,
         message: "Hanya Bendahara atau Superadmin yang dapat membuat transaksi koreksi/pembalik.",
@@ -1749,7 +1869,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   // ============================================================================
 
   const recordPerkembanganMengaji: SipetaContextValue["recordPerkembanganMengaji"] = (payload) => {
-    if (currentUser.role !== "pengelola" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Pengelola Kepesantrenan yang dapat mencatat mengaji." };
     }
     const item: PerkembanganMengaji = {
@@ -1775,7 +1895,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const recordSetoranTahfidz: SipetaContextValue["recordSetoranTahfidz"] = (payload) => {
-    if (currentUser.role !== "pengelola" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Pengelola Kepesantrenan yang dapat mencatat tahfidz." };
     }
     if (payload.ayat_akhir < payload.ayat_awal) {
@@ -1811,7 +1931,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const recordPrestasiSantri: SipetaContextValue["recordPrestasiSantri"] = (payload) => {
-    if (currentUser.role !== "pengelola" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Pengelola Kepesantrenan yang dapat mencatat prestasi." };
     }
     const item: PrestasiSantri = {
@@ -1838,7 +1958,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const recordCatatanKedisiplinan: SipetaContextValue["recordCatatanKedisiplinan"] = (payload) => {
-    if (currentUser.role !== "pengelola" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
       return {
         ok: false,
         message: "Hanya Pengelola Kepesantrenan yang dapat mencatat kedisiplinan.",
@@ -1884,7 +2004,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   const updateTindakLanjutKedisiplinan: SipetaContextValue["updateTindakLanjutKedisiplinan"] = (
     payload
   ) => {
-    if (currentUser.role !== "pengelola" && currentUser.role !== "superadmin") {
+    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Pengelola Kepesantrenan yang dapat memperbarui pembinaan." };
     }
     const target = kedisiplinanList.find((c) => c.id === payload.catatan_id);
@@ -1937,6 +2057,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     <SipetaContext.Provider
       value={{
         currentUser,
+        isAuthenticated,
+        authMode,
+        authLoading,
         users,
         rekeningResmi,
         tahunAjaranList,
@@ -1967,7 +2090,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         healthStatus,
         refreshFromSupabase,
         loginWithSupabase,
+        logout,
         logoutSupabase,
+        enterDemoMode,
+        exitDemoMode,
 
         switchActiveUser,
         getSaldoSantri,

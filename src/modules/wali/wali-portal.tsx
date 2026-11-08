@@ -85,7 +85,7 @@ export function WaliPortal() {
     new Date().toISOString().slice(0, 10)
   );
   const [namaPengirimBayar, setNamaPengirimBayar] = useState(
-    currentUser.nama_lengkap.replace(/\s*\(Wali.*\)/, "")
+    currentUser?.nama_lengkap ? currentUser.nama_lengkap.replace(/\s*\(Wali.*\)/, "") : ""
   );
   const [bankPengirimBayar, setBankPengirimBayar] = useState("Bank Syariah Indonesia (BSI)");
   const [buktiBayarUrl, setBuktiBayarUrl] = useState(SAMPLE_TRANSFER_PROOF_1);
@@ -97,7 +97,7 @@ export function WaliPortal() {
   const [nominalTopup, setNominalTopup] = useState("250000");
   const [tanggalTopup, setTanggalTopup] = useState(new Date().toISOString().slice(0, 10));
   const [namaPengirimTopup, setNamaPengirimTopup] = useState(
-    currentUser.nama_lengkap.replace(/\s*\(Wali.*\)/, "")
+    currentUser?.nama_lengkap ? currentUser.nama_lengkap.replace(/\s*\(Wali.*\)/, "") : ""
   );
   const [bankPengirimTopup, setBankPengirimTopup] = useState("BSI Mobile");
   const [keteranganTopup, setKeteranganTopup] = useState(
@@ -128,7 +128,7 @@ export function WaliPortal() {
     new Date().toISOString().slice(0, 10)
   );
   const [uploadNamaPengirim, setUploadNamaPengirim] = useState(
-    currentUser.nama_lengkap.replace(/\s*\(Wali.*\)/, "")
+    currentUser?.nama_lengkap ? currentUser.nama_lengkap.replace(/\s*\(Wali.*\)/, "") : ""
   );
   const [uploadBankPengirim, setUploadBankPengirim] = useState("Bank Syariah Indonesia (BSI)");
   const [uploadBuktiUrl, setUploadBuktiUrl] = useState(SAMPLE_TRANSFER_PROOF_1);
@@ -136,9 +136,9 @@ export function WaliPortal() {
 
   // Relasi 1:1 Akun Orang Tua -> Hanya melihat 1 santri yang terhubung
   const santri = useMemo(() => {
-    const targetId = currentUser.santri_id ?? "snt-001";
+    const targetId = currentUser?.santri_id ?? "snt-001";
     return santriList.find((s) => s.id === targetId) ?? santriList[0]!;
-  }, [currentUser.santri_id, santriList]);
+  }, [currentUser?.santri_id, santriList]);
 
   const kelas = kelasList.find((k) => k.id === santri.kelas_id);
   const kamar = kamarList.find((k) => k.id === santri.kamar_id);
@@ -187,8 +187,8 @@ export function WaliPortal() {
     [kedisiplinanList, santri.id]
   );
   const myNotifikasi = useMemo(
-    () => notifikasiList.filter((n) => n.user_id === currentUser.id || n.santri_id === santri.id),
-    [notifikasiList, currentUser.id, santri.id]
+    () => notifikasiList.filter((n) => (currentUser ? n.user_id === currentUser.id : false) || n.santri_id === santri.id),
+    [notifikasiList, currentUser?.id, santri.id]
   );
   const unreadNotifCount = myNotifikasi.filter((n) => !n.is_read).length;
 

@@ -28,7 +28,7 @@ export function LaporanPortal() {
     getSaldoSantri,
   } = useSipeta();
 
-  const canSeeFinance = canRoleViewFinancialDetails(currentUser.role);
+  const canSeeFinance = currentUser ? canRoleViewFinancialDetails(currentUser.role) : false;
   const [jenisLaporan, setJenisLaporan] = useState<JenisLaporan>(
     canSeeFinance ? "pembayaran" : "kepesantrenan"
   );
@@ -41,7 +41,7 @@ export function LaporanPortal() {
 
   const filteredSantri = useMemo(() => {
     return santriList.filter((s) => {
-      if (currentUser.role === "wali" && s.id !== currentUser.santri_id) return false;
+      if (currentUser?.role === "wali" && s.id !== currentUser.santri_id) return false;
       if (filterKelasId !== "ALL" && s.kelas_id !== filterKelasId) return false;
       if (filterKamarId !== "ALL" && s.kamar_id !== filterKamarId) return false;
       if (filterSantriId !== "ALL" && s.id !== filterSantriId) return false;
