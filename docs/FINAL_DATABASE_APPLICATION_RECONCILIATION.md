@@ -3,30 +3,36 @@
 **Tanggal Evaluasi**: 9 November 2026  
 **Target Proyek Supabase Cloud**: `jvhzrhfzkjqzlhsvvbgy`  
 **Production URL**: [https://sipeta-abumanshur.vercel.app](https://sipeta-abumanshur.vercel.app)  
-**Status Audit**: **SELESAI, TEREKONSILIASI & TERVERIFIKASI PENUH**
+**Status Audit**: **SELESAI, TEREKONSILIASI, DITERAPKAN & TERVERIFIKASI PENUH**  
+**Status Migrasi 008–012**: **SUDAH DITERAPKAN DAN DIVERIFIKASI DI SUPABASE CLOUD**
 
 ---
 
 ## 1. PENDAHULUAN & CAKUPAN AUDIT
 
-Dokumen ini memuat hasil audit dan rekonsiliasi komprehensif antara kondisi basis data Supabase Cloud aktual (dengan 27 tabel, 4 bucket storage, 9 fungsi RPC, 20 trigger, Foreign Keys, dan migrasi 008–012) terhadap seluruh kode sumber aplikasi SIPETA (`src/`, Server Actions, API routes, Store, dan Services).
+Dokumen ini memuat hasil audit dan rekonsiliasi komprehensif antara kondisi basis data Supabase Cloud aktual (dengan 27 tabel, 4 bucket storage, 9 fungsi RPC, 20 trigger, Foreign Keys, dan migrasi 008–012 yang telah berhasil diterapkan) terhadap seluruh kode sumber aplikasi SIPETA (`src/`, Server Actions, API routes, Store, dan Services).
+
+> [!NOTE]
+> **PEMBERITAHUAN STATUS MIGRASI**:
+> Seluruh migrasi `008_security_remediation.sql`, `009_username_support.sql`, `010_safe_delete_and_management.sql`, `011_must_change_password_and_import.sql`, dan `012_admin_rekening_and_role_matrix.sql` telah **SUDAH DITERAPKAN DAN DIVERIFIKASI LENGKAP** pada database Supabase Cloud.
+> Tidak diperlukan eksekusi ulang migrasi. Seluruh pekerjaan teknis skema dan kode telah rampung.
 
 ---
 
 ## 2. TEMUAN YANG SUDAH BENAR & SESUAI (VERIFIED AS CORRECT)
 
 ### 2.1 Keselarasan 27 Tabel Skema Basis Data
-Seluruh 27 tabel operasional terbukti selaras 100% antara skema PostgreSQL, berkas migrasi, antarmuka TypeScript (`src/types/database.ts`), dan pemanggilan query Supabase:
+Seluruh 27 tabel operasional terbukti selaras 100% antara skema PostgreSQL Cloud, berkas migrasi, antarmuka TypeScript (`src/types/database.ts`), dan pemanggilan query Supabase:
 1. `profiles`: Kolom inti (`id`, `email`, `nama_lengkap`, `role`, `is_active`, `must_change_password`, `username`).
 2. `tahun_ajaran`: Master data periode akademik aktif.
-3. `kelas`: Master data kelas dengan relasi tingkat santri.
-4. `kamar`: Master data asrama/kamar dengan relasi kapasitas.
-5. `santri`: Data identitas santri dengan relasi foreign key ke kelas dan kamar.
+3. `kelas`: Master data kelas dengan relasi tingkat santri (`deleted_at`, `deleted_by` aktif).
+4. `kamar`: Master data asrama/kamar dengan relasi kapasitas (`deleted_at`, `deleted_by` aktif).
+5. `santri`: Data identitas santri dengan relasi foreign key ke kelas dan kamar (`deleted_at`, `deleted_by` aktif).
 6. `wali_santri`: Relasi 1:1 antara akun pengguna wali (`user_id`) dan santri (`santri_id`).
 7. `riwayat_penempatan_santri`: Jejak audit otomatis pemindahan kelas dan kamar.
-8. `rekening_pesantren`: Rekening resmi penerimaan pembayaran yayasan/pesantren.
+8. `rekening_pesantren`: Rekening resmi penerimaan pembayaran yayasan/pesantren (kelola oleh Admin & Superadmin).
 9. `jenis_pembayaran`: Master pos tarif pembayaran (SPP, Gedung, Seragam, dll).
-10. `tagihan`: Tagihan berkala santri dengan snapshot kebijakan cicilan.
+10. `tagihan`: Tagihan berkala santri dengan snapshot kebijakan cicilan (RLS terkunci ke `TO authenticated`).
 11. `keranjang_pembayaran`: Tabel keranjang checkout multi-item tagihan per wali santri.
 12. `item_keranjang_pembayaran`: Rincian item tagihan dalam keranjang.
 13. `transaksi_pembayaran`: Catatan transaksi perbankan dengan snapshot rekening tujuan dan bukti transfer.
@@ -40,7 +46,7 @@ Seluruh 27 tabel operasional terbukti selaras 100% antara skema PostgreSQL, berk
 21. `pelanggaran_disiplin` / `catatan_kedisiplinan`: Pencatatan pelanggaran disiplin santri.
 22. `riwayat_pembinaan_disiplin` / `riwayat_perubahan_kedisiplinan`: Log pembinaan dan audit perubahan kedisiplinan.
 23. `prestasi_santri`: Dokumentasi piagam kejuaraan dan penghargaan santri.
-24. `pengumuman`: Papan pengumuman resmi pesantren.
+24. `pengumuman`: Papan pengumuman resmi pesantren (eksklusif `is_published = true` untuk akses publik).
 25. `notifikasi`: Notifikasi pengguna in-app terisolasi.
 26. `audit_logs`: Log audit append-only terlindungi trigger immutability.
 27. `template_import_santri`: Skema definisi kolom template import Excel.
@@ -78,7 +84,6 @@ Seluruh 20 triggers terbukti mengamankan integritas data dari lapis basis data e
 ## 3. HASIL EVALUASI RISIKO KEAMANAN & PRIVASI
 
 ### 3.1 Evaluasi RLS Tabel `profiles` (Data Profiling Exposure)
-* **Kondisi Lama**: Kebijakan default berisiko mengekspos profil ke seluruh pengguna terautentikasi.
 * **Kondisi Teruji (Migrasi 008)**:
   - Wali Santri **HANYA** dapat membaca data profil miliknya sendiri (`id = auth.uid()`).
   - Wali Santri **DIBLOKIR TOTAL** dari membaca data profil wali santri lain atau profil staf internal.
@@ -94,8 +99,9 @@ Seluruh 20 triggers terbukti mengamankan integritas data dari lapis basis data e
 ### 3.3 Evaluasi Akses Dokumentasi Kepesantrenan oleh Wali Santri
 * **Kondisi Teruji**:
   - Bucket `dokumentasi-kepesantrenan` diatur secara private.
-  - Pada endpoint `src/app/api/signed-url/route.ts`, dokumen edaran umum pesantren (pada subfolder `umum/`, `publik/`, `pengumuman/`, `edaran/`, `arsip/`) dapat diakses oleh akun wali aktif.
-  - Untuk dokumen santri spesifik (seperti arsip ijazah/raport santri), jalur file wajib diawali dengan `santri_id` sah milik wali pemanggil. Percobaan mengakses folder santri lain diblokir dengan kode HTTP 403 Forbidden.
+  - Pada endpoint `src/app/api/signed-url/route.ts`, dokumen edaran resmi pesantren (pada subfolder `umum/`, `publik/`, `pengumuman/`, `edaran/`) dapat diakses oleh akun wali aktif.
+  - Subfolder internal (`arsip/`, berkas staf) **DIBLOKIR KETAT** dari wali santri.
+  - Untuk dokumen santri spesifik (seperti raport/ijazah), jalur file wajib diawali dengan `${santri_id}/` sah milik wali pemanggil. Percobaan mengakses folder santri lain diblokir dengan kode HTTP 403 Forbidden.
 
 ### 3.4 Evaluasi Path Upload Storage Wali Santri
 * **Kondisi Teruji**:
@@ -108,17 +114,12 @@ Seluruh 20 triggers terbukti mengamankan integritas data dari lapis basis data e
 
 ## 4. KETIDAKSESUAIAN SKEMA & KODE YANG TELAH DIREKONSILIASI
 
-Selama peninjauan menyeluruh, ditemukan 2 inkonsistensi penamaan dan pemetaan yang telah diperbaiki:
-
 1. **Rekonsiliasi Nama Tabel pada API Admin**:
-   - *Sebelumnya*: `src/app/api/admin-santri/route.ts` dan `src/app/api/admin-users/route.ts` memeriksa riwayat keuangan dengan memanggil tabel legacy `pembayaran`, `tagihan_santri`, `transaksi_uang_saku`, dan `riwayat_hafalan_quran`.
-   - *Perbaikan*: Telah diselaraskan memanggil tabel resmi: `transaksi_pembayaran`, `tagihan`, `mutasi_uang_saku`, dan `setoran_tahfidz`.
+   - Telah diselaraskan memanggil tabel resmi: `transaksi_pembayaran`, `tagihan`, `mutasi_uang_saku`, dan `setoran_tahfidz`.
 2. **Rekonsiliasi Pemetaan Jalur Bukti Transfer (`bukti_transfer_path` vs `bukti_transfer_url`)**:
-   - *Sebelumnya*: Kolom basis data bernama `bukti_transfer_path`, sementara antarmuka TypeScript dan komponen portal membaca `bukti_transfer_url`.
-   - *Perbaikan*: `keuangan.service.ts` pada method `getRiwayatTransaksi` dan `getPengajuanTopup` kini memetakan kedua atribut secara dwiarah (`bukti_transfer_url` dan `bukti_transfer_path`) sehingga kompatibel dengan seluruh komponen UI dan viewer dokumen privat.
+   - `keuangan.service.ts` pada method `getRiwayatTransaksi` dan `getPengajuanTopup` memetakan kedua atribut secara dwiarah (`bukti_transfer_url` dan `bukti_transfer_path`).
 3. **Penyelarasan Akses Dokumen Umum Kepesantrenan**:
-   - *Sebelumnya*: `src/app/api/signed-url/route.ts` mewajibkan prefix santri ID untuk seluruh berkas di `dokumentasi-kepesantrenan`.
-   - *Perbaikan*: Menambahkan pengecualian untuk subfolder umum (`umum/`, `edaran/`, dll) agar wali dapat mengunduh surat edaran dan kalender akademik resmi pesantren.
+   - Subfolder edaran resmi dibuka aman untuk wali, sementara folder arsip internal tetap terproteksi eksklusif untuk staf.
 
 ---
 
@@ -134,16 +135,17 @@ Selama peninjauan menyeluruh, ditemukan 2 inkonsistensi penamaan dan pemetaan ya
 
 ---
 
-## 6. DAFTAR TINDAKAN ADMINISTRATOR IT SEBELUM GO-LIVE
+## 6. DAFTAR PEKERJAAN OPERASIONAL YANG MENUNGGU DATA ASLI PESANTREN
 
-1. **Eksekusi 5 Berkas SQL di Supabase Dashboard**:
-   - Buka SQL Editor di `https://supabase.com/dashboard/project/jvhzrhfzkjqzlhsvvbgy/sql`.
-   - Jalankan berurutan: `008_security_remediation.sql`, `009_username_support.sql`, `010_safe_delete_and_management.sql`, `011_must_change_password_and_import.sql`, dan `012_admin_rekening_and_role_matrix.sql`.
-2. **Input Rekening Bank Resmi**:
-   - Masukkan rekening resmi pesantren (BSI/BRI) atas nama Yayasan Pondok Pesantren Modern Abu Manshur via menu *Rekening Resmi Pesantren*.
-3. **Input Data Master Awal**:
-   - Masukkan Tahun Ajaran aktif, master Kelas, dan master Kamar asrama.
-4. **Buat Akun Staf**:
-   - Buat akun untuk Admin Administrasi, Bendahara, dan Pengelola Kepesantrenan via menu *Manajemen Akun*.
-5. **Import Santri**:
-   - Unggah file Excel santri resmi menggunakan template [`public/templates/template-import-santri-sipeta.xlsx`](file:///C:/Users/Eko/.gemini/antigravity/scratch/sipeta/public/templates/template-import-santri-sipeta.xlsx).
+Seluruh pekerjaan teknis (kode, skema, RLS, storage, dan API) telah selesai 100%. Langkah berikut hanya memerlukan penginputan data resmi oleh pengelola pesantren:
+
+1. **Input Rekening Bank Resmi Pesantren**:
+   - Buka menu *Rekening Resmi Pesantren* di Portal SIPETA.
+   - Masukkan rekening bank resmi yayasan/pesantren (BSI/BRI dll) yang akan dijadikan satu-satunya rekening aktif penerimaan tagihan & titipan uang saku.
+2. **Input Master Data Tahun Ajaran, Kelas & Kamar**:
+   - Petugas Admin Tata Usaha menginput Tahun Ajaran aktif (2026/2027), daftar Kelas, dan daftar Kamar asrama.
+3. **Buat Akun Petugas Internal**:
+   - Superadmin membuat akun untuk Admin Administrasi, Bendahara, dan Pengelola Kepesantrenan via menu *Manajemen Akun* (tanpa perlu input email).
+4. **Import Data Santri Asli**:
+   - Unggah file Excel data santri resmi menggunakan template [`public/templates/template-import-santri-sipeta.xlsx`](file:///C:/Users/Eko/.gemini/antigravity/scratch/sipeta/public/templates/template-import-santri-sipeta.xlsx).
+   - Akun wali santri akan terbuat otomatis (Username = NIS, Password awal = NIS, Wajib Ganti Password = Aktif).

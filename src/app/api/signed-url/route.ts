@@ -142,17 +142,17 @@ export async function POST(request: NextRequest) {
     }
 
     // b. Wali Santri HANYA berhak mengakses dokumen yang terkait dengan santrinya
-    // atau dokumen edaran/publik pada dokumentasi-kepesantrenan
+    // atau dokumen edaran/pengumuman resmi pada dokumentasi-kepesantrenan
     if (profile.role === "wali") {
-      const isGeneralDokumen =
+      // Dokumen umum kepesantrenan (surat edaran, pengumuman, brosur resmi)
+      const isPublicEdaran =
         body.bucket === "dokumentasi-kepesantrenan" &&
         (cleanPath.startsWith("umum/") ||
           cleanPath.startsWith("publik/") ||
           cleanPath.startsWith("pengumuman/") ||
-          cleanPath.startsWith("edaran/") ||
-          cleanPath.startsWith("arsip/"));
+          cleanPath.startsWith("edaran/"));
 
-      if (!isGeneralDokumen) {
+      if (!isPublicEdaran) {
         const { data: wali } = await supabase
           .from("wali_santri")
           .select("santri_id")
@@ -167,10 +167,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Validasi kepemilikan path: file wajib berada di folder santri ID atau diawali dengan santri ID
-        const expectedPrefix = wali.santri_id;
-        if (!cleanPath.startsWith(expectedPrefix) && !cleanPath.includes(expectedPrefix)) {
+        const expectedPrefix = `${wali.santri_id}/`;
+        if (!cleanPath.startsWith(expectedPrefix) && cleanPath !== wali.santri_id) {
           return NextResponse.json(
-            { error: "Akses ditolak: Anda tidak memiliki wewenang untuk melihat dokumen santri lain." },
+            { error: "Akses ditolak: Anda tidak memiliki wewenang untuk melihat dokumen santri lain atau dokumen internal." },
             { status: 403 }
           );
         }
