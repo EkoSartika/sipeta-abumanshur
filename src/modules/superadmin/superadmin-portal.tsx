@@ -5,6 +5,7 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
+  ChevronRight,
   Edit2,
   FileText,
   Info,
@@ -282,95 +283,176 @@ export function SuperadminPortal() {
     setFeedback({ ok: res.ok, text: res.message });
   };
 
+  const superadminNavItems = [
+    {
+      id: "users" as const,
+      label: "Manajemen Akun & Role",
+      desc: "Kelola akun pengguna & peran",
+      count: users.length,
+      icon: Users,
+    },
+    {
+      id: "rekening" as const,
+      label: "Rekening Resmi Pesantren",
+      desc: "1 Rekening tunggal BSI",
+      icon: Landmark,
+    },
+    {
+      id: "audit_log" as const,
+      label: "Jejak Audit / Audit Log",
+      desc: "Log append-only terlindungi",
+      count: auditLogs.length,
+      icon: FileText,
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Banner Utama Portal Superadmin */}
-      <div className="rounded-2xl bg-gradient-to-r from-slate-950 via-emerald-950 to-slate-900 p-5 text-white shadow-md">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-3 py-0.5 text-xs font-bold text-emerald-300 border border-emerald-400/30">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Otoritas Tertinggi Konfigurasi & Pengawasan Sistem
-            </div>
-            <h2 className="mt-1.5 text-xl font-bold">
-              Portal Superadmin — Pondok Pesantren Modern Abu Manshur
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Sesuai Kebijakan Identitas PRD: Superadmin mengelola seluruh akun pengguna internal
-              berbasis <strong>Username</strong> tanpa email pribadi, rekening tunggal pesantren,
-              dan audit log append-only yang terlindungi.
-            </p>
-          </div>
-          <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
-            <img
-              src="/images/logo-abu-manshur.png"
-              alt="Logo PP Modern Abu Manshur"
-              className="h-full w-full object-contain drop-shadow"
-            />
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-white/15 pt-4">
-          {[
-            { id: "users", label: `Manajemen Akun & Role (${users.length})`, icon: Users },
-            { id: "rekening", label: "Rekening Resmi Pesantren", icon: Landmark },
-            {
-              id: "audit_log",
-              label: `Jejak Audit / Audit Log (${auditLogs.length})`,
-              icon: FileText,
-            },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab.id as SuperadminTab);
-                  setFeedback(null);
-                }}
-                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold transition min-h-[44px] touch-manipulation cursor-pointer ${
-                  active
-                    ? "bg-white text-slate-950 shadow-sm"
-                    : "bg-white/10 text-slate-200 hover:bg-white/20"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* Navigasi Mobile (Khusus Layar HP: Horizontal Scrollable Pills) */}
+      <div className="lg:hidden flex overflow-x-auto gap-2 pb-1 no-scrollbar border-b border-slate-200">
+        {superadminNavItems.map((item) => {
+          const Icon = item.icon;
+          const active = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setActiveTab(item.id);
+                setFeedback(null);
+              }}
+              className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold whitespace-nowrap transition shrink-0 min-h-[44px] touch-manipulation ${
+                active
+                  ? "bg-emerald-800 text-white shadow-sm"
+                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span>{item.label}</span>
+              {item.count !== undefined && (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {item.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Alert Feedback Banner */}
-      {feedback && (
-        <div
-          className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm shadow-sm transition ${
-            feedback.ok
-              ? "border-emerald-300 bg-emerald-50 text-emerald-950"
-              : "border-rose-300 bg-rose-50 text-rose-950"
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            {feedback.ok ? (
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" />
-            ) : (
-              <AlertCircle className="h-5 w-5 shrink-0 text-rose-700" />
-            )}
-            <span className="font-semibold">{feedback.text}</span>
+      {/* Komposisi Desktop: Panel Navigasi Superadmin (Kiri) + Konten (Kanan) */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* Panel Navigasi Khusus Superadmin (Desktop) */}
+        <aside className="hidden lg:block w-72 shrink-0 space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-700" />
+                <span>Pengawasan Superadmin</span>
+              </div>
+              <h3 className="mt-2 text-sm font-extrabold text-slate-900">
+                Menu Superadmin
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Konfigurasi sistem &amp; audit kepesantrenan
+              </p>
+            </div>
+
+            <nav className="space-y-1.5">
+              {superadminNavItems.map((item) => {
+                const Icon = item.icon;
+                const active = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setFeedback(null);
+                    }}
+                    className={`w-full flex items-start gap-3 rounded-xl p-3 text-left transition ${
+                      active
+                        ? "bg-emerald-800 text-white shadow-md font-bold"
+                        : "text-slate-700 hover:bg-slate-50 border border-transparent hover:border-slate-200"
+                    }`}
+                  >
+                    <div
+                      className={`flex h-9 w-9 items-center justify-center rounded-lg shrink-0 mt-0.5 ${
+                        active ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-bold truncate">{item.label}</span>
+                        {item.count !== undefined && (
+                          <span
+                            className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                              active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {item.count}
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`text-[11px] truncate mt-0.5 ${
+                          active ? "text-emerald-100/90 font-normal" : "text-slate-500"
+                        }`}
+                      >
+                        {item.desc}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Catatan Kebijakan Identitas Superadmin */}
+            <div className="pt-3 border-t border-slate-100 space-y-1.5 text-[11px] text-slate-500">
+              <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                <Lock className="h-3.5 w-3.5 text-emerald-700" />
+                <span>Identitas Resmi Superadmin</span>
+              </div>
+              <p className="text-[10px] leading-relaxed">
+                Akun resmi: <strong className="text-slate-800 font-mono">sipetaabumanshur@gmail.com</strong>
+              </p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            className="rounded-lg p-1 text-slate-500 hover:bg-black/5 hover:text-slate-800"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+        </aside>
+
+        {/* Area Konten Menu Superadmin (Sebelah Kanan Panel) */}
+        <div className="flex-1 min-w-0 w-full space-y-6">
+          {/* Alert Feedback Banner */}
+          {feedback && (
+            <div
+              className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm shadow-sm transition ${
+                feedback.ok
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-950"
+                  : "border-rose-300 bg-rose-50 text-rose-950"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                {feedback.ok ? (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" />
+                ) : (
+                  <AlertCircle className="h-5 w-5 shrink-0 text-rose-700" />
+                )}
+                <span className="font-semibold">{feedback.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedback(null)}
+                className="rounded-lg p-1 text-slate-500 hover:bg-black/5 hover:text-slate-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
       {/* ===================================================================== */}
       {/* TAB 1: MANAJEMEN AKUN PENGGUNA & ROLE */}
@@ -1386,6 +1468,8 @@ export function SuperadminPortal() {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }
