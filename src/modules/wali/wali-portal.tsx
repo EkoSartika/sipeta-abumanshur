@@ -188,7 +188,7 @@ export function WaliPortal() {
   );
   const myNotifikasi = useMemo(
     () => notifikasiList.filter((n) => (currentUser ? n.user_id === currentUser.id : false) || n.santri_id === santri.id),
-    [notifikasiList, currentUser?.id, santri.id]
+    [notifikasiList, currentUser, santri.id]
   );
   const unreadNotifCount = myNotifikasi.filter((n) => !n.is_read).length;
 
