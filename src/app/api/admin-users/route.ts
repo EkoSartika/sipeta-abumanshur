@@ -97,20 +97,7 @@ export async function POST(request: NextRequest) {
 
     const payload = validation.data;
 
-    // Batasan Role Pembuatan Akun Superadmin:
-    // Sesuai Bagian B.1: Superadmin hanya boleh membuat akun Admin, Bendahara, Pengelola.
-    // Superadmin TIDAK boleh membuat akun Wali Santri melalui menu Manajemen Akun.
-    if (payload.role === "wali") {
-      return NextResponse.json(
-        {
-          ok: false,
-          message:
-            "Superadmin tidak dapat membuat akun Orang Tua/Wali Santri melalui menu Manajemen Akun. Akun Wali hanya dapat dibuat oleh Admin Administrasi melalui registrasi santri baru atau import Excel.",
-        },
-        { status: 403 }
-      );
-    }
-
+    // Batasan Role: Pembuatan akun Superadmin tambahan tidak diizinkan
     if ((payload.role as string) === "superadmin") {
       return NextResponse.json(
         {
@@ -306,6 +293,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 5b. Jika role wali dan santri_id disediakan, hubungkan ke tabel wali_santri
+    if (normalizedDbRole === "wali" && payload.santri_id) {
+      const { error: insertWaliErr } = await adminClient.from("wali_santri").insert({
+        user_id: newUserId,
+        santri_id: payload.santri_id,
+        nama_lengkap: payload.nama_lengkap,
+        hubungan: "Wali",
+        no_telepon: payload.no_telepon || "-",
+        email: finalEmail,
+        alamat: "-",
+      });
+      if (insertWaliErr) {
+        console.warn("Peringatan: Gagal menghubungkan profil wali ke tabel wali_santri:", insertWaliErr.message);
+      }
+    }
+
     // 6. Catat ke Audit Log secara otomatis (Password TIDAK PERNAH dicatat)
     await adminClient.from("audit_logs").insert({
       user_id: callerUser.id,
@@ -446,38 +449,42 @@ export async function PATCH(request: NextRequest) {
         }
       }
 
-      // Proteksi Peran Wali Santri: Tidak dapat diubah rolenya karena terikat dengan santri
+      // Proteksi Peran Wali Santri yang terikat dengan santri
       if (targetUser.role === "wali" && payload.role && payload.role !== "wali") {
-        return NextResponse.json(
-          { ok: false, message: "Peran akun Wali Santri tidak dapat diubah karena terikat relasi data santri." },
-          { status: 400 }
-        );
+        const { count: childCount } = await adminClient
+          .from("wali_santri")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", payload.user_id);
+        if ((childCount ?? 0) > 0) {
+          return NextResponse.json(
+            { ok: false, message: "Peran akun Wali Santri yang terhubung dengan santri tidak dapat diubah karena terikat relasi data santri." },
+            { status: 400 }
+          );
+        }
       }
 
-      // Proteksi Non-Wali: Tidak dapat diubah menjadi wali melalui menu ini
-      if (targetUser.role !== "wali" && payload.role === "wali") {
-        return NextResponse.json(
-          { ok: false, message: "Role 'wali' hanya dapat dibuat melalui registrasi santri atau import Excel." },
-          { status: 400 }
-        );
-      }
+      // Proteksi Superadmin Mutlak (Mandat B & af7315fd):
+      const isTargetSuperadmin =
+        targetUser.role === "superadmin" ||
+        targetUser.id === "af7315fd-a82f-4c73-9bd1-4967d038ae7e" ||
+        targetUser.email?.toLowerCase() === "sipetaabumanshur@gmail.com" ||
+        targetUser.username?.toLowerCase() === "superadmin";
 
-      // Proteksi Superadmin Mutlak (Mandat B):
-      if (payload.role && (payload.role as string) === "superadmin") {
+      if (payload.role && (payload.role as string) === "superadmin" && !isTargetSuperadmin) {
         return NextResponse.json(
           { ok: false, message: "Promosi akun menjadi Superadmin dilarang oleh kebijakan keamanan sistem." },
           { status: 403 }
         );
       }
 
-      if (targetUser.role === "superadmin" && payload.role && (payload.role as string) !== "superadmin") {
+      if (isTargetSuperadmin && payload.role && (payload.role as string) !== "superadmin") {
         return NextResponse.json(
-          { ok: false, message: "Role Superadmin tidak dapat diubah oleh akun lain." },
+          { ok: false, message: "Role Superadmin utama tidak dapat diubah." },
           { status: 403 }
         );
       }
 
-      if (targetUser.role === "superadmin" && payload.is_active === false) {
+      if (isTargetSuperadmin && payload.is_active === false) {
         return NextResponse.json(
           { ok: false, message: "Akun Superadmin utama tidak dapat dinonaktifkan." },
           { status: 403 }
@@ -759,6 +766,7 @@ export async function PATCH(request: NextRequest) {
       // Proteksi 2: Akun Superadmin mutlak tidak boleh dinonaktifkan
       const isSuperadminTarget =
         targetUser.role === "superadmin" ||
+        targetUser.id === "af7315fd-a82f-4c73-9bd1-4967d038ae7e" ||
         targetUser.email?.toLowerCase() === "sipetaabumanshur@gmail.com" ||
         targetUser.username?.toLowerCase() === "superadmin";
 
@@ -997,9 +1005,10 @@ export async function DELETE(request: NextRequest) {
         continue;
       }
 
-      // Proteksi 2: Akun Superadmin mutlak tidak boleh dihapus (Mandat B)
+      // Proteksi 2: Akun Superadmin mutlak tidak boleh dihapus (Mandat B & af7315fd)
       const isSuperadminTarget =
         targetUser.role === "superadmin" ||
+        targetUser.id === "af7315fd-a82f-4c73-9bd1-4967d038ae7e" ||
         targetUser.email?.toLowerCase() === "sipetaabumanshur@gmail.com" ||
         targetUser.username?.toLowerCase() === "superadmin";
 
@@ -1013,51 +1022,32 @@ export async function DELETE(request: NextRequest) {
         continue;
       }
 
-      // Periksa Relasi Historis / Transaksi Kritis
-      // a. Pembayaran SPP / Cicilan
+      // Periksa Relasi Historis / Transaksi Kritis Keuangan
+      // a. Pembayaran SPP / Cicilan (sebagai wali atau petugas verifikator)
       const { count: countPembayaran } = await adminClient
         .from("transaksi_pembayaran")
         .select("id", { count: "exact", head: true })
         .or(`wali_user_id.eq.${userId},verified_by.eq.${userId}`);
 
-      // b. Uang Saku
+      // b. Uang Saku (sebagai petugas)
       const { count: countUangSaku } = await adminClient
         .from("mutasi_uang_saku")
         .select("id", { count: "exact", head: true })
         .eq("petugas_id", userId);
 
+      // c. Topup Uang Saku (sebagai wali atau petugas verifikator)
       const { count: countTopup } = await adminClient
         .from("topup_uang_saku")
         .select("id", { count: "exact", head: true })
         .or(`wali_user_id.eq.${userId},verified_by.eq.${userId}`);
 
-      // c. Relasi Wali dengan Santri
-      let hasActiveSantriChild = false;
-      if (targetUser.role === "wali") {
-        const { data: waliRecord } = await adminClient
-          .from("wali_santri")
-          .select("id")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (waliRecord) {
-          const { count: santriCount } = await adminClient
-            .from("santri")
-            .select("id", { count: "exact", head: true })
-            .eq("wali_id", waliRecord.id);
-
-          hasActiveSantriChild = (santriCount ?? 0) > 0;
-        }
-      }
-
-      const hasCriticalHistory =
+      const hasFinancialHistory =
         (countPembayaran ?? 0) > 0 ||
         (countUangSaku ?? 0) > 0 ||
-        (countTopup ?? 0) > 0 ||
-        hasActiveSantriChild;
+        (countTopup ?? 0) > 0;
 
-      // KASUS A: Memiliki riwayat penting -> Penonaktifan Aman (Soft Delete)
-      if (hasCriticalHistory) {
+      // KASUS A: Memiliki riwayat transaksi keuangan -> Penonaktifan Aman (Soft Delete)
+      if (hasFinancialHistory) {
         await adminClient
           .from("profiles")
           .update({ is_active: false })
@@ -1080,7 +1070,7 @@ export async function DELETE(request: NextRequest) {
           objek_id: userId,
           data_sebelum: { is_active: targetUser.is_active },
           data_sesudah: { is_active: false },
-          alasan_perubahan: `Akun ${targetUser.nama_lengkap} memiliki riwayat relasi/transaksi aktif sehingga dinonaktifkan secara aman (soft-deactivate).`,
+          alasan_perubahan: `Akun ${targetUser.nama_lengkap} memiliki riwayat transaksi keuangan aktif sehingga dinonaktifkan secara aman (soft-deactivate) demi integritas pembukuan pesantren.`,
         });
 
         results.push({
@@ -1088,17 +1078,19 @@ export async function DELETE(request: NextRequest) {
           nama_lengkap: targetUser.nama_lengkap,
           status: "DEACTIVATED",
           actionTaken: "DEACTIVATED",
-          message: `Akun ${targetUser.nama_lengkap} memiliki riwayat relasi/transaksi penting. Akun telah dinonaktifkan secara aman (soft-deactivate) demi menjaga integritas data historis.`,
+          message: `Akun ${targetUser.nama_lengkap} memiliki riwayat transaksi keuangan aktif (SPP/Uang Saku). Akun dinonaktifkan secara aman (soft-delete) untuk menjaga integritas pembukuan dan audit trail pesantren.`,
         });
         continue;
       }
 
-      // KASUS B: Tidak memiliki relasi penting -> Hapus Bersih dengan Fallback Aman
+      // KASUS B: Tidak memiliki transaksi keuangan -> Hapus Bersih dengan Fallback Aman
+      // Jika role wali: Lepas relasi wali_santri terlebih dahulu agar profil dapat dihapus tanpa melanggar constraint FK
+      // Penting: Data santri, kelas, kamar, dan riwayat akademik di public.santri tetap 100% utuh!
       if (targetUser.role === "wali") {
         try {
           await adminClient.from("wali_santri").delete().eq("user_id", userId);
-        } catch {
-          // Lanjut ke delete profil
+        } catch (e: any) {
+          console.warn("Peringatan saat membersihkan data relasi wali_santri:", e?.message);
         }
       }
 
@@ -1119,7 +1111,7 @@ export async function DELETE(request: NextRequest) {
           nama_lengkap: targetUser.nama_lengkap,
           status: "DEACTIVATED",
           actionTaken: "DEACTIVATED",
-          message: `Akun ${targetUser.nama_lengkap} dinonaktifkan secara aman karena terdapat relasi data yang dilindungi.`,
+          message: `Akun ${targetUser.nama_lengkap} dinonaktifkan secara aman (soft-delete) karena terdapat relasi data yang dilindungi (${delProfileErr.message}).`,
         });
         continue;
       }
@@ -1152,7 +1144,10 @@ export async function DELETE(request: NextRequest) {
         nama_lengkap: targetUser.nama_lengkap,
         status: "DELETED",
         actionTaken: "DELETED",
-        message: `Akun ${targetUser.nama_lengkap} berhasil dihapus permanen dari sistem.`,
+        message:
+          targetUser.role === "wali"
+            ? `Akun Wali Santri ${targetUser.nama_lengkap} berhasil dihapus permanen dari sistem. Data santri, kelas, dan riwayat akademik tetap aman tersimpan.`
+            : `Akun ${targetUser.nama_lengkap} berhasil dihapus permanen dari sistem.`,
       });
     }
 

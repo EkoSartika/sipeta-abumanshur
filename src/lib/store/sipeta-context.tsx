@@ -859,13 +859,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: "Email / Username sudah digunakan oleh akun lain." };
     }
 
-    if (payload.role === "wali") {
-      if (!payload.santri_id) {
-        return {
-          ok: false,
-          message: "Akun Orang Tua/Wali wajib dihubungkan dengan 1 santri (Relasi 1:1).",
-        };
-      }
+    if (payload.role === "wali" && payload.santri_id) {
       if (users.some((u) => u.role === "wali" && u.santri_id === payload.santri_id)) {
         return {
           ok: false,
@@ -1187,6 +1181,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         } else {
           setUsers((prev) => prev.filter((u) => u.id !== userId));
         }
+        await refreshFromSupabase();
       }
       return res;
     }
@@ -1242,6 +1237,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
             .filter((u) => !deletedIds.includes(u.id))
             .map((u) => (deactivatedIds.includes(u.id) ? { ...u, is_active: false } : u))
         );
+        await refreshFromSupabase();
       }
       return res;
     }

@@ -162,15 +162,15 @@ export function SuperadminPortal({
     setIsCreateModalOpen(true);
   };
 
-  // Handle Form Buat Akun Baru (Superadmin hanya membuat Admin, Bendahara, Pengelola)
+  // Handle Form Buat Akun Baru (Superadmin dapat membuat Admin, TU, Bendahara, Asatidz, Wali Santri)
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
-    if (roleUser === "wali" || (roleUser as string) === "superadmin") {
+    if ((roleUser as string) === "superadmin") {
       setFeedback({
         ok: false,
-        text: "Superadmin hanya dapat membuat akun Admin Administrasi, Bendahara, atau Pengelola Kepesantrenan.",
+        text: "Pembuatan akun Superadmin tambahan tidak diizinkan oleh sistem.",
       });
       return;
     }
@@ -653,10 +653,11 @@ export function SuperadminPortal({
               >
                 <option value="all">Semua Role</option>
                 <option value="superadmin">Superadmin</option>
-                <option value="admin">Admin Administrasi</option>
+                <option value="admin">Pengasuh Pondok (Admin)</option>
+                <option value="tu">Tata Usaha (TU)</option>
+                <option value="pengelola">Asatidz</option>
                 <option value="bendahara">Bendahara Pesantren</option>
-                <option value="pengelola">Pengelola Kepesantrenan</option>
-                <option value="wali">Orang Tua / Wali Santri</option>
+                <option value="wali">Wali Santri</option>
               </select>
 
               {/* Filter Status */}
@@ -1077,17 +1078,18 @@ export function SuperadminPortal({
                 >
                   <option value="admin">Pengasuh Pondok (Admin)</option>
                   <option value="tu">Tata Usaha (TU)</option>
-                  <option value="bendahara">Bendahara Pesantren</option>
                   <option value="pengelola">Asatidz (Kepesantrenan &amp; Pembina)</option>
+                  <option value="bendahara">Bendahara Pesantren</option>
+                  <option value="wali">Wali Santri (Orang Tua / Wali)</option>
                 </select>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Sesuai kebijakan: Superadmin hanya membuat akun petugas internal (Pengasuh, TU, Bendahara, Asatidz). Akun Wali dibuat otomatis melalui NIS Santri. Akun Superadmin tambahan tidak diizinkan.
+                  Pilih peran pengguna: Pengasuh Pondok (Admin), Tata Usaha (TU), Asatidz, Bendahara, atau Wali Santri. Akun Superadmin tambahan tidak diizinkan.
                 </p>
               </div>
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Username Akun Internal
+                  Username Akun Pengguna
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-3 font-mono text-xs text-slate-400 font-bold">
@@ -1369,7 +1371,7 @@ export function SuperadminPortal({
                   <select
                     disabled={
                       manageModalUser.id === currentUser?.id ||
-                      manageModalUser.role === "wali" ||
+                      (manageModalUser.role === "wali" && !!manageModalUser.santri_id) ||
                       manageModalUser.role === "superadmin"
                     }
                     value={manageRole}
@@ -1383,9 +1385,7 @@ export function SuperadminPortal({
                     <option value="tu">Tata Usaha (TU)</option>
                     <option value="bendahara">Bendahara Pesantren</option>
                     <option value="pengelola">Asatidz</option>
-                    {manageModalUser.role === "wali" && (
-                      <option value="wali">Orang Tua / Wali Santri</option>
-                    )}
+                    <option value="wali">Wali Santri</option>
                   </select>
                 </div>
 
@@ -1462,7 +1462,9 @@ export function SuperadminPortal({
               <div className="rounded-xl bg-amber-50 p-3 border border-amber-200 text-amber-900 text-[11px] space-y-1">
                 <strong>Kebijakan Integritas &amp; Audit SIPETA:</strong>
                 <p>
-                  Jika akun ini memiliki riwayat transaksi keuangan atau catatan audit kepesantrenan, sistem akan menonaktifkan akun secara aman (Soft Delete) tanpa menghilangkan rekaman historis.
+                  {deleteModalUser.role === "wali"
+                    ? "Jika akun Wali Santri ini dihapus, data santri, kamar, kelas, dan riwayat akademik tetap aman tersimpan. Jika akun memiliki riwayat transaksi keuangan aktif, akun akan dinonaktifkan secara aman (Soft Delete) untuk menjaga integritas pembukuan."
+                    : "Jika akun ini memiliki riwayat transaksi keuangan aktif atau catatan audit, sistem akan menonaktifkan akun secara aman (Soft Delete) tanpa merusak rekaman pembukuan."}
                 </p>
               </div>
             </div>
@@ -1535,10 +1537,10 @@ export function SuperadminPortal({
                 <strong className="block font-bold">Kebijakan Perlindungan Data &amp; Integritas Finansial:</strong>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>
-                    <strong>Akun tanpa relasi</strong> (tidak ada riwayat transaksi pembayaran, uang saku, atau santri aktif) akan <em>dihapus permanen (Hard Delete)</em> dari sistem dan Supabase Auth.
+                    <strong>Akun tanpa transaksi keuangan</strong> akan <em>dihapus permanen (Hard Delete)</em> dari sistem dan Supabase Auth. Untuk akun Wali, data santri dan riwayat akademik tetap aman tersimpan.
                   </li>
                   <li>
-                    <strong>Akun yang memiliki riwayat</strong> akan <em>dinonaktifkan secara aman (Soft Deactivate)</em> agar integritas pembukuan dan jejak audit pesantren tetap utuh.
+                    <strong>Akun yang memiliki riwayat transaksi keuangan aktif</strong> akan <em>dinonaktifkan secara aman (Soft Deactivate)</em> demi menjaga integritas pembukuan dan audit trail pesantren.
                   </li>
                 </ul>
               </div>
