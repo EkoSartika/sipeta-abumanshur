@@ -62,7 +62,7 @@ export function SuperadminPortal({
 
   useEffect(() => {
     refreshFromSupabase();
-  }, [refreshFromSupabase]);
+  }, []);
 
   const [internalTab, setInternalTab] = useState<SuperadminTab>("dashboard");
   const activeTab = controlledTab ?? internalTab;
@@ -120,16 +120,17 @@ export function SuperadminPortal({
     items?: Array<{ id: string; nama_lengkap?: string; status: string; actionTaken?: string; message: string }>;
   } | null>(null);
 
-  // State Rekening Resmi Pesantren
-  const [namaBank, setNamaBank] = useState(rekeningResmi.nama_bank);
-  const [kodeBank, setKodeBank] = useState(rekeningResmi.kode_bank);
-  const [nomorRekening, setNomorRekening] = useState(rekeningResmi.nomor_rekening);
-  const [atasNama, setAtasNama] = useState(rekeningResmi.atas_nama);
-  const [catatanInstruksi, setCatatanInstruksi] = useState(rekeningResmi.catatan_instruksi);
+  // State Rekening Resmi Pesantren (Aman dari null/undefined)
+  const [namaBank, setNamaBank] = useState(rekeningResmi?.nama_bank || "Bank Syariah Indonesia (BSI)");
+  const [kodeBank, setKodeBank] = useState(rekeningResmi?.kode_bank || "451");
+  const [nomorRekening, setNomorRekening] = useState(rekeningResmi?.nomor_rekening || "");
+  const [atasNama, setAtasNama] = useState(rekeningResmi?.atas_nama || "");
+  const [catatanInstruksi, setCatatanInstruksi] = useState(rekeningResmi?.catatan_instruksi || "");
 
   // Filtered Pengguna
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
+    return (users || []).filter((u) => {
+      if (!u) return false;
       const q = (searchQuery ?? "").toLowerCase().trim();
       const matchSearch =
         !q ||
@@ -149,11 +150,12 @@ export function SuperadminPortal({
 
   // Statistik Pengguna
   const stats = useMemo(() => {
+    const list = (users || []).filter(Boolean);
     return {
-      total: users.length,
-      active: users.filter((u) => u.is_active).length,
-      wali: users.filter((u) => u.role === "wali").length,
-      internal: users.filter((u) => u.role !== "wali").length,
+      total: list.length,
+      active: list.filter((u) => u && u.is_active).length,
+      wali: list.filter((u) => u && u.role === "wali").length,
+      internal: list.filter((u) => u && u.role !== "wali").length,
     };
   }, [users]);
 
@@ -540,7 +542,7 @@ export function SuperadminPortal({
                   Rekening Resmi Pesantren
                 </h4>
                 <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                  Konfigurasi rekening BSI resmi {rekeningResmi.nomor_rekening} a.n. {rekeningResmi.atas_nama}.
+                  Konfigurasi rekening BSI resmi {rekeningResmi?.nomor_rekening || "-"} a.n. {rekeningResmi?.atas_nama || "-"}.
                 </p>
               </div>
             </button>

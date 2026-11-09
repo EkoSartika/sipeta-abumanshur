@@ -666,7 +666,7 @@ export function WaliPortal({
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 pb-6 border-b border-slate-100">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white text-2xl font-extrabold shadow-md border-2 border-emerald-100 shrink-0">
-                {santri.nama_lengkap.charAt(0)}
+                {(santri?.nama_lengkap || "S").charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1023,11 +1023,11 @@ export function WaliPortal({
                   <Landmark className="h-4 w-4" />
                   <span>Rekening Resmi Pesantren</span>
                 </div>
-                <p className="mt-1 text-sm font-bold">{rekeningResmi.nama_bank}</p>
+                <p className="mt-1 text-sm font-bold">{rekeningResmi?.nama_bank || "Bank BSI"}</p>
                 <p className="font-mono text-lg font-extrabold tracking-wider text-amber-300">
-                  {rekeningResmi.nomor_rekening}
+                  {rekeningResmi?.nomor_rekening || "-"}
                 </p>
-                <p className="text-xs text-emerald-100">a.n. {rekeningResmi.atas_nama}</p>
+                <p className="text-xs text-emerald-100">a.n. {rekeningResmi?.atas_nama || "-"}</p>
               </div>
 
               {keranjang.length === 0 ? (
@@ -1415,11 +1415,11 @@ export function WaliPortal({
               </p>
 
               <div className="mt-3 rounded-xl bg-emerald-950 p-3 text-white text-xs">
-                <p className="text-emerald-300 font-semibold">{rekeningResmi.nama_bank}</p>
+                <p className="text-emerald-300 font-semibold">{rekeningResmi?.nama_bank || "Bank BSI"}</p>
                 <p className="font-mono text-base font-bold text-amber-300">
-                  {rekeningResmi.nomor_rekening}
+                  {rekeningResmi?.nomor_rekening || "-"}
                 </p>
-                <p className="text-emerald-100">a.n. {rekeningResmi.atas_nama}</p>
+                <p className="text-emerald-100">a.n. {rekeningResmi?.atas_nama || "-"}</p>
               </div>
 
               <form onSubmit={handleTopupSubmit} className="mt-4 space-y-3">

@@ -673,7 +673,7 @@ export default function SipetaHomePage() {
           <div className="rounded-xl bg-white/10 p-3.5 border border-white/10">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-white font-bold text-sm shadow-inner shrink-0">
-                {currentUser.nama_lengkap.charAt(0)}
+                {(currentUser.nama_lengkap || currentUser.username || "U").charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-white truncate">{currentUser.nama_lengkap}</p>
@@ -752,19 +752,6 @@ export default function SipetaHomePage() {
             </div>
           )}
         </div>
-
-        {/* Footer Mobile Drawer */}
-        <div className="pt-3 border-t border-white/10 space-y-2">
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={logoutLoading}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 py-2.5 text-xs font-bold text-white transition min-h-[44px]"
-          >
-            {logoutLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-            <span>Keluar</span>
-          </button>
-        </div>
       </div>
 
       {/* ======================================================================
@@ -812,7 +799,7 @@ export default function SipetaHomePage() {
           >
             <div className={`flex items-center gap-3 ${sidebarCollapsed ? "justify-center" : ""}`}>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-white font-extrabold text-sm shadow-md shrink-0">
-                {currentUser.nama_lengkap.charAt(0)}
+                {(currentUser.nama_lengkap || currentUser.username || "U").charAt(0).toUpperCase()}
               </div>
               {!sidebarCollapsed && (
                 <div className="min-w-0 flex-1">
@@ -902,26 +889,12 @@ export default function SipetaHomePage() {
           )}
         </div>
 
-        {/* Action Buttons Desktop Sidebar Footer */}
-        <div className="pt-3 border-t border-white/10 space-y-2">
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={logoutLoading}
-            className={`w-full flex items-center rounded-xl border border-rose-400/20 bg-rose-500/20 py-2.5 text-xs font-bold text-rose-200 hover:bg-rose-500/30 hover:text-white transition ${
-              sidebarCollapsed ? "justify-center p-2.5" : "justify-center gap-2 px-3"
-            }`}
-            title="Keluar dari akun"
-          >
-            {logoutLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-            {!sidebarCollapsed && <span>Keluar</span>}
-          </button>
-
-          {/* Toggle Expand/Collapse Sidebar Desktop Button */}
+        {/* Toggle Expand/Collapse Sidebar Desktop Footer */}
+        <div className="pt-2 border-t border-white/10">
           <button
             type="button"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-full flex items-center justify-center gap-2 rounded-xl py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-white/10 transition"
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-2 text-[11px] font-semibold text-emerald-300 hover:bg-white/10 transition"
             title={sidebarCollapsed ? "Perluas Sidebar" : "Ciutkan Sidebar"}
           >
             {sidebarCollapsed ? (
@@ -995,7 +968,7 @@ export default function SipetaHomePage() {
                 title="Buka Profil Saya"
               >
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-800 text-white font-bold text-xs">
-                  {currentUser.nama_lengkap.charAt(0)}
+                  {(currentUser.nama_lengkap || currentUser.username || "U").charAt(0).toUpperCase()}
                 </div>
                 <div className="text-left text-xs hidden sm:block">
                   <p className="font-bold text-slate-900 leading-tight truncate max-w-[120px]">

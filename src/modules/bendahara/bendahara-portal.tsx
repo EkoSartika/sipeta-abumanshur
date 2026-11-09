@@ -275,10 +275,10 @@ export function BendaharaPortal({
                 Rekening Resmi
               </span>
               <p className="mt-1 text-sm font-extrabold text-slate-900 truncate">
-                {rekeningResmi.nama_bank} {rekeningResmi.nomor_rekening}
+                {rekeningResmi?.nama_bank || "Bank BSI"} {rekeningResmi?.nomor_rekening || "-"}
               </p>
               <span className="text-[11px] text-slate-500 truncate block">
-                {rekeningResmi.atas_nama}
+                {rekeningResmi?.atas_nama || "-"}
               </span>
             </div>
           </div>
@@ -1210,11 +1210,11 @@ export function BendaharaPortal({
                   Bank Tujuan Resmi
                 </span>
                 <h4 className="text-xl font-extrabold text-white mt-0.5">
-                  {rekeningResmi.nama_bank}
+                  {rekeningResmi?.nama_bank || "Bank Syariah Indonesia (BSI)"}
                 </h4>
               </div>
               <span className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-mono font-bold text-emerald-200 border border-white/15">
-                Kode: {rekeningResmi.kode_bank}
+                Kode: {rekeningResmi?.kode_bank || "451"}
               </span>
             </div>
 
@@ -1223,14 +1223,14 @@ export function BendaharaPortal({
                 Nomor Rekening
               </span>
               <p className="text-2xl font-mono font-extrabold tracking-wider text-emerald-100 mt-0.5">
-                {rekeningResmi.nomor_rekening}
+                {rekeningResmi?.nomor_rekening || "-"}
               </p>
             </div>
 
             <div className="border-t border-white/10 pt-3 flex items-center justify-between text-xs">
               <div>
                 <span className="text-[11px] text-emerald-300">Atas Nama:</span>
-                <p className="font-bold text-white text-sm">{rekeningResmi.atas_nama}</p>
+                <p className="font-bold text-white text-sm">{rekeningResmi?.atas_nama || "-"}</p>
               </div>
               <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-400/30">
                 1 Rekening Tunggal Aktif
@@ -1244,7 +1244,7 @@ export function BendaharaPortal({
               Petunjuk Verifikasi Transaksi:
             </span>
             <p className="text-slate-600 leading-relaxed">
-              {rekeningResmi.catatan_instruksi}
+              {rekeningResmi?.catatan_instruksi || "-"}
             </p>
             <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
               * Otoritas perubahan konfigurasi rekening resmi berada di bawah wewenang <strong>Admin Administrasi</strong> dan <strong>Superadmin</strong>.

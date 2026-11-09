@@ -179,7 +179,7 @@ export function UserProfileView() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col items-center text-center pb-5 border-b border-slate-100">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-extrabold text-2xl shadow-md border-2 border-emerald-100">
-                {currentUser.nama_lengkap.charAt(0)}
+                {(currentUser.nama_lengkap || currentUser.username || "U").charAt(0).toUpperCase()}
               </div>
               <h3 className="mt-3.5 text-base font-extrabold text-slate-900 leading-tight">
                 {currentUser.nama_lengkap}

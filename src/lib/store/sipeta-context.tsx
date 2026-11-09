@@ -1332,7 +1332,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     appendAuditLog(
       "UPDATE_REKENING_RESMI",
       "rekening_pesantren",
-      rekeningResmi.id,
+      rekeningResmi?.id || "rek-01",
       { ...updated },
       `Pembaruan konfigurasi rekening resmi pesantren oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`,
       { ...oldRek }
@@ -2377,9 +2377,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       wali_user_id: currentUser.id,
       total_nominal: totalNominal,
       rekening_tujuan_snapshot: {
-        nama_bank: rekeningResmi.nama_bank,
-        nomor_rekening: rekeningResmi.nomor_rekening,
-        atas_nama: rekeningResmi.atas_nama,
+        nama_bank: rekeningResmi?.nama_bank || "Bank Syariah Indonesia (BSI)",
+        nomor_rekening: rekeningResmi?.nomor_rekening || "-",
+        atas_nama: rekeningResmi?.atas_nama || "Pesantren Abu Manshur",
       },
       tanggal_transfer: payload.tanggal_transfer,
       nama_pengirim: payload.nama_pengirim.trim(),
@@ -2482,9 +2482,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       wali_user_id: currentUser.id,
       nominal: payload.nominal,
       rekening_tujuan_snapshot: {
-        nama_bank: rekeningResmi.nama_bank,
-        nomor_rekening: rekeningResmi.nomor_rekening,
-        atas_nama: rekeningResmi.atas_nama,
+        nama_bank: rekeningResmi?.nama_bank || "Bank Syariah Indonesia (BSI)",
+        nomor_rekening: rekeningResmi?.nomor_rekening || "-",
+        atas_nama: rekeningResmi?.atas_nama || "Pesantren Abu Manshur",
       },
       tanggal_transfer: payload.tanggal_transfer,
       nama_pengirim: payload.nama_pengirim.trim(),
