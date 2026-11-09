@@ -47,16 +47,20 @@ describe("SIPETA Migration 013 (TU Role & Least Privilege RLS) Final Review Test
       expect(sqlContent).not.toContain("DROP POLICY IF EXISTS \"Profiles: superadmin kelola semua akun\"");
     });
 
-    it("2.4. Seluruh kebijakan TU menggunakan penamaan eksplisit berprefiks TU", () => {
+    it("2.4. Seluruh kebijakan TU menggunakan penamaan eksplisit granular berprefiks TU", () => {
       const tuPolicies = [
         "Santri: TU baca data santri",
-        "Santri: TU kelola data santri",
+        "Santri: TU tambah santri",
+        "Santri: TU perbarui santri",
         "Wali Santri: TU baca relasi wali",
-        "Wali Santri: TU kelola relasi wali",
+        "Wali Santri: TU tambah relasi wali",
+        "Wali Santri: TU perbarui relasi wali",
         "Master Kelas: TU baca ruang kelas",
-        "Master Kelas: TU kelola ruang kelas",
+        "Master Kelas: TU tambah ruang kelas",
+        "Master Kelas: TU perbarui ruang kelas",
         "Master Kamar: TU baca kamar asrama",
-        "Master Kamar: TU kelola kamar asrama",
+        "Master Kamar: TU tambah kamar asrama",
+        "Master Kamar: TU perbarui kamar asrama",
         "Riwayat Penempatan: TU baca histori mutasi",
         "Riwayat Penempatan: TU catat mutasi kelas dan kamar",
         "Profiles: TU baca profil wali santri untuk administrasi",
@@ -65,6 +69,12 @@ describe("SIPETA Migration 013 (TU Role & Least Privilege RLS) Final Review Test
       for (const policy of tuPolicies) {
         expect(sqlContent).toContain(policy);
       }
+    });
+
+    it("2.5. FINAL HARDENING: DILARANG menggunakan FOR ALL dan DILARANG memberikan hak DELETE untuk TU", () => {
+      // Tidak boleh ada 'FOR ALL' pada policy baru yang dibuat untuk TU
+      expect(sqlContent).not.toContain("FOR ALL\nTO authenticated\nUSING (public.get_my_role()");
+      expect(sqlContent).not.toContain("FOR DELETE");
     });
   });
 
@@ -173,23 +183,27 @@ describe("SIPETA Migration 013 (TU Role & Least Privilege RLS) Final Review Test
   // 6. VERIFIKASI LOGIKA ROLLBACK
   // ==========================================================================
   describe("6. Verifikasi Prosedur Rollback Migration 013", () => {
-    it("6.1. Rollback dapat dilakukan dengan menjatuhkan 11 kebijakan RLS aditif TU", () => {
+    it("6.1. Rollback dapat dilakukan dengan menjatuhkan kebijakan RLS aditif TU", () => {
       const rollbackCommands = [
         'DROP POLICY IF EXISTS "Santri: TU baca data santri" ON public.santri;',
-        'DROP POLICY IF EXISTS "Santri: TU kelola data santri" ON public.santri;',
+        'DROP POLICY IF EXISTS "Santri: TU tambah santri" ON public.santri;',
+        'DROP POLICY IF EXISTS "Santri: TU perbarui santri" ON public.santri;',
         'DROP POLICY IF EXISTS "Wali Santri: TU baca relasi wali" ON public.wali_santri;',
-        'DROP POLICY IF EXISTS "Wali Santri: TU kelola relasi wali" ON public.wali_santri;',
+        'DROP POLICY IF EXISTS "Wali Santri: TU tambah relasi wali" ON public.wali_santri;',
+        'DROP POLICY IF EXISTS "Wali Santri: TU perbarui relasi wali" ON public.wali_santri;',
         'DROP POLICY IF EXISTS "Master Kelas: TU baca ruang kelas" ON public.kelas;',
-        'DROP POLICY IF EXISTS "Master Kelas: TU kelola ruang kelas" ON public.kelas;',
+        'DROP POLICY IF EXISTS "Master Kelas: TU tambah ruang kelas" ON public.kelas;',
+        'DROP POLICY IF EXISTS "Master Kelas: TU perbarui ruang kelas" ON public.kelas;',
         'DROP POLICY IF EXISTS "Master Kamar: TU baca kamar asrama" ON public.kamar;',
-        'DROP POLICY IF EXISTS "Master Kamar: TU kelola kamar asrama" ON public.kamar;',
+        'DROP POLICY IF EXISTS "Master Kamar: TU tambah kamar asrama" ON public.kamar;',
+        'DROP POLICY IF EXISTS "Master Kamar: TU perbarui kamar asrama" ON public.kamar;',
         'DROP POLICY IF EXISTS "Riwayat Penempatan: TU baca histori mutasi" ON public.riwayat_penempatan_santri;',
         'DROP POLICY IF EXISTS "Riwayat Penempatan: TU catat mutasi kelas dan kamar" ON public.riwayat_penempatan_santri;',
         'DROP POLICY IF EXISTS "Profiles: TU baca profil wali santri untuk administrasi" ON public.profiles;',
       ];
 
-      expect(rollbackCommands.length).toBe(11);
-      // Seluruh 11 nama kebijakan ini harus bersesuaian persis dengan yang dibuat di Migration 013
+      expect(rollbackCommands.length).toBe(15);
+      // Seluruh 15 nama kebijakan ini harus bersesuaian persis dengan yang dibuat di Migration 013
       for (const cmd of rollbackCommands) {
         const policyName = cmd.match(/"([^"]+)"/)?.[1];
         expect(policyName).toBeDefined();
