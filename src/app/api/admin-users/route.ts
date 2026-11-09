@@ -562,3 +562,192 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("user_id");
+
+    if (!userId) {
+      return NextResponse.json(
+        { ok: false, message: "Parameter user_id wajib disertakan." },
+        { status: 400 }
+      );
+    }
+
+    // Mode Demo / Simulasi jika Supabase belum terhubung
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        ok: true,
+        actionTaken: "DELETED",
+        message: "Akun pengguna berhasil dihapus (Mode Demo Standalone).",
+      });
+    }
+
+    // 1. Verifikasi Autentikasi Pemanggil melalui Sesi Server
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user: callerUser },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !callerUser) {
+      return NextResponse.json(
+        { ok: false, message: "Akses ditolak: Anda harus login terlebih dahulu sebagai Superadmin." },
+        { status: 401 }
+      );
+    }
+
+    // 2. Verifikasi Hak Akses: Hanya Superadmin Aktif
+    const { data: callerProfile } = await supabase
+      .from("profiles")
+      .select("role, is_active")
+      .eq("id", callerUser.id)
+      .single();
+
+    if (!callerProfile || callerProfile.role !== "superadmin" || !callerProfile.is_active) {
+      return NextResponse.json(
+        { ok: false, message: "Akses ditolak: Hanya Superadmin yang berwenang menghapus akun pengguna." },
+        { status: 403 }
+      );
+    }
+
+    // 3. Pengamanan: Tidak boleh menghapus akun sendiri
+    if (callerUser.id === userId) {
+      return NextResponse.json(
+        { ok: false, message: "Keamanan: Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif." },
+        { status: 400 }
+      );
+    }
+
+    const adminClient = createSupabaseAdminClient();
+    if (!adminClient) {
+      return NextResponse.json(
+        { ok: false, message: "Konfigurasi server admin Supabase belum lengkap." },
+        { status: 500 }
+      );
+    }
+
+    // 4. Dapatkan data profil target
+    const { data: targetUser } = await adminClient
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!targetUser) {
+      return NextResponse.json(
+        { ok: false, message: "Pengguna tidak ditemukan dalam sistem." },
+        { status: 404 }
+      );
+    }
+
+    // 5. Pengamanan: Superadmin terakhir tidak boleh dihapus
+    if (targetUser.role === "superadmin") {
+      const { count: superadminCount } = await adminClient
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "superadmin");
+
+      if ((superadminCount ?? 0) <= 1) {
+        return NextResponse.json(
+          { ok: false, message: "Akun Superadmin terakhir tidak boleh dihapus demi kelangsungan akses sistem." },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 6. Periksa relasi historis (Pembayaran, Uang Saku, Wali dengan riwayat keuangan)
+    const { count: countPembayaran } = await adminClient
+      .from("pembayaran")
+      .select("id", { count: "exact", head: true })
+      .or(`created_by.eq.${userId},diverifikasi_oleh.eq.${userId}`);
+
+    const { count: countUangSaku } = await adminClient
+      .from("transaksi_uang_saku")
+      .select("id", { count: "exact", head: true })
+      .eq("petugas_id", userId);
+
+    const hasCriticalHistory = (countPembayaran ?? 0) > 0 || (countUangSaku ?? 0) > 0;
+
+    // Jika memiliki riwayat keuangan penting, lakukan penonaktifan aman (Soft Delete)
+    if (hasCriticalHistory) {
+      await adminClient
+        .from("profiles")
+        .update({ is_active: false })
+        .eq("id", userId);
+
+      // Catat ke Audit Log
+      await adminClient.from("audit_logs").insert({
+        user_id: callerUser.id,
+        user_role: "superadmin",
+        aktivitas: "DEACTIVATE_USER_ACCOUNT",
+        jenis_objek: "profiles",
+        objek_id: userId,
+        data_sebelum: { is_active: targetUser.is_active },
+        data_sesudah: { is_active: false },
+        alasan_perubahan: `Akun ${targetUser.nama_lengkap} memiliki riwayat transaksi keuangan aktif sehingga dinonaktifkan secara aman (soft-deactivate), bukan dihapus permanen.`,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        actionTaken: "DEACTIVATED",
+        message: `Akun ${targetUser.nama_lengkap} memiliki riwayat transaksi/keuangan penting. Sesuai prinsip integritas audit, akun telah dinonaktifkan secara aman dan data historis dipertahankan.`,
+      });
+    }
+
+    // Jika tidak memiliki riwayat penting: hapus profil & auth user secara bersih
+    // Bersihkan relasi wali_santri jika ada
+    if (targetUser.role === "wali") {
+      await adminClient.from("wali_santri").delete().eq("user_id", userId);
+    }
+
+    const { error: delProfileErr } = await adminClient
+      .from("profiles")
+      .delete()
+      .eq("id", userId);
+
+    if (delProfileErr) {
+      return NextResponse.json(
+        { ok: false, message: `Gagal menghapus profil: ${delProfileErr.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Hapus dari Supabase Auth
+    try {
+      await adminClient.auth.admin.deleteUser(userId);
+    } catch (e: any) {
+      // Catat peringatan jika auth delete bermasalah, tapi profil sudah terhapus
+      console.warn("Gagal menghapus akun auth Supabase:", e?.message);
+    }
+
+    // Catat ke Audit Log
+    await adminClient.from("audit_logs").insert({
+      user_id: callerUser.id,
+      user_role: "superadmin",
+      aktivitas: "DELETE_USER_ACCOUNT",
+      jenis_objek: "profiles",
+      objek_id: userId,
+      data_sebelum: {
+        nama_lengkap: targetUser.nama_lengkap,
+        username: targetUser.username,
+        email: targetUser.email,
+        role: targetUser.role,
+      },
+      alasan_perubahan: `Penghapusan akun resmi oleh Superadmin (${targetUser.nama_lengkap})`,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      actionTaken: "DELETED",
+      message: `Akun ${targetUser.nama_lengkap} berhasil dihapus permanen dari sistem.`,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { ok: false, message: `Kesalahan server internal: ${msg}` },
+      { status: 500 }
+    );
+  }
+}

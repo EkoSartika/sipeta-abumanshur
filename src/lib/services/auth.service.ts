@@ -297,6 +297,27 @@ export class AuthService {
       return { ok: false, message: `Gagal memperbarui profil: ${msg}` };
     }
   }
+
+  /**
+   * Hapus atau nonaktifkan akun pengguna oleh Superadmin via Secure Server Endpoint (DELETE /api/admin-users)
+   */
+  async deleteUserAccount(userId: string): Promise<{ ok: boolean; message: string; actionTaken?: string }> {
+    try {
+      const res = await fetch(`/api/admin-users?user_id=${encodeURIComponent(userId)}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+      return {
+        ok: res.ok && data.ok,
+        message: data.message ?? (res.ok ? "Akun berhasil diproses." : "Gagal menghapus akun pengguna."),
+        actionTaken: data.actionTaken,
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal menghapus akun: ${msg}` };
+    }
+  }
 }
 
 export const authService = new AuthService();

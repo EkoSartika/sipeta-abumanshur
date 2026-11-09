@@ -20,6 +20,7 @@ import {
   UserPlus,
   Users,
   UserX,
+  Trash2,
   X,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
@@ -44,6 +45,7 @@ export function SuperadminPortal() {
     toggleUserActive,
     resetUserPassword,
     updateUserProfile,
+    deleteUserAccount,
     updateRekeningResmi,
   } = useSipeta();
 
@@ -79,6 +81,10 @@ export function SuperadminPortal() {
   const [editTelepon, setEditTelepon] = useState("");
   const [editRole, setEditRole] = useState<UserRole>("admin");
   const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // State Modal Hapus Akun
+  const [deleteModalUser, setDeleteModalUser] = useState<UserProfile | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   // State Rekening Resmi Pesantren
   const [namaBank, setNamaBank] = useState(rekeningResmi.nama_bank);
@@ -117,6 +123,19 @@ export function SuperadminPortal() {
     };
   }, [users]);
 
+  const handleOpenCreateModal = () => {
+    setNamaUser("");
+    setUsernameUser("");
+    setEmailUser("");
+    setTeleponUser("");
+    setRoleUser("admin");
+    setPasswordUser("");
+    setPasswordConfirmUser("");
+    setSantriIdWali(santriList[0]?.id ?? "");
+    setFeedback(null);
+    setIsCreateModalOpen(true);
+  };
+
   // Handle Form Buat Akun Baru
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +158,14 @@ export function SuperadminPortal() {
         setFeedback({
           ok: false,
           text: "Username harus 3-30 karakter alfanumerik (huruf kecil, angka, titik, strip, atau garis bawah).",
+        });
+        return;
+      }
+
+      if (users.some((u) => u.username?.toLowerCase() === cleanUser)) {
+        setFeedback({
+          ok: false,
+          text: `Username '@${cleanUser}' sudah digunakan oleh pengguna lain. Silakan pilih username yang berbeda.`,
         });
         return;
       }
@@ -168,6 +195,20 @@ export function SuperadminPortal() {
       }
     } finally {
       setCreateSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteModalUser) return;
+    setDeleteSubmitting(true);
+    try {
+      const res = await deleteUserAccount(deleteModalUser.id);
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setDeleteModalUser(null);
+      }
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -412,10 +453,7 @@ export function SuperadminPortal() {
             {/* Tombol Buat Akun Baru */}
             <button
               type="button"
-              onClick={() => {
-                setFeedback(null);
-                setIsCreateModalOpen(true);
-              }}
+              onClick={handleOpenCreateModal}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-emerald-900 transition min-h-[44px] touch-manipulation cursor-pointer"
             >
               <UserPlus className="h-4 w-4" />
@@ -435,6 +473,9 @@ export function SuperadminPortal() {
               filteredUsers.map((u) => {
                 const s = santriList.find((x) => x.id === u.santri_id);
                 const isSuperadminSelf = u.id === currentUser?.id;
+                const isLastSuperadmin =
+                  u.role === "superadmin" &&
+                  users.filter((x) => x.role === "superadmin").length <= 1;
 
                 return (
                   <div
@@ -486,7 +527,7 @@ export function SuperadminPortal() {
                     </div>
 
                     {/* Tombol Aksi Mobile Touch Targets (min 44px) */}
-                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+                    <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-slate-100">
                       <button
                         type="button"
                         onClick={() => {
@@ -495,7 +536,7 @@ export function SuperadminPortal() {
                           setEditTelepon(u.no_telepon || "");
                           setEditRole(u.role);
                         }}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 min-h-[44px] touch-manipulation cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-300 bg-white px-1.5 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50 min-h-[44px] touch-manipulation cursor-pointer"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                         <span>Edit</span>
@@ -508,7 +549,7 @@ export function SuperadminPortal() {
                           setNewPassword("");
                           setConfirmNewPassword("");
                         }}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 min-h-[44px] touch-manipulation cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-1.5 py-2 text-[11px] font-bold text-amber-900 hover:bg-amber-100 min-h-[44px] touch-manipulation cursor-pointer"
                       >
                         <KeyRound className="h-3.5 w-3.5" />
                         <span>Sandi</span>
@@ -518,7 +559,7 @@ export function SuperadminPortal() {
                         type="button"
                         disabled={isSuperadminSelf}
                         onClick={() => handleToggleActive(u)}
-                        className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-bold transition min-h-[44px] touch-manipulation cursor-pointer ${
+                        className={`inline-flex items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-[11px] font-bold transition min-h-[44px] touch-manipulation cursor-pointer ${
                           isSuperadminSelf
                             ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
                             : u.is_active
@@ -537,6 +578,27 @@ export function SuperadminPortal() {
                             <span>Aktif</span>
                           </>
                         )}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isSuperadminSelf || isLastSuperadmin}
+                        title={
+                          isSuperadminSelf
+                            ? "Tidak dapat menghapus akun sendiri"
+                            : isLastSuperadmin
+                            ? "Akun Superadmin terakhir tidak dapat dihapus"
+                            : "Hapus akun"
+                        }
+                        onClick={() => setDeleteModalUser(u)}
+                        className={`inline-flex items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-[11px] font-bold transition min-h-[44px] touch-manipulation cursor-pointer ${
+                          isSuperadminSelf || isLastSuperadmin
+                            ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                            : "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100"
+                        }`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Hapus</span>
                       </button>
                     </div>
                   </div>
@@ -572,6 +634,9 @@ export function SuperadminPortal() {
                     filteredUsers.map((u) => {
                       const s = santriList.find((x) => x.id === u.santri_id);
                       const isSuperadminSelf = u.id === currentUser?.id;
+                      const isLastSuperadmin =
+                        u.role === "superadmin" &&
+                        users.filter((x) => x.role === "superadmin").length <= 1;
 
                       return (
                         <tr key={u.id} className="hover:bg-slate-50/80 transition">
@@ -667,6 +732,27 @@ export function SuperadminPortal() {
                               >
                                 {u.is_active ? "Nonaktifkan" : "Aktifkan"}
                               </button>
+
+                              {/* Hapus Akun Button */}
+                              <button
+                                type="button"
+                                disabled={isSuperadminSelf || isLastSuperadmin}
+                                title={
+                                  isSuperadminSelf
+                                    ? "Tidak dapat menghapus akun sendiri"
+                                    : isLastSuperadmin
+                                    ? "Akun Superadmin terakhir tidak dapat dihapus"
+                                    : "Hapus akun pengguna"
+                                }
+                                onClick={() => setDeleteModalUser(u)}
+                                className={`rounded-lg border px-2.5 py-1 text-xs font-semibold min-h-[36px] ${
+                                  isSuperadminSelf || isLastSuperadmin
+                                    ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                    : "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100"
+                                }`}
+                              >
+                                Hapus
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -700,7 +786,11 @@ export function SuperadminPortal() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} className="mt-4 space-y-4 text-xs">
+            <form onSubmit={handleCreateUser} autoComplete="off" className="mt-4 space-y-4 text-xs">
+              {/* Decoy inputs untuk mengelabui browser password autofill */}
+              <input type="text" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+              <input type="password" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Nama Lengkap</label>
                 <input
@@ -717,7 +807,15 @@ export function SuperadminPortal() {
                 <label className="block font-bold text-slate-700 mb-1">Role Akun Pengguna</label>
                 <select
                   value={roleUser}
-                  onChange={(e) => setRoleUser(e.target.value as UserRole)}
+                  onChange={(e) => {
+                    const nextRole = e.target.value as UserRole;
+                    setRoleUser(nextRole);
+                    if (nextRole === "superadmin") {
+                      setUsernameUser("");
+                    } else {
+                      setEmailUser("");
+                    }
+                  }}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
                 >
                   <option value="admin">Admin Administrasi Pesantren</option>
@@ -757,12 +855,31 @@ export function SuperadminPortal() {
                     <input
                       type="text"
                       required
-                      placeholder="contoh: bendahara02 atau wali_ahmad"
+                      name="sipeta_new_user_username"
+                      id="sipeta_new_user_username"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      placeholder="Masukkan username"
                       value={usernameUser}
-                      onChange={(e) => setUsernameUser(e.target.value)}
+                      onChange={(e) => {
+                        const clean = e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+                        setUsernameUser(clean);
+                      }}
                       className="w-full rounded-xl border border-slate-300 pl-7 pr-3 py-2 text-xs font-mono font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
                     />
                   </div>
+                  {usernameUser.length > 0 &&
+                    users.some((u) => u.username?.toLowerCase() === usernameUser.toLowerCase()) && (
+                      <p className="mt-1 text-[11px] font-bold text-rose-600">
+                        ⚠️ Username &apos;@{usernameUser}&apos; sudah digunakan oleh akun lain. Silakan pilih username berbeda.
+                      </p>
+                    )}
+                  {usernameUser.length > 0 && !isValidUsername(usernameUser) && (
+                    <p className="mt-1 text-[11px] text-amber-700 font-medium">
+                      Username harus 3–30 karakter (huruf kecil, angka, titik, strip, garis bawah). Contoh: admin01, bendahara01, pengelola01, wali2026001.
+                    </p>
+                  )}
                   <p className="mt-1 text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200 leading-normal">
                     ✓ Kebijakan SIPETA: Akun internal masuk dengan <strong>username</strong>. Tidak
                     menggunakan Gmail atau email pribadi. Domain sintetis internal otomatis
@@ -1047,6 +1164,66 @@ export function SuperadminPortal() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 4: KONFIRMASI HAPUS AKUN PENGGUNA (BAB 3 PRD) */}
+      {/* ===================================================================== */}
+      {deleteModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-2.5 text-rose-800 border-b border-rose-100 pb-3">
+              <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
+              <h3 className="text-base font-extrabold text-slate-900">Konfirmasi Hapus Akun</h3>
+            </div>
+
+            <div className="text-xs text-slate-700 space-y-2.5 leading-relaxed">
+              <p>Apakah Anda yakin ingin menghapus akun pengguna berikut?</p>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1">
+                <div>
+                  <strong className="text-slate-900">{deleteModalUser.nama_lengkap}</strong>
+                </div>
+                <div className="font-mono text-emerald-800 font-bold">
+                  {deleteModalUser.username ? `@${deleteModalUser.username}` : deleteModalUser.email}
+                </div>
+                <div className="text-slate-500">
+                  Role: <span className="font-bold text-slate-800">{getRoleLabel(deleteModalUser.role)}</span>
+                </div>
+              </div>
+              <div className="rounded-xl bg-amber-50 p-3 border border-amber-200 text-amber-900 text-[11px] space-y-1">
+                <strong>Kebijakan Integritas &amp; Audit SIPETA:</strong>
+                <p>
+                  Jika akun ini memiliki riwayat transaksi keuangan atau catatan audit kepesantrenan, sistem akan menonaktifkan akun secara aman (Soft Delete) tanpa menghilangkan rekaman historis.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteModalUser(null)}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 min-h-[44px]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={deleteSubmitting}
+                onClick={handleDeleteUser}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-50 min-h-[44px]"
+              >
+                {deleteSubmitting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <span>Ya, Hapus Akun</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

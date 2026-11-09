@@ -69,6 +69,35 @@ export class AdministrasiService {
     return { ok: true, data: data as Kelas, message: "Kelas baru berhasil dibuat." };
   }
 
+  async updateKelas(id: string, payload: Partial<Kelas>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    const { error } = await this.client.from("kelas").update(payload).eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Data kelas berhasil diperbarui." };
+  }
+
+  async deleteKelas(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    
+    // Periksa apakah masih ada santri aktif di kelas ini
+    const { count } = await this.client
+      .from("santri")
+      .select("id", { count: "exact", head: true })
+      .eq("kelas_id", id)
+      .eq("status", "AKTIF");
+
+    if ((count ?? 0) > 0) {
+      return {
+        ok: false,
+        message: `Kelas ini masih memiliki ${count} santri aktif. Pindahkan santri terlebih dahulu sebelum menghapus kelas.`,
+      };
+    }
+
+    const { error } = await this.client.from("kelas").delete().eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Kelas berhasil dihapus." };
+  }
+
   async getKamarList(): Promise<Kamar[]> {
     if (!isSupabaseConfigured()) return [];
     const { data } = await this.client.from("kamar").select("*").order("kode_kamar");
@@ -80,6 +109,35 @@ export class AdministrasiService {
     const { data, error } = await this.client.from("kamar").insert(payload).select().single();
     if (error) return { ok: false, message: error.message };
     return { ok: true, data: data as Kamar, message: "Kamar asrama baru berhasil ditambahkan." };
+  }
+
+  async updateKamar(id: string, payload: Partial<Kamar>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    const { error } = await this.client.from("kamar").update(payload).eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Data kamar asrama berhasil diperbarui." };
+  }
+
+  async deleteKamar(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+
+    // Periksa apakah masih ada santri aktif di kamar ini
+    const { count } = await this.client
+      .from("santri")
+      .select("id", { count: "exact", head: true })
+      .eq("kamar_id", id)
+      .eq("status", "AKTIF");
+
+    if ((count ?? 0) > 0) {
+      return {
+        ok: false,
+        message: `Kamar ini masih ditempati oleh ${count} santri aktif. Pindahkan santri terlebih dahulu sebelum menghapus kamar.`,
+      };
+    }
+
+    const { error } = await this.client.from("kamar").delete().eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Kamar asrama berhasil dihapus." };
   }
 
   // --------------------------------------------------------------------------
@@ -217,6 +275,25 @@ export class AdministrasiService {
     const { error } = await this.client.from("santri").update({ status: statusBaru }).eq("id", santriId);
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: `Status santri berhasil diperbarui menjadi ${statusBaru}.` };
+  }
+
+  async deleteSantriBatch(santriIds: string[]): Promise<{ ok: boolean; message: string; deleted?: number; deactivated?: number }> {
+    try {
+      const res = await fetch("/api/admin-santri", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ santri_ids: santriIds }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Penghapusan santri berhasil diproses." : "Gagal memproses penghapusan santri."),
+        deleted: data.deleted,
+        deactivated: data.deactivated,
+      };
+    } catch (e: any) {
+      return { ok: false, message: e.message ?? "Terjadi kesalahan jaringan." };
+    }
   }
 
   // --------------------------------------------------------------------------

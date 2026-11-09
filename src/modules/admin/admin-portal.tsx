@@ -1,15 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
+  AlertTriangle,
   ArrowRightLeft,
   Building2,
+  CheckSquare,
   CreditCard,
+  Download,
+  Edit2,
+  FileSpreadsheet,
   Info,
   Megaphone,
   Plus,
   Receipt,
+  RefreshCw,
+  Search,
+  Square,
+  Trash2,
   Users,
+  X,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
 import {
@@ -20,7 +30,13 @@ import {
   getStatusSantriBadge,
   getStatusTagihanBadge,
 } from "@/lib/utils/format";
-import type { KebijakanCicilan, StatusSantri, Tagihan } from "@/types/database";
+import { exportSantriToExcel } from "@/lib/utils/excel-export";
+import {
+  isValidUsername,
+  normalizeUsername,
+  validatePasswordStrength,
+} from "@/lib/utils/auth-mapping";
+import type { Kamar, KebijakanCicilan, Kelas, StatusSantri, Tagihan } from "@/types/database";
 
 type AdminTab =
   | "santri_wali"
@@ -30,6 +46,7 @@ type AdminTab =
 
 export function AdminPortal() {
   const {
+    currentUser,
     santriList,
     waliList,
     kelasList,
@@ -40,10 +57,15 @@ export function AdminPortal() {
     riwayatPenyesuaianTagihan,
     pengumumanList,
     createSantriWithWali,
+    deleteSantriBatch,
     moveSantriPlacement,
     updateStatusSantri,
     createKelas,
+    updateKelas,
+    deleteKelas,
     createKamar,
+    updateKamar,
+    deleteKamar,
     createJenisPembayaran,
     generateTagihan,
     adjustTagihan,
@@ -53,13 +75,24 @@ export function AdminPortal() {
   const [activeTab, setActiveTab] = useState<AdminTab>("santri_wali");
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Filter & Search Santri
+  const [santriSearch, setSantriSearch] = useState("");
+  const [filterKelas, setFilterKelas] = useState("all");
+  const [filterKamar, setFilterKamar] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  // Selection Santri untuk Aksi Massal (Hapus & Ekspor Terpilih)
+  const [selectedSantriIds, setSelectedSantriIds] = useState<string[]>([]);
+  const [isDeleteSantriModalOpen, setIsDeleteSantriModalOpen] = useState(false);
+  const [deleteSantriSubmitting, setDeleteSantriSubmitting] = useState(false);
+
   // State Penyesuaian Tagihan (Bab 5.3 PRD)
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [targetTagihanAdjust, setTargetTagihanAdjust] = useState<Tagihan | null>(null);
   const [adjustNominalBaru, setAdjustNominalBaru] = useState<number>(0);
   const [adjustAlasan, setAdjustAlasan] = useState<string>("");
 
-  // State form registrasi santri + wali 1:1
+  // State form registrasi santri + akun wali 1:1
   const [nis, setNis] = useState("202607099");
   const [namaSantri, setNamaSantri] = useState("");
   const [tempatLahir, setTempatLahir] = useState("Cirebon");
@@ -71,7 +104,27 @@ export function AdminPortal() {
   const [namaWali, setNamaWali] = useState("");
   const [hubunganWali, setHubunganWali] = useState<"Ayah" | "Ibu" | "Wali">("Ayah");
   const [teleponWali, setTeleponWali] = useState("");
-  const [emailWali, setEmailWali] = useState("");
+  const [usernameWali, setUsernameWali] = useState("");
+  const [passwordWali, setPasswordWali] = useState("");
+  const [emailKontakWali, setEmailKontakWali] = useState("");
+  const [registerSubmitting, setRegisterSubmitting] = useState(false);
+
+  // Master Kelas & Kamar Modals
+  const [editKelasItem, setEditKelasItem] = useState<Kelas | null>(null);
+  const [editKelasNama, setEditKelasNama] = useState("");
+  const [editKelasKode, setEditKelasKode] = useState("");
+  const [editKelasWali, setEditKelasWali] = useState("");
+  const [editKelasKapasitas, setEditKelasKapasitas] = useState(30);
+  const [deleteKelasConfirm, setDeleteKelasConfirm] = useState<Kelas | null>(null);
+  const [masterSubmitting, setMasterSubmitting] = useState(false);
+
+  const [editKamarItem, setEditKamarItem] = useState<Kamar | null>(null);
+  const [editKamarNama, setEditKamarNama] = useState("");
+  const [editKamarKode, setEditKamarKode] = useState("");
+  const [editKamarGedung, setEditKamarGedung] = useState("");
+  const [editKamarMusyrif, setEditKamarMusyrif] = useState("");
+  const [editKamarKapasitas, setEditKamarKapasitas] = useState(16);
+  const [deleteKamarConfirm, setDeleteKamarConfirm] = useState<Kamar | null>(null);
 
   // State form pindah kelas/kamar santri
   const [moveSantriId, setMoveSantriId] = useState(santriList[0]?.id ?? "snt-001");
@@ -115,28 +168,227 @@ export function AdminPortal() {
     useState<"Umum" | "Akademik" | "Keuangan" | "Kegiatan Pesantren">("Kegiatan Pesantren");
   const [isiPengumuman, setIsiPengumuman] = useState("");
 
-  const handleRegisterSantri = (e: React.FormEvent) => {
-    e.preventDefault();
-    const res = createSantriWithWali({
-      nis,
-      nama_lengkap: namaSantri,
-      tempat_lahir: tempatLahir,
-      tanggal_lahir: tanggalLahir,
-      jenis_kelamin: jenisKelamin,
-      alamat: alamatSantri,
-      tahun_masuk: 2026,
-      kelas_id: kelasIdSantri,
-      kamar_id: kamarIdSantri,
-      nama_wali: namaWali,
-      hubungan_wali: hubunganWali,
-      telepon_wali: teleponWali,
-      email_wali: emailWali,
+  // Filtered Santri List
+  const filteredSantri = useMemo(() => {
+    return santriList.filter((s) => {
+      const q = santriSearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        s.nama_lengkap.toLowerCase().includes(q) ||
+        s.nis.toLowerCase().includes(q) ||
+        s.alamat.toLowerCase().includes(q);
+
+      const matchKelas = filterKelas === "all" || s.kelas_id === filterKelas;
+      const matchKamar = filterKamar === "all" || s.kamar_id === filterKamar;
+      const matchStatus = filterStatus === "all" || s.status === filterStatus;
+
+      return matchSearch && matchKelas && matchKamar && matchStatus;
     });
-    setFeedback({ ok: res.ok, text: res.message });
+  }, [santriList, santriSearch, filterKelas, filterKamar, filterStatus]);
+
+  // Handler Pemilihan Santri
+  const handleToggleSelectAll = () => {
+    if (selectedSantriIds.length === filteredSantri.length && filteredSantri.length > 0) {
+      setSelectedSantriIds([]);
+    } else {
+      setSelectedSantriIds(filteredSantri.map((s) => s.id));
+    }
+  };
+
+  const handleToggleSelectOne = (id: string) => {
+    setSelectedSantriIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  // Handler Ekspor Excel (.xlsx)
+  const handleExportAll = () => {
+    const listToExport = filteredSantri.length > 0 ? filteredSantri : santriList;
+    const res = exportSantriToExcel(listToExport, kelasList, kamarList, waliList);
     if (res.ok) {
-      setNamaSantri("");
-      setNamaWali("");
-      setEmailWali("");
+      setFeedback({
+        ok: true,
+        text: `Berhasil mengekspor ${res.count} data santri ke file Excel: ${res.filename}`,
+      });
+    } else {
+      setFeedback({ ok: false, text: "Tidak ada data santri yang dapat diekspor." });
+    }
+  };
+
+  const handleExportSelected = () => {
+    if (selectedSantriIds.length === 0) {
+      setFeedback({ ok: false, text: "Pilih santri terlebih dahulu untuk diekspor." });
+      return;
+    }
+    const targetSantri = santriList.filter((s) => selectedSantriIds.includes(s.id));
+    const res = exportSantriToExcel(targetSantri, kelasList, kamarList, waliList, "Data_Santri_Terpilih");
+    if (res.ok) {
+      setFeedback({
+        ok: true,
+        text: `Berhasil mengekspor ${res.count} data santri terpilih ke Excel: ${res.filename}`,
+      });
+    }
+  };
+
+  // Handler Hapus Santri Terpilih
+  const handleConfirmDeleteSantri = async () => {
+    if (selectedSantriIds.length === 0) return;
+    setDeleteSantriSubmitting(true);
+    try {
+      const res = await deleteSantriBatch(selectedSantriIds);
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setSelectedSantriIds([]);
+        setIsDeleteSantriModalOpen(false);
+      }
+    } finally {
+      setDeleteSantriSubmitting(false);
+    }
+  };
+
+  // Handler Form Registrasi Santri Baru + Akun Wali (1:1)
+  const handleRegisterSantri = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedback(null);
+
+    const cleanUser = normalizeUsername(usernameWali);
+    if (!isValidUsername(cleanUser)) {
+      setFeedback({
+        ok: false,
+        text: "Username wali harus 3–30 karakter alfanumerik (huruf kecil, angka, titik, strip, atau garis bawah).",
+      });
+      return;
+    }
+
+    const pwdCheck = validatePasswordStrength(passwordWali);
+    if (!pwdCheck.valid) {
+      setFeedback({ ok: false, text: pwdCheck.message || "Password tidak memenuhi syarat keamanan." });
+      return;
+    }
+
+    setRegisterSubmitting(true);
+    try {
+      const res = await createSantriWithWali({
+        nis,
+        nama_lengkap: namaSantri,
+        tempat_lahir: tempatLahir,
+        tanggal_lahir: tanggalLahir,
+        jenis_kelamin: jenisKelamin,
+        alamat: alamatSantri,
+        tahun_masuk: 2026,
+        kelas_id: kelasIdSantri,
+        kamar_id: kamarIdSantri,
+        nama_wali: namaWali,
+        hubungan_wali: hubunganWali,
+        telepon_wali: teleponWali,
+        username_wali: cleanUser,
+        password_wali: passwordWali,
+        email_kontak_wali: emailKontakWali,
+      });
+
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setNamaSantri("");
+        setNamaWali("");
+        setUsernameWali("");
+        setPasswordWali("");
+        setEmailKontakWali("");
+        setNis(`2026${Date.now().toString().slice(-4)}`);
+      }
+    } finally {
+      setRegisterSubmitting(false);
+    }
+  };
+
+  const getSantriCountInKelas = (kelasId: string) =>
+    santriList.filter((s) => s.kelas_id === kelasId && s.status === "AKTIF").length;
+
+  const getSantriCountInKamar = (kamarId: string) =>
+    santriList.filter((s) => s.kamar_id === kamarId && s.status === "AKTIF").length;
+
+  const handleOpenEditKelas = (k: Kelas) => {
+    setEditKelasItem(k);
+    setEditKelasNama(k.nama_kelas);
+    setEditKelasKode(k.kode_kelas);
+    setEditKelasWali(k.wali_kelas);
+    setEditKelasKapasitas(k.kapasitas);
+  };
+
+  const handleSaveEditKelas = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editKelasItem) return;
+    setMasterSubmitting(true);
+    try {
+      const res = updateKelas(editKelasItem.id, {
+        nama_kelas: editKelasNama,
+        kode_kelas: editKelasKode,
+        wali_kelas: editKelasWali,
+        kapasitas: Number(editKelasKapasitas),
+      });
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setEditKelasItem(null);
+      }
+    } finally {
+      setMasterSubmitting(false);
+    }
+  };
+
+  const handleDeleteKelasSubmit = () => {
+    if (!deleteKelasConfirm) return;
+    setMasterSubmitting(true);
+    try {
+      const res = deleteKelas(deleteKelasConfirm.id);
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setDeleteKelasConfirm(null);
+      }
+    } finally {
+      setMasterSubmitting(false);
+    }
+  };
+
+  const handleOpenEditKamar = (km: Kamar) => {
+    setEditKamarItem(km);
+    setEditKamarNama(km.nama_kamar);
+    setEditKamarKode(km.kode_kamar);
+    setEditKamarGedung(km.gedung_asrama);
+    setEditKamarMusyrif(km.musyrif);
+    setEditKamarKapasitas(km.kapasitas);
+  };
+
+  const handleSaveEditKamar = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editKamarItem) return;
+    setMasterSubmitting(true);
+    try {
+      const res = updateKamar(editKamarItem.id, {
+        nama_kamar: editKamarNama,
+        kode_kamar: editKamarKode,
+        gedung_asrama: editKamarGedung,
+        musyrif: editKamarMusyrif,
+        kapasitas: Number(editKamarKapasitas),
+      });
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setEditKamarItem(null);
+      }
+    } finally {
+      setMasterSubmitting(false);
+    }
+  };
+
+  const handleDeleteKamarSubmit = () => {
+    if (!deleteKamarConfirm) return;
+    setMasterSubmitting(true);
+    try {
+      const res = deleteKamar(deleteKamarConfirm.id);
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setDeleteKamarConfirm(null);
+      }
+    } finally {
+      setMasterSubmitting(false);
     }
   };
 
@@ -299,154 +551,351 @@ export function AdminPortal() {
          ===================================================================== */}
       {activeTab === "santri_wali" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-bold text-slate-900">
-              Daftar Santri Terdaftar & Relasi 1:1 Akun Orang Tua/Wali ({santriList.length})
-            </h3>
-            {/* Tampilan Kartu Khusus Mobile (< 768px) */}
-            <div className="mt-4 grid grid-cols-1 gap-3 md:hidden">
-              {santriList.map((s) => {
-                const kls = kelasList.find((k) => k.id === s.kelas_id);
-                const kmr = kamarList.find((k) => k.id === s.kamar_id);
-                const wali = waliList.find((w) => w.santri_id === s.id);
-                const badge = getStatusSantriBadge(s.status);
-                return (
-                  <div
-                    key={s.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-2.5"
+          <div className="lg:col-span-2 space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Daftar Santri Terdaftar &amp; Relasi 1:1 Akun Wali
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Total: {santriList.length} santri ({filteredSantri.length} ditampilkan)
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportAll}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 shadow-sm"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="font-mono text-xs font-bold text-emerald-800">
-                          NIS: {s.nis}
-                        </span>
-                        <h4 className="text-sm font-extrabold text-slate-900">{s.nama_lengkap}</h4>
-                        <p className="text-[11px] text-slate-500">
-                          {s.tempat_lahir}, {formatTanggal(s.tanggal_lahir)}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badge.className}`}
-                      >
-                        {badge.label}
-                      </span>
-                    </div>
+                    <FileSpreadsheet className="h-4 w-4" />
+                    <span>Ekspor Data Santri (.xlsx)</span>
+                  </button>
+                </div>
+              </div>
 
-                    <div className="rounded-xl bg-slate-50 p-2.5 text-xs space-y-1 text-slate-600">
-                      <div>
-                        <strong>Kelas &amp; Kamar:</strong> {kls?.nama_kelas || "-"} • {kmr?.nama_kamar || "-"}
-                      </div>
-                      <div>
-                        <strong>Orang Tua / Wali:</strong>{" "}
-                        {wali ? (
-                          <span className="font-semibold text-slate-800">
-                            {wali.nama_lengkap} ({wali.hubungan}) • {wali.no_telepon}
-                          </span>
-                        ) : (
-                          <span className="text-rose-600 font-semibold">Belum terhubung</span>
-                        )}
-                      </div>
-                    </div>
+              {/* Filter & Pencarian Santri */}
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-4 text-xs">
+                <div className="relative sm:col-span-2 md:col-span-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={santriSearch}
+                    onChange={(e) => setSantriSearch(e.target.value)}
+                    placeholder="Cari NIS / Nama / Alamat..."
+                    className="w-full rounded-xl border border-slate-300 pl-8 pr-3 py-2 focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <select
+                    value={filterKelas}
+                    onChange={(e) => setFilterKelas(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-2.5 py-2 focus:border-emerald-600 focus:outline-none"
+                  >
+                    <option value="all">Semua Kelas</option>
+                    {kelasList.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.nama_kelas}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={filterKamar}
+                    onChange={(e) => setFilterKamar(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-2.5 py-2 focus:border-emerald-600 focus:outline-none"
+                  >
+                    <option value="all">Semua Kamar</option>
+                    {kamarList.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.nama_kamar}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-2.5 py-2 focus:border-emerald-600 focus:outline-none"
+                  >
+                    <option value="all">Semua Status</option>
+                    <option value="AKTIF">AKTIF</option>
+                    <option value="CUTI">CUTI</option>
+                    <option value="LULUS">LULUS</option>
+                    <option value="PINDAH">PINDAH</option>
+                    <option value="TIDAK_AKTIF">TIDAK AKTIF</option>
+                  </select>
+                </div>
+              </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-600">Status Santri:</span>
-                      <select
-                        value={s.status}
-                        onChange={(e) => {
-                          const res = updateStatusSantri(s.id, e.target.value as StatusSantri);
-                          setFeedback({ ok: res.ok, text: res.message });
-                        }}
-                        className={`rounded-xl px-3 py-2 text-xs font-bold min-h-[44px] ${badge.className}`}
-                      >
-                        <option value="AKTIF">AKTIF</option>
-                        <option value="CUTI">CUTI</option>
-                        <option value="LULUS">LULUS</option>
-                        <option value="PINDAH">PINDAH</option>
-                        <option value="TIDAK_AKTIF">TIDAK AKTIF</option>
-                      </select>
-                    </div>
+              {/* Action Bar Pemilihan & Aksi Massal */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2.5 text-xs border border-slate-200">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAll}
+                    className="inline-flex items-center gap-1.5 font-bold text-slate-700 hover:text-emerald-700"
+                  >
+                    {selectedSantriIds.length > 0 &&
+                    selectedSantriIds.length === filteredSantri.length ? (
+                      <CheckSquare className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <Square className="h-4 w-4 text-slate-400" />
+                    )}
+                    <span>
+                      {selectedSantriIds.length > 0 &&
+                      selectedSantriIds.length === filteredSantri.length
+                        ? "Batal Pilih Semua"
+                        : "Pilih Semua Santri"}
+                    </span>
+                  </button>
+                  {selectedSantriIds.length > 0 && (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800 text-[11px]">
+                      {selectedSantriIds.length} dipilih
+                    </span>
+                  )}
+                </div>
+
+                {selectedSantriIds.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleExportSelected}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Ekspor Terpilih ({selectedSantriIds.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsDeleteSantriModalOpen(true)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-rose-700"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Hapus Terpilih</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSantriIds([])}
+                      className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
+                    >
+                      Batal
+                    </button>
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
 
-            {/* Tampilan Tabel Desktop (>= 768px) */}
-            <div className="mt-4 hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
-                <thead>
-                  <tr className="border-b border-slate-200 uppercase text-slate-500">
-                    <th className="py-2 pr-3">NIS & Nama Santri</th>
-                    <th className="py-2 px-3">Kelas & Kamar</th>
-                    <th className="py-2 px-3">Akun Orang Tua/Wali (1:1)</th>
-                    <th className="py-2 pl-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {santriList.map((s) => {
-                    const kls = kelasList.find((k) => k.id === s.kelas_id);
-                    const kmr = kamarList.find((k) => k.id === s.kamar_id);
-                    const wali = waliList.find((w) => w.santri_id === s.id);
-                    const badge = getStatusSantriBadge(s.status);
-                    return (
-                      <tr key={s.id}>
-                        <td className="py-3 pr-3">
-                          <div className="font-mono font-bold text-emerald-800">{s.nis}</div>
-                          <div className="font-bold text-slate-900">{s.nama_lengkap}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {s.tempat_lahir}, {formatTanggal(s.tanggal_lahir)}
+              {filteredSantri.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500">
+                  Tidak ada santri yang sesuai dengan filter pencarian.
+                </div>
+              ) : (
+                <>
+                  {/* Tampilan Kartu Khusus Mobile (< 768px) */}
+                  <div className="grid grid-cols-1 gap-3 md:hidden">
+                    {filteredSantri.map((s) => {
+                      const kls = kelasList.find((k) => k.id === s.kelas_id);
+                      const kmr = kamarList.find((k) => k.id === s.kamar_id);
+                      const wali = waliList.find((w) => w.santri_id === s.id);
+                      const badge = getStatusSantriBadge(s.status);
+                      const isSelected = selectedSantriIds.includes(s.id);
+                      return (
+                        <div
+                          key={s.id}
+                          className={`rounded-2xl border p-4 shadow-sm space-y-2.5 transition ${
+                            isSelected
+                              ? "border-emerald-500 bg-emerald-50/30 ring-1 ring-emerald-500"
+                              : "border-slate-200 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleSelectOne(s.id)}
+                                className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              />
+                              <div>
+                                <span className="font-mono text-xs font-bold text-emerald-800">
+                                  NIS: {s.nis}
+                                </span>
+                                <h4 className="text-sm font-extrabold text-slate-900">
+                                  {s.nama_lengkap}
+                                </h4>
+                                <p className="text-[11px] text-slate-500">
+                                  {s.tempat_lahir}, {formatTanggal(s.tanggal_lahir)}
+                                </p>
+                              </div>
+                            </div>
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badge.className}`}
+                            >
+                              {badge.label}
+                            </span>
                           </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="font-medium text-slate-800">{kls?.nama_kelas}</div>
-                          <div className="text-[11px] text-slate-500">{kmr?.nama_kamar}</div>
-                        </td>
-                        <td className="py-3 px-3">
-                          {wali ? (
-                            <>
-                              <div className="font-semibold text-slate-800">
-                                {wali.nama_lengkap} ({wali.hubungan})
+
+                          <div className="rounded-xl bg-slate-50 p-2.5 text-xs space-y-1 text-slate-600">
+                            <div>
+                              <strong>Kelas &amp; Kamar:</strong> {kls?.nama_kelas || "-"} •{" "}
+                              {kmr?.nama_kamar || "-"}
+                            </div>
+                            <div>
+                              <strong>Orang Tua / Wali:</strong>{" "}
+                              {wali ? (
+                                <span className="font-semibold text-slate-800">
+                                  {wali.nama_lengkap} ({wali.hubungan}) • {wali.no_telepon}
+                                </span>
+                              ) : (
+                                <span className="text-rose-600 font-semibold">Belum terhubung</span>
+                              )}
+                            </div>
+                            {s.alamat && (
+                              <div className="truncate text-[11px] text-slate-500">
+                                <strong>Alamat:</strong> {s.alamat}
                               </div>
-                              <div className="text-[11px] text-slate-500">
-                                {wali.email} • {wali.no_telepon}
-                              </div>
-                            </>
-                          ) : (
-                            <span className="text-rose-600">Belum terhubung</span>
-                          )}
-                        </td>
-                        <td className="py-3 pl-3">
-                          <select
-                            value={s.status}
-                            onChange={(e) => {
-                              const res = updateStatusSantri(
-                                s.id,
-                                e.target.value as StatusSantri
-                              );
-                              setFeedback({ ok: res.ok, text: res.message });
-                            }}
-                            className={`rounded-lg px-2 py-1 text-xs font-bold ${badge.className}`}
-                          >
-                            <option value="AKTIF">AKTIF</option>
-                            <option value="CUTI">CUTI</option>
-                            <option value="LULUS">LULUS</option>
-                            <option value="PINDAH">PINDAH</option>
-                            <option value="TIDAK_AKTIF">TIDAK AKTIF</option>
-                          </select>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-600">
+                              Ubah Status:
+                            </span>
+                            <select
+                              value={s.status}
+                              onChange={(e) => {
+                                const res = updateStatusSantri(s.id, e.target.value as StatusSantri);
+                                setFeedback({ ok: res.ok, text: res.message });
+                              }}
+                              className={`rounded-xl px-3 py-2 text-xs font-bold min-h-[44px] ${badge.className}`}
+                            >
+                              <option value="AKTIF">AKTIF</option>
+                              <option value="CUTI">CUTI</option>
+                              <option value="LULUS">LULUS</option>
+                              <option value="PINDAH">PINDAH</option>
+                              <option value="TIDAK_AKTIF">TIDAK AKTIF</option>
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tampilan Tabel Desktop (>= 768px) */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                      <thead>
+                        <tr className="border-b border-slate-200 uppercase text-slate-500">
+                          <th className="py-2.5 px-3 w-8">
+                            <input
+                              type="checkbox"
+                              checked={
+                                selectedSantriIds.length > 0 &&
+                                selectedSantriIds.length === filteredSantri.length
+                              }
+                              onChange={handleToggleSelectAll}
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                          </th>
+                          <th className="py-2.5 pr-3">NIS &amp; Nama Santri</th>
+                          <th className="py-2.5 px-3">Kelas &amp; Kamar</th>
+                          <th className="py-2.5 px-3">Akun Orang Tua/Wali (1:1)</th>
+                          <th className="py-2.5 pl-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredSantri.map((s) => {
+                          const kls = kelasList.find((k) => k.id === s.kelas_id);
+                          const kmr = kamarList.find((k) => k.id === s.kamar_id);
+                          const wali = waliList.find((w) => w.santri_id === s.id);
+                          const badge = getStatusSantriBadge(s.status);
+                          const isSelected = selectedSantriIds.includes(s.id);
+                          return (
+                            <tr
+                              key={s.id}
+                              className={`hover:bg-slate-50/70 ${
+                                isSelected ? "bg-emerald-50/40" : ""
+                              }`}
+                            >
+                              <td className="py-3 px-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleSelectOne(s.id)}
+                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                />
+                              </td>
+                              <td className="py-3 pr-3">
+                                <div className="font-mono font-bold text-emerald-800">{s.nis}</div>
+                                <div className="font-bold text-slate-900">{s.nama_lengkap}</div>
+                                <div className="text-[11px] text-slate-500">
+                                  {s.tempat_lahir}, {formatTanggal(s.tanggal_lahir)}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="font-medium text-slate-800">{kls?.nama_kelas}</div>
+                                <div className="text-[11px] text-slate-500">{kmr?.nama_kamar}</div>
+                              </td>
+                              <td className="py-3 px-3">
+                                {wali ? (
+                                  <>
+                                    <div className="font-semibold text-slate-800">
+                                      {wali.nama_lengkap} ({wali.hubungan})
+                                    </div>
+                                    <div className="text-[11px] text-slate-500">
+                                      {wali.no_telepon}
+                                      {wali.email && ` • ${wali.email}`}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <span className="text-rose-600 font-semibold">
+                                    Belum terhubung
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 pl-3">
+                                <select
+                                  value={s.status}
+                                  onChange={(e) => {
+                                    const res = updateStatusSantri(
+                                      s.id,
+                                      e.target.value as StatusSantri
+                                    );
+                                    setFeedback({ ok: res.ok, text: res.message });
+                                  }}
+                                  className={`rounded-lg px-2 py-1 text-xs font-bold ${badge.className}`}
+                                >
+                                  <option value="AKTIF">AKTIF</option>
+                                  <option value="CUTI">CUTI</option>
+                                  <option value="LULUS">LULUS</option>
+                                  <option value="PINDAH">PINDAH</option>
+                                  <option value="TIDAK_AKTIF">TIDAK AKTIF</option>
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
+          {/* Form Registrasi Santri Baru + Akun Orang Tua (1:1) */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="text-base font-bold text-slate-900">
-              Registrasi Santri Baru + Akun Orang Tua (1:1)
+              Registrasi Santri Baru + Akun Wali (1:1)
             </h3>
-            <form onSubmit={handleRegisterSantri} className="mt-3 space-y-2.5 text-xs">
-              <div className="grid grid-cols-2 gap-2">
+            <p className="mt-0.5 text-xs text-slate-500">
+              Setiap santri baru otomatis dibuatkan 1 akun wali resmi dengan username dan password
+              internal.
+            </p>
+            <form onSubmit={handleRegisterSantri} className="mt-4 space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="font-semibold text-slate-700">NIS (Unik)</label>
                   <input
@@ -454,7 +903,7 @@ export function AdminPortal() {
                     required
                     value={nis}
                     onChange={(e) => setNis(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -462,13 +911,14 @@ export function AdminPortal() {
                   <select
                     value={jenisKelamin}
                     onChange={(e) => setJenisKelamin(e.target.value as "L" | "P")}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
                   >
                     <option value="L">Laki-laki (Putra)</option>
                     <option value="P">Perempuan (Putri)</option>
                   </select>
                 </div>
               </div>
+
               <div>
                 <label className="font-semibold text-slate-700">Nama Lengkap Santri</label>
                 <input
@@ -477,10 +927,11 @@ export function AdminPortal() {
                   value={namaSantri}
                   onChange={(e) => setNamaSantri(e.target.value)}
                   placeholder="Contoh: Muhammad Rayyan Al-Fatih"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="font-semibold text-slate-700">Tempat Lahir</label>
                   <input
@@ -488,7 +939,7 @@ export function AdminPortal() {
                     required
                     value={tempatLahir}
                     onChange={(e) => setTempatLahir(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -498,17 +949,18 @@ export function AdminPortal() {
                     required
                     value={tanggalLahir}
                     onChange={(e) => setTanggalLahir(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold text-slate-700">Kelas</label>
+                  <label className="font-semibold text-slate-700">Kelas Awal</label>
                   <select
                     value={kelasIdSantri}
                     onChange={(e) => setKelasIdSantri(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
                   >
                     {kelasList.map((k) => (
                       <option key={k.id} value={k.id}>
@@ -522,7 +974,7 @@ export function AdminPortal() {
                   <select
                     value={kamarIdSantri}
                     onChange={(e) => setKamarIdSantri(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
                   >
                     {kamarList.map((k) => (
                       <option key={k.id} value={k.id}>
@@ -532,73 +984,123 @@ export function AdminPortal() {
                   </select>
                 </div>
               </div>
+
               <div>
-                <label className="font-semibold text-slate-700">Alamat Lengkap</label>
+                <label className="font-semibold text-slate-700">Alamat Lengkap Santri</label>
                 <input
                   type="text"
                   required
                   value={alamatSantri}
                   onChange={(e) => setAlamatSantri(e.target.value)}
                   placeholder="Alamat domisili santri & wali"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
                 />
               </div>
 
-              <div className="border-t border-slate-200 pt-2">
-                <p className="font-bold text-emerald-900">Data Akun Orang Tua / Wali (1:1)</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-semibold text-slate-700">Nama Orang Tua/Wali</label>
-                  <input
-                    type="text"
-                    required
-                    value={namaWali}
-                    onChange={(e) => setNamaWali(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  />
+              {/* Bagian Akun Wali dengan Visual Pembeda */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2.5 mt-3">
+                <div className="flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-emerald-800" />
+                  <p className="font-bold text-emerald-950">
+                    Data Akun Orang Tua / Wali (Relasi 1:1)
+                  </p>
                 </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Hubungan</label>
-                  <select
-                    value={hubunganWali}
-                    onChange={(e) => setHubunganWali(e.target.value as "Ayah" | "Ibu" | "Wali")}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  >
-                    <option value="Ayah">Ayah</option>
-                    <option value="Ibu">Ibu</option>
-                    <option value="Wali">Wali</option>
-                  </select>
+                <p className="text-[11px] text-emerald-800/90 leading-relaxed">
+                  Sesuai kebijakan SIPETA: Wali login menggunakan <strong>Username</strong> dan{" "}
+                  <strong>Password</strong> internal. Email tidak digunakan untuk login, hanya kontak
+                  komunikasi alternatif.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700">Nama Orang Tua/Wali</label>
+                    <input
+                      type="text"
+                      required
+                      value={namaWali}
+                      onChange={(e) => setNamaWali(e.target.value)}
+                      placeholder="Contoh: H. Ahmad Fauzi"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700">Hubungan</label>
+                    <select
+                      value={hubunganWali}
+                      onChange={(e) => setHubunganWali(e.target.value as "Ayah" | "Ibu" | "Wali")}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                    >
+                      <option value="Ayah">Ayah</option>
+                      <option value="Ibu">Ibu</option>
+                      <option value="Wali">Wali</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-semibold text-slate-700">No. Telepon / WA</label>
-                  <input
-                    type="text"
-                    required
-                    value={teleponWali}
-                    onChange={(e) => setTeleponWali(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700">No. Telepon / WhatsApp</label>
+                    <input
+                      type="text"
+                      required
+                      value={teleponWali}
+                      onChange={(e) => setTeleponWali(e.target.value)}
+                      placeholder="Contoh: 081234567890"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700">Email Kontak (Opsional)</label>
+                    <input
+                      type="email"
+                      value={emailKontakWali}
+                      onChange={(e) => setEmailKontakWali(e.target.value)}
+                      placeholder="wali@contoh.com"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Email Login Wali</label>
-                  <input
-                    type="email"
-                    required
-                    value={emailWali}
-                    onChange={(e) => setEmailWali(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-emerald-200/70">
+                  <div>
+                    <label className="font-semibold text-emerald-950">Username Login Wali</label>
+                    <input
+                      type="text"
+                      required
+                      value={usernameWali}
+                      onChange={(e) => setUsernameWali(e.target.value.toLowerCase().trim())}
+                      placeholder="Contoh: wali2026001"
+                      className="mt-1 w-full rounded-lg border border-emerald-400 bg-white px-2.5 py-1.5 font-mono focus:border-emerald-600 focus:outline-none"
+                    />
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      3-30 karakter (a-z, 0-9, titik, strip, underscore)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="font-semibold text-emerald-950">Password Login Wali</label>
+                    <input
+                      type="password"
+                      required
+                      value={passwordWali}
+                      onChange={(e) => setPasswordWali(e.target.value)}
+                      placeholder="Minimal 6 karakter"
+                      className="mt-1 w-full rounded-lg border border-emerald-400 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                    />
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      Diberikan kepada wali untuk login
+                    </p>
+                  </div>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-emerald-700 py-2 font-bold text-white hover:bg-emerald-800"
+                disabled={registerSubmitting}
+                className="w-full rounded-xl bg-emerald-700 py-2.5 font-bold text-white hover:bg-emerald-800 disabled:opacity-50 transition shadow-sm"
               >
-                Simpan Santri & Buat Akun Wali (1:1)
+                {registerSubmitting
+                  ? "Menyimpan Data Santri & Akun Wali..."
+                  : "Simpan Santri & Buat Akun Wali (1:1)"}
               </button>
             </form>
           </div>
@@ -720,25 +1222,73 @@ export function AdminPortal() {
 
           {/* Master Kelas & Kamar */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900">Master Data Kelas</h3>
-              <div className="mt-3 space-y-2">
-                {kelasList.map((k) => (
-                  <div
-                    key={k.id}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 p-2.5 text-xs"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-900">{k.nama_kelas}</span> ({k.kode_kelas}
-                      )
-                      <div className="text-slate-500">Wali Kelas: {k.wali_kelas}</div>
-                    </div>
-                    <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold">
-                      Kapasitas {k.kapasitas}
-                    </span>
-                  </div>
-                ))}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Master Data Kelas</h3>
+                  <p className="text-xs text-slate-500">
+                    Kelola data kelas. Kelas dengan santri aktif tidak dapat dihapus.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                  {kelasList.length} Kelas
+                </span>
               </div>
+
+              <div className="space-y-2.5">
+                {kelasList.map((k) => {
+                  const activeCount = getSantriCountInKelas(k.id);
+                  return (
+                    <div
+                      key={k.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs transition hover:bg-slate-50"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">{k.nama_kelas}</span>
+                          <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700">
+                            {k.kode_kelas}
+                          </span>
+                        </div>
+                        <div className="text-slate-500">Wali Kelas: {k.wali_kelas}</div>
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              activeCount > 0
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-200 text-slate-600"
+                            }`}
+                          >
+                            {activeCount} Santri Aktif
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            Kapasitas: {k.kapasitas} santri
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditKelas(k)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 shadow-sm"
+                        >
+                          <Edit2 className="h-3 w-3 text-slate-500" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteKelasConfirm(k)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 shadow-sm"
+                        >
+                          <Trash2 className="h-3 w-3 text-rose-600" />
+                          <span>Hapus</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -750,6 +1300,10 @@ export function AdminPortal() {
                     kapasitas: 30,
                   });
                   setFeedback({ ok: res.ok, text: res.message });
+                  if (res.ok) {
+                    setNamaKelasBaru("");
+                    setKodeKelasBaru(`KLS-${Date.now().toString().slice(-4)}`);
+                  }
                 }}
                 className="mt-4 grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3 text-xs"
               >
@@ -759,7 +1313,7 @@ export function AdminPortal() {
                   value={kodeKelasBaru}
                   onChange={(e) => setKodeKelasBaru(e.target.value)}
                   placeholder="Kode Kelas"
-                  className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+                  className="rounded-lg border border-slate-300 px-2.5 py-2 focus:border-emerald-600 focus:outline-none"
                 />
                 <input
                   type="text"
@@ -767,36 +1321,86 @@ export function AdminPortal() {
                   value={namaKelasBaru}
                   onChange={(e) => setNamaKelasBaru(e.target.value)}
                   placeholder="Nama Kelas"
-                  className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+                  className="rounded-lg border border-slate-300 px-2.5 py-2 focus:border-emerald-600 focus:outline-none"
                 />
                 <button
                   type="submit"
-                  className="rounded-lg bg-slate-900 px-3 py-1.5 font-bold text-white"
+                  className="rounded-lg bg-slate-900 px-3 py-2 font-bold text-white hover:bg-slate-800 transition"
                 >
                   + Tambah Kelas
                 </button>
               </form>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900">Master Data Kamar Asrama</h3>
-              <div className="mt-3 space-y-2">
-                {kamarList.map((k) => (
-                  <div
-                    key={k.id}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 p-2.5 text-xs"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-900">{k.nama_kamar}</span> ({k.gedung_asrama}
-                      )
-                      <div className="text-slate-500">Musyrif/ah: {k.musyrif}</div>
-                    </div>
-                    <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold">
-                      Kapasitas {k.kapasitas}
-                    </span>
-                  </div>
-                ))}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Master Data Kamar Asrama</h3>
+                  <p className="text-xs text-slate-500">
+                    Kelola kamar asrama. Kamar yang dihuni santri aktif tidak dapat dihapus.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                  {kamarList.length} Kamar
+                </span>
               </div>
+
+              <div className="space-y-2.5">
+                {kamarList.map((k) => {
+                  const activeCount = getSantriCountInKamar(k.id);
+                  return (
+                    <div
+                      key={k.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs transition hover:bg-slate-50"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">{k.nama_kamar}</span>
+                          <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700">
+                            {k.kode_kamar}
+                          </span>
+                        </div>
+                        <div className="text-slate-500">
+                          {k.gedung_asrama} • Musyrif: {k.musyrif}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              activeCount > 0
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-200 text-slate-600"
+                            }`}
+                          >
+                            {activeCount} Santri Menempati
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            Kapasitas: {k.kapasitas} kasur
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditKamar(k)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 shadow-sm"
+                        >
+                          <Edit2 className="h-3 w-3 text-slate-500" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteKamarConfirm(k)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 shadow-sm"
+                        >
+                          <Trash2 className="h-3 w-3 text-rose-600" />
+                          <span>Hapus</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -809,6 +1413,10 @@ export function AdminPortal() {
                     kapasitas: 16,
                   });
                   setFeedback({ ok: res.ok, text: res.message });
+                  if (res.ok) {
+                    setNamaKamarBaru("");
+                    setKodeKamarBaru(`ASR-${Date.now().toString().slice(-4)}`);
+                  }
                 }}
                 className="mt-4 grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3 text-xs"
               >
@@ -818,7 +1426,7 @@ export function AdminPortal() {
                   value={kodeKamarBaru}
                   onChange={(e) => setKodeKamarBaru(e.target.value)}
                   placeholder="Kode Kamar"
-                  className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+                  className="rounded-lg border border-slate-300 px-2.5 py-2 focus:border-emerald-600 focus:outline-none"
                 />
                 <input
                   type="text"
@@ -826,11 +1434,11 @@ export function AdminPortal() {
                   value={namaKamarBaru}
                   onChange={(e) => setNamaKamarBaru(e.target.value)}
                   placeholder="Nama Kamar"
-                  className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+                  className="rounded-lg border border-slate-300 px-2.5 py-2 focus:border-emerald-600 focus:outline-none"
                 />
                 <button
                   type="submit"
-                  className="rounded-lg bg-slate-900 px-3 py-1.5 font-bold text-white"
+                  className="rounded-lg bg-slate-900 px-3 py-2 font-bold text-white hover:bg-slate-800 transition"
                 >
                   + Tambah Kamar
                 </button>
@@ -1352,6 +1960,418 @@ export function AdminPortal() {
           </div>
         </div>
       )}
+
+      {/* =====================================================================
+          MODAL: KONFIRMASI HAPUS SANTRI TERPILIH (SAFE DELETE POLICY)
+         ===================================================================== */}
+      {isDeleteSantriModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="rounded-xl bg-rose-100 p-2.5">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Konfirmasi Penghapusan Data Santri
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {selectedSantriIds.length} data santri dipilih untuk dihapus
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900 border border-amber-200 space-y-1.5 leading-relaxed">
+              <p className="font-bold flex items-center gap-1.5 text-amber-950">
+                <Info className="h-4 w-4 shrink-0" />
+                Kebijakan Integritas Data &amp; Riwayat Keuangan SIPETA:
+              </p>
+              <p>
+                Sistem secara otomatis memeriksa seluruh relasi data (tagihan, pembayaran cicilan,
+                uang saku, dan tahfidz).
+              </p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>
+                  Santri yang <strong>sudah memiliki riwayat transaksi/catatan</strong> akan dialihkan
+                  ke status <strong>TIDAK AKTIF (Soft Delete)</strong> agar catatan keuangan dan
+                  audit log tetap valid dan tidak merusak laporan pembukuan.
+                </li>
+                <li>
+                  Santri baru yang <strong>belum memiliki riwayat apa pun</strong> akan dihapus
+                  permanen dari database.
+                </li>
+              </ul>
+            </div>
+
+            <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1">
+              <p className="font-bold text-slate-700 mb-1">Daftar Santri yang Dipilih:</p>
+              {santriList
+                .filter((s) => selectedSantriIds.includes(s.id))
+                .slice(0, 6)
+                .map((s) => (
+                  <div key={s.id} className="text-slate-600">
+                    • <strong>{s.nis}</strong> — {s.nama_lengkap}
+                  </div>
+                ))}
+              {selectedSantriIds.length > 6 && (
+                <div className="text-slate-500 italic">
+                  ...dan {selectedSantriIds.length - 6} santri lainnya.
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={deleteSantriSubmitting}
+                onClick={() => setIsDeleteSantriModalOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={deleteSantriSubmitting}
+                onClick={handleConfirmDeleteSantri}
+                className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50 transition shadow-sm"
+              >
+                {deleteSantriSubmitting ? "Memproses Penghapusan..." : "Ya, Hapus Data Terpilih"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL: EDIT MASTER DATA KELAS
+         ===================================================================== */}
+      {editKelasItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit2 className="h-5 w-5 text-emerald-700" />
+                <h3 className="text-base font-bold text-slate-900">Edit Data Kelas</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditKelasItem(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditKelas} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700">Kode Kelas</label>
+                <input
+                  type="text"
+                  required
+                  value={editKelasKode}
+                  onChange={(e) => setEditKelasKode(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Nama Kelas</label>
+                <input
+                  type="text"
+                  required
+                  value={editKelasNama}
+                  onChange={(e) => setEditKelasNama(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Wali Kelas</label>
+                <input
+                  type="text"
+                  required
+                  value={editKelasWali}
+                  onChange={(e) => setEditKelasWali(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Kapasitas (Santri)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  required
+                  value={editKelasKapasitas}
+                  onChange={(e) => setEditKelasKapasitas(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={masterSubmitting}
+                  onClick={() => setEditKelasItem(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={masterSubmitting}
+                  className="rounded-xl bg-emerald-700 px-5 py-2 font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {masterSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL: HAPUS MASTER DATA KELAS (PROTEKSI RELASI SANTRI AKTIF)
+         ===================================================================== */}
+      {deleteKelasConfirm && (() => {
+        const activeCount = getSantriCountInKelas(deleteKelasConfirm.id);
+        const isBlocked = activeCount > 0;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={`rounded-xl p-2.5 ${isBlocked ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-600"}`}>
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {isBlocked ? "Kelas Tidak Dapat Dihapus" : "Konfirmasi Hapus Kelas"}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {deleteKelasConfirm.nama_kelas} ({deleteKelasConfirm.kode_kelas})
+                  </p>
+                </div>
+              </div>
+
+              {isBlocked ? (
+                <div className="rounded-xl bg-rose-50 p-3.5 text-xs text-rose-900 border border-rose-200 space-y-2 leading-relaxed">
+                  <p className="font-bold">Penghapusan Diblokir demi Integritas Data:</p>
+                  <p>
+                    Saat ini masih ada <strong>{activeCount} santri aktif</strong> yang terdaftar di kelas
+                    ini.
+                  </p>
+                  <p className="text-slate-600">
+                    Silakan pindahkan santri ke kelas lain terlebih dahulu melalui menu{" "}
+                    <strong>Mutasi / Perpindahan Penempatan</strong> sebelum menghapus kelas ini.
+                  </p>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-600 space-y-2">
+                  <p>
+                    Apakah Anda yakin ingin menghapus kelas <strong>{deleteKelasConfirm.nama_kelas}</strong>?
+                  </p>
+                  <p className="text-slate-500">
+                    Kelas ini tidak memiliki santri aktif dan aman untuk dihapus. Tindakan penghapusan
+                    akan dicatat dalam audit log.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteKelasConfirm(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  {isBlocked ? "Tutup" : "Batal"}
+                </button>
+                {!isBlocked && (
+                  <button
+                    type="button"
+                    disabled={masterSubmitting}
+                    onClick={handleDeleteKelasSubmit}
+                    className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                  >
+                    {masterSubmitting ? "Menghapus..." : "Ya, Hapus Kelas"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* =====================================================================
+          MODAL: EDIT MASTER DATA KAMAR ASRAMA
+         ===================================================================== */}
+      {editKamarItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit2 className="h-5 w-5 text-emerald-700" />
+                <h3 className="text-base font-bold text-slate-900">Edit Data Kamar Asrama</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditKamarItem(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditKamar} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700">Kode Kamar</label>
+                <input
+                  type="text"
+                  required
+                  value={editKamarKode}
+                  onChange={(e) => setEditKamarKode(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Nama Kamar</label>
+                <input
+                  type="text"
+                  required
+                  value={editKamarNama}
+                  onChange={(e) => setEditKamarNama(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Gedung Asrama</label>
+                <input
+                  type="text"
+                  required
+                  value={editKamarGedung}
+                  onChange={(e) => setEditKamarGedung(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Musyrif / Pembina Kamar</label>
+                <input
+                  type="text"
+                  required
+                  value={editKamarMusyrif}
+                  onChange={(e) => setEditKamarMusyrif(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Kapasitas (Kasur / Santri)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  required
+                  value={editKamarKapasitas}
+                  onChange={(e) => setEditKamarKapasitas(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={masterSubmitting}
+                  onClick={() => setEditKamarItem(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={masterSubmitting}
+                  className="rounded-xl bg-emerald-700 px-5 py-2 font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {masterSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL: HAPUS MASTER DATA KAMAR (PROTEKSI RELASI SANTRI AKTIF)
+         ===================================================================== */}
+      {deleteKamarConfirm && (() => {
+        const activeCount = getSantriCountInKamar(deleteKamarConfirm.id);
+        const isBlocked = activeCount > 0;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={`rounded-xl p-2.5 ${isBlocked ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-600"}`}>
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {isBlocked ? "Kamar Tidak Dapat Dihapus" : "Konfirmasi Hapus Kamar"}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {deleteKamarConfirm.nama_kamar} ({deleteKamarConfirm.kode_kamar})
+                  </p>
+                </div>
+              </div>
+
+              {isBlocked ? (
+                <div className="rounded-xl bg-rose-50 p-3.5 text-xs text-rose-900 border border-rose-200 space-y-2 leading-relaxed">
+                  <p className="font-bold">Penghapusan Diblokir demi Integritas Data:</p>
+                  <p>
+                    Saat ini masih ada <strong>{activeCount} santri aktif</strong> yang menempati kamar
+                    ini.
+                  </p>
+                  <p className="text-slate-600">
+                    Silakan pindahkan santri ke kamar lain terlebih dahulu melalui menu{" "}
+                    <strong>Mutasi / Perpindahan Penempatan</strong> sebelum menghapus kamar asrama ini.
+                  </p>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-600 space-y-2">
+                  <p>
+                    Apakah Anda yakin ingin menghapus kamar <strong>{deleteKamarConfirm.nama_kamar}</strong>?
+                  </p>
+                  <p className="text-slate-500">
+                    Kamar ini tidak sedang dihuni santri aktif dan aman untuk dihapus. Tindakan penghapusan
+                    akan dicatat dalam audit log.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteKamarConfirm(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  {isBlocked ? "Tutup" : "Batal"}
+                </button>
+                {!isBlocked && (
+                  <button
+                    type="button"
+                    disabled={masterSubmitting}
+                    onClick={handleDeleteKamarSubmit}
+                    className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                  >
+                    {masterSubmitting ? "Menghapus..." : "Ya, Hapus Kamar"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

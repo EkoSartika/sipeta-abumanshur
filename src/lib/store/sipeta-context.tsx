@@ -86,6 +86,7 @@ import {
 } from "@/lib/services";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import {
+  isValidUsername,
   normalizeUsername,
   usernameToInternalEmail,
   validatePasswordStrength,
@@ -158,6 +159,7 @@ interface SipetaContextValue {
     userId: string,
     data: { nama_lengkap: string; no_telepon?: string; role?: UserRole }
   ) => Promise<ActionResponse>;
+  deleteUserAccount: (userId: string) => Promise<ActionResponse>;
   updateRekeningResmi: (payload: Omit<RekeningPesantren, "id" | "is_active" | "updated_at">) => ActionResponse;
 
   // Admin Actions
@@ -174,8 +176,12 @@ interface SipetaContextValue {
     nama_wali: string;
     hubungan_wali: "Ayah" | "Ibu" | "Wali";
     telepon_wali: string;
-    email_wali: string;
-  }) => ActionResponse;
+    username_wali?: string;
+    password_wali?: string;
+    email_kontak_wali?: string;
+    email_wali?: string;
+  }) => Promise<ActionResponse> | ActionResponse;
+  deleteSantriBatch: (santriIds: string[]) => Promise<ActionResponse>;
   moveSantriPlacement: (payload: {
     santri_id: string;
     kelas_baru_id: string;
@@ -184,7 +190,11 @@ interface SipetaContextValue {
   }) => ActionResponse;
   updateStatusSantri: (santriId: string, statusBaru: StatusSantri) => ActionResponse;
   createKelas: (payload: Omit<Kelas, "id" | "is_active">) => ActionResponse;
+  updateKelas: (id: string, payload: Partial<Kelas>) => ActionResponse;
+  deleteKelas: (id: string) => ActionResponse;
   createKamar: (payload: Omit<Kamar, "id" | "is_active">) => ActionResponse;
+  updateKamar: (id: string, payload: Partial<Kamar>) => ActionResponse;
+  deleteKamar: (id: string) => ActionResponse;
   createJenisPembayaran: (payload: Omit<JenisPembayaran, "id" | "is_active">) => ActionResponse;
   generateTagihan: (payload: {
     jenis_pembayaran_id: string;
@@ -940,6 +950,72 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, message: `Profil ${target.nama_lengkap} berhasil diperbarui.` };
   };
 
+  const deleteUserAccount: SipetaContextValue["deleteUserAccount"] = async (userId) => {
+    if (!currentUser || currentUser.role !== "superadmin") {
+      return { ok: false, message: "Hanya Superadmin yang berwenang menghapus akun pengguna." };
+    }
+
+    if (currentUser.id === userId) {
+      return { ok: false, message: "Keamanan: Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif." };
+    }
+
+    const target = users.find((u) => u.id === userId);
+    if (!target) {
+      return { ok: false, message: "Akun pengguna tidak ditemukan." };
+    }
+
+    if (target.role === "superadmin") {
+      const superadminCount = users.filter((u) => u.role === "superadmin").length;
+      if (superadminCount <= 1) {
+        return { ok: false, message: "Akun Superadmin terakhir tidak boleh dihapus demi keamanan sistem." };
+      }
+    }
+
+    if (authMode === "supabase") {
+      const res = await authService.deleteUserAccount(userId);
+      if (res.ok) {
+        if (res.actionTaken === "DEACTIVATED") {
+          setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u)));
+        } else {
+          setUsers((prev) => prev.filter((u) => u.id !== userId));
+        }
+      }
+      return res;
+    }
+
+    // Mode Demo: periksa relasi pembayaran atau transaksi
+    const hasHistory =
+      transaksiPembayaranList.some(
+        (t) =>
+          t.wali_user_id === userId ||
+          (t.verified_by_nama && t.verified_by_nama.toLowerCase().includes(target.nama_lengkap.toLowerCase()))
+      ) ||
+      mutasiUangSakuList.some((m) => m.petugas_nama?.toLowerCase().includes(target.nama_lengkap.toLowerCase()));
+
+    if (hasHistory) {
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u)));
+      appendAuditLog("DEACTIVATE_USER_SAFE", "profiles", userId, { is_active: false }, "Penonaktifan akun dengan riwayat transaksi");
+      return {
+        ok: true,
+        message: `Akun ${target.nama_lengkap} memiliki riwayat transaksi/aktivitas penting. Akun dinonaktifkan secara aman (soft delete) untuk menjaga integritas data.`,
+      };
+    }
+
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    if (target.role === "wali") {
+      setWaliList((prev) => prev.filter((w) => w.user_id !== userId));
+    }
+
+    appendAuditLog("DELETE_USER_PERMANENT", "profiles", userId, undefined, `Penghapusan akun resmi oleh Superadmin (${target.nama_lengkap})`, {
+      nama_lengkap: target.nama_lengkap,
+      username: target.username,
+      email: target.email,
+      role: target.role,
+    });
+
+    return { ok: true, message: `Akun ${target.nama_lengkap} berhasil dihapus dari sistem.` };
+  };
+
   const updateRekeningResmi: SipetaContextValue["updateRekeningResmi"] = (payload) => {
     if (!currentUser || currentUser.role !== "superadmin") {
       return { ok: false, message: "Hanya Superadmin yang dapat mengelola rekening resmi pesantren." };
@@ -966,7 +1042,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   // ADMIN ACTIONS
   // ============================================================================
 
-  const createSantriWithWali: SipetaContextValue["createSantriWithWali"] = (payload) => {
+  const createSantriWithWali: SipetaContextValue["createSantriWithWali"] = async (payload) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Admin atau Superadmin yang dapat mendaftarkan santri." };
     }
@@ -974,6 +1050,60 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: `NIS ${payload.nis} sudah terdaftar. NIS harus unik.` };
     }
 
+    const rawUsernameWali = payload.username_wali ? normalizeUsername(payload.username_wali) : `wali_${payload.nis.trim().toLowerCase()}`;
+    if (!isValidUsername(rawUsernameWali)) {
+      return {
+        ok: false,
+        message: "Username wali hanya boleh berisi 3-30 karakter (huruf kecil, angka, titik, strip, garis bawah).",
+      };
+    }
+
+    if (users.some((u) => u.username?.toLowerCase() === rawUsernameWali)) {
+      return { ok: false, message: `Username wali '@${rawUsernameWali}' sudah digunakan. Pilih username lain.` };
+    }
+
+    const syntheticWaliEmail = usernameToInternalEmail(rawUsernameWali);
+    const emailKontak = payload.email_kontak_wali?.trim() || payload.email_wali?.trim() || "-";
+
+    // Jika Supabase live mode, gunakan endpoint transaksi server atomik dengan rollback otomatis
+    if (authMode === "supabase") {
+      try {
+        const res = await fetch("/api/admin-santri", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nis: payload.nis,
+            nama_lengkap: payload.nama_lengkap,
+            tempat_lahir: payload.tempat_lahir,
+            tanggal_lahir: payload.tanggal_lahir,
+            jenis_kelamin: payload.jenis_kelamin,
+            alamat: payload.alamat,
+            tahun_masuk: payload.tahun_masuk,
+            kelas_id: payload.kelas_id,
+            kamar_id: payload.kamar_id,
+            wali: {
+              nama_lengkap: payload.nama_wali,
+              hubungan: payload.hubungan_wali,
+              no_telepon: payload.telepon_wali,
+              username_wali: rawUsernameWali,
+              password_wali: payload.password_wali || "AbuManshur@123",
+              email_kontak: emailKontak !== "-" ? emailKontak : undefined,
+            },
+          }),
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          await refreshFromSupabase();
+          return { ok: true, message: data.message };
+        }
+        return { ok: false, message: data.message ?? "Gagal menyimpan santri dan akun wali." };
+      } catch (e: any) {
+        return { ok: false, message: e.message ?? "Terjadi kesalahan jaringan." };
+      }
+    }
+
+    // Mode Demo Standalone
     const newSantriId = `snt-${Date.now()}`;
     const newWaliUserId = `usr-wali-${Date.now()}`;
 
@@ -996,7 +1126,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     const newWaliUser: UserProfile = {
       id: newWaliUserId,
       nama_lengkap: `${payload.nama_wali.trim()} (Wali ${payload.nama_lengkap.trim()})`,
-      email: payload.email_wali.trim(),
+      username: rawUsernameWali,
+      email: syntheticWaliEmail,
       no_telepon: payload.telepon_wali.trim(),
       role: "wali",
       is_active: true,
@@ -1011,7 +1142,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       nama_lengkap: payload.nama_wali.trim(),
       hubungan: payload.hubungan_wali,
       no_telepon: payload.telepon_wali.trim(),
-      email: payload.email_wali.trim(),
+      email: emailKontak,
       alamat: payload.alamat.trim(),
     };
 
@@ -1036,13 +1167,116 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     appendAuditLog("REGISTRASI_SANTRI_DAN_WALI", "santri", newSantriId, {
       nis: newSantri.nis,
       nama_santri: newSantri.nama_lengkap,
-      wali_email: newWaliRecord.email,
+      wali_username: rawUsernameWali,
+      wali_email_sintetis: syntheticWaliEmail,
     });
 
     return {
       ok: true,
-      message: `Data santri ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) beserta akun Orang Tua/Wali 1:1 berhasil dibuat.`,
+      message: `Data santri ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) beserta akun Orang Tua/Wali (@${rawUsernameWali}) berhasil dibuat.`,
     };
+  };
+
+  const deleteSantriBatch: SipetaContextValue["deleteSantriBatch"] = async (santriIds) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang menghapus data santri." };
+    }
+    if (!santriIds || santriIds.length === 0) {
+      return { ok: false, message: "Pilih setidaknya 1 santri untuk dihapus." };
+    }
+
+    if (authMode === "supabase") {
+      const res = await administrasiService.deleteSantriBatch(santriIds);
+      if (res.ok) {
+        await refreshFromSupabase();
+      }
+      return res;
+    }
+
+    // Demo Mode
+    let hardDeleted = 0;
+    let softDeactivated = 0;
+
+    const idsToHardDelete: string[] = [];
+    const idsToSoftDeactivate: string[] = [];
+
+    for (const sId of santriIds) {
+      const s = santriList.find((item) => item.id === sId);
+      if (!s) continue;
+
+      // Periksa riwayat keuangan / akademik
+      const hasHistory =
+        tagihanList.some((t) => t.santri_id === sId) ||
+        transaksiPembayaranList.some((p) => p.santri_id === sId) ||
+        mutasiUangSakuList.some((m) => m.santri_id === sId) ||
+        tahfidzList.some((th) => th.santri_id === sId) ||
+        prestasiList.some((pr) => pr.santri_id === sId) ||
+        kedisiplinanList.some((kd) => kd.santri_id === sId);
+
+      if (hasHistory) {
+        idsToSoftDeactivate.push(sId);
+        softDeactivated++;
+        appendAuditLog(
+          "SOFT_DELETE_SANTRI",
+          "santri",
+          sId,
+          { status: "TIDAK_AKTIF" },
+          `Santri ${s.nama_lengkap} memiliki riwayat transaksi/akademik aktif, dinonaktifkan secara aman`,
+          { status: s.status }
+        );
+      } else {
+        idsToHardDelete.push(sId);
+        hardDeleted++;
+        appendAuditLog(
+          "HARD_DELETE_SANTRI",
+          "santri",
+          sId,
+          undefined,
+          `Santri ${s.nama_lengkap} tanpa riwayat transaksi dihapus permanen`,
+          { nis: s.nis, nama_lengkap: s.nama_lengkap }
+        );
+      }
+    }
+
+    // Terapkan ke state
+    if (idsToSoftDeactivate.length > 0) {
+      setSantriList((prev) =>
+        prev.map((s) => (idsToSoftDeactivate.includes(s.id) ? { ...s, status: "TIDAK_AKTIF" as StatusSantri } : s))
+      );
+      // Nonaktifkan akun wali terkait jika ada
+      const waliUsersToDeactivate = waliList
+        .filter((w) => idsToSoftDeactivate.includes(w.santri_id))
+        .map((w) => w.user_id);
+      if (waliUsersToDeactivate.length > 0) {
+        setUsers((prev) =>
+          prev.map((u) => (waliUsersToDeactivate.includes(u.id) ? { ...u, is_active: false } : u))
+        );
+      }
+    }
+
+    if (idsToHardDelete.length > 0) {
+      setSantriList((prev) => prev.filter((s) => !idsToHardDelete.includes(s.id)));
+      const waliUserIdsToDelete = waliList
+        .filter((w) => idsToHardDelete.includes(w.santri_id))
+        .map((w) => w.user_id);
+      setWaliList((prev) => prev.filter((w) => !idsToHardDelete.includes(w.santri_id)));
+      if (waliUserIdsToDelete.length > 0) {
+        setUsers((prev) => prev.filter((u) => !waliUserIdsToDelete.includes(u.id)));
+      }
+      setRiwayatPenempatan((prev) => prev.filter((r) => !idsToHardDelete.includes(r.santri_id)));
+    }
+
+    const total = hardDeleted + softDeactivated;
+    let message = "";
+    if (hardDeleted > 0 && softDeactivated > 0) {
+      message = `${total} data santri berhasil diproses (${hardDeleted} dihapus permanen, ${softDeactivated} dinonaktifkan aman karena memiliki riwayat).`;
+    } else if (softDeactivated > 0) {
+      message = `${softDeactivated} data santri dinonaktifkan secara aman (soft delete) untuk melindungi integritas transaksi & nilai.`;
+    } else {
+      message = `${hardDeleted} data santri berhasil dihapus dari sistem.`;
+    }
+
+    return { ok: true, message };
   };
 
   const moveSantriPlacement: SipetaContextValue["moveSantriPlacement"] = (payload) => {
@@ -1130,6 +1364,46 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, message: `Kelas ${item.nama_kelas} berhasil ditambahkan.` };
   };
 
+  const updateKelas: SipetaContextValue["updateKelas"] = (id, payload) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang memperbarui kelas." };
+    }
+    const target = kelasList.find((k) => k.id === id);
+    if (!target) return { ok: false, message: "Kelas tidak ditemukan." };
+
+    setKelasList((prev) => prev.map((k) => (k.id === id ? { ...k, ...payload } : k)));
+    appendAuditLog("UPDATE_MASTER_KELAS", "kelas", id, payload, undefined, { ...target });
+
+    if (authMode === "supabase") {
+      administrasiService.updateKelas(id, payload).catch(console.error);
+    }
+    return { ok: true, message: `Data kelas '${target.nama_kelas}' berhasil diperbarui.` };
+  };
+
+  const deleteKelas: SipetaContextValue["deleteKelas"] = (id) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang menghapus kelas." };
+    }
+    const target = kelasList.find((k) => k.id === id);
+    if (!target) return { ok: false, message: "Kelas tidak ditemukan." };
+
+    const activeCount = santriList.filter((s) => s.kelas_id === id && s.status === "AKTIF").length;
+    if (activeCount > 0) {
+      return {
+        ok: false,
+        message: `Kelas '${target.nama_kelas}' masih memiliki ${activeCount} santri aktif. Pindahkan santri ke kelas lain terlebih dahulu sebelum menghapus kelas ini.`,
+      };
+    }
+
+    setKelasList((prev) => prev.filter((k) => k.id !== id));
+    appendAuditLog("DELETE_MASTER_KELAS", "kelas", id, undefined, `Penghapusan master kelas '${target.nama_kelas}'`, { ...target });
+
+    if (authMode === "supabase") {
+      administrasiService.deleteKelas(id).catch(console.error);
+    }
+    return { ok: true, message: `Kelas '${target.nama_kelas}' berhasil dihapus.` };
+  };
+
   const createKamar: SipetaContextValue["createKamar"] = (payload) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Tidak memiliki hak akses." };
@@ -1138,6 +1412,46 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     setKamarList((prev) => [...prev, item]);
     appendAuditLog("TAMBAH_MASTER_KAMAR", "kamar", item.id, { ...item });
     return { ok: true, message: `Kamar ${item.nama_kamar} berhasil ditambahkan.` };
+  };
+
+  const updateKamar: SipetaContextValue["updateKamar"] = (id, payload) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang memperbarui kamar." };
+    }
+    const target = kamarList.find((k) => k.id === id);
+    if (!target) return { ok: false, message: "Kamar asrama tidak ditemukan." };
+
+    setKamarList((prev) => prev.map((k) => (k.id === id ? { ...k, ...payload } : k)));
+    appendAuditLog("UPDATE_MASTER_KAMAR", "kamar", id, payload, undefined, { ...target });
+
+    if (authMode === "supabase") {
+      administrasiService.updateKamar(id, payload).catch(console.error);
+    }
+    return { ok: true, message: `Data kamar '${target.nama_kamar}' berhasil diperbarui.` };
+  };
+
+  const deleteKamar: SipetaContextValue["deleteKamar"] = (id) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang menghapus kamar." };
+    }
+    const target = kamarList.find((k) => k.id === id);
+    if (!target) return { ok: false, message: "Kamar asrama tidak ditemukan." };
+
+    const activeCount = santriList.filter((s) => s.kamar_id === id && s.status === "AKTIF").length;
+    if (activeCount > 0) {
+      return {
+        ok: false,
+        message: `Kamar '${target.nama_kamar}' masih ditempati oleh ${activeCount} santri aktif. Pindahkan santri terlebih dahulu sebelum menghapus kamar ini.`,
+      };
+    }
+
+    setKamarList((prev) => prev.filter((k) => k.id !== id));
+    appendAuditLog("DELETE_MASTER_KAMAR", "kamar", id, undefined, `Penghapusan master kamar asrama '${target.nama_kamar}'`, { ...target });
+
+    if (authMode === "supabase") {
+      administrasiService.deleteKamar(id).catch(console.error);
+    }
+    return { ok: true, message: `Kamar '${target.nama_kamar}' berhasil dihapus.` };
   };
 
   const createJenisPembayaran: SipetaContextValue["createJenisPembayaran"] = (payload) => {
@@ -2212,12 +2526,18 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         toggleUserActive,
         resetUserPassword,
         updateUserProfile,
+        deleteUserAccount,
         updateRekeningResmi,
         createSantriWithWali,
+        deleteSantriBatch,
         moveSantriPlacement,
         updateStatusSantri,
         createKelas,
+        updateKelas,
+        deleteKelas,
         createKamar,
+        updateKamar,
+        deleteKamar,
         createJenisPembayaran,
         generateTagihan,
         adjustTagihan,

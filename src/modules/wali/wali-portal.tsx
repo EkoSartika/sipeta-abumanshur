@@ -330,16 +330,20 @@ export function WaliPortal() {
         </div>
 
         {/* Navigasi Mobile-Friendly Portal Orang Tua */}
-        <div className="mt-5 flex flex-wrap gap-1.5 border-t border-white/15 pt-4">
+        <div className="mt-5 flex overflow-x-auto no-scrollbar gap-1.5 border-t border-white/15 pt-4 pb-1 -mx-2 px-2 sm:mx-0 sm:px-0 sm:flex-wrap">
           {[
-            { id: "dashboard", label: "Dashboard Utama", icon: LayoutDashboard },
+            { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+            {
+              id: "kepesantrenan",
+              label: "Mengaji, Tahfidz & Prestasi",
+              icon: BookOpen,
+            },
             {
               id: "pembayaran",
               label: `Pembayaran & Cicilan (${unpaidTagihan.length})`,
               icon: CreditCard,
             },
             { id: "uang_saku", label: "Uang Saku & Foto Bukti", icon: Wallet },
-            { id: "kepesantrenan", label: "Mengaji, Tahfidz & Disiplin", icon: BookOpen },
             {
               id: "notifikasi",
               label: `Notifikasi & Pengumuman (${unreadNotifCount})`,
@@ -356,13 +360,13 @@ export function WaliPortal() {
                   setActiveTab(tab.id as WaliTab);
                   setFeedback(null);
                 }}
-                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium transition ${
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold transition whitespace-nowrap min-h-[44px] ${
                   active
-                    ? "bg-white text-emerald-950 shadow-sm font-semibold"
+                    ? "bg-white text-emerald-950 shadow-md font-bold"
                     : "bg-white/10 text-emerald-100 hover:bg-white/20"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 shrink-0" />
                 <span>{tab.label}</span>
               </button>
             );
