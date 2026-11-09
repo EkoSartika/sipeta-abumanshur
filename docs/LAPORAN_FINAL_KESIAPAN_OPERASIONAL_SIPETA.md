@@ -263,3 +263,4 @@ Sistem SIPETA menerapkan pemisahan tugas (*Separation of Duties*) yang ketat ber
 >
 > **Satu-satunya catatan tindakan:**  
 > Administrator perlu membuka **Supabase SQL Editor** satu kali untuk mengeksekusi berkas `supabase/migrations/013_tu_role_and_class_room_transfer.sql` agar enum `'tu'` dan kebijakan RLS Tata Usaha aktif di database Cloud. Setelah langkah tersebut dijalankan, seluruh modul SIPETA siap digunakan secara penuh untuk kegiatan operasional pesantren.
+

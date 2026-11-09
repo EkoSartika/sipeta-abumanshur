@@ -237,17 +237,25 @@ export async function POST(request: NextRequest) {
         throw new Error(`Gagal menghubungkan relasi wali 1:1: ${waliRelErr.message}`);
       }
 
-      // Tahap E: Catat riwayat penempatan awal
-      await adminClient.from("riwayat_penempatan_santri").insert({
-        santri_id: createdSantriId,
-        kelas_lama_id: null,
-        kelas_baru_id: payload.kelas_id,
-        kamar_lama_id: null,
-        kamar_baru_id: payload.kamar_id,
-        tanggal_efektif: new Date().toISOString().slice(0, 10),
-        keterangan: "Penempatan awal pendaftaran santri baru",
-        petugas_nama: callerProfile.role,
-      });
+      // Tahap E: Catat riwayat penempatan awal (Cegah pencatatan ganda dengan trigger database)
+      const { data: existingPlacement } = await adminClient
+        .from("riwayat_penempatan_santri")
+        .select("id")
+        .eq("santri_id", createdSantriId)
+        .maybeSingle();
+
+      if (!existingPlacement) {
+        await adminClient.from("riwayat_penempatan_santri").insert({
+          santri_id: createdSantriId,
+          kelas_lama_id: null,
+          kelas_baru_id: payload.kelas_id,
+          kamar_lama_id: null,
+          kamar_baru_id: payload.kamar_id,
+          tanggal_efektif: new Date().toISOString().slice(0, 10),
+          keterangan: "Penempatan awal pendaftaran santri baru",
+          petugas_nama: callerProfile.role,
+        });
+      }
 
       // Tahap F: Catat ke Audit Log
       await adminClient.from("audit_logs").insert({

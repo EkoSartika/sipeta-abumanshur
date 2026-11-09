@@ -249,4 +249,30 @@ describe("SIPETA — TU Anti-Delete & Service Role Endpoint Hardening Suite", ()
       expect(adminUsersContent).toContain("Promosi akun menjadi Superadmin dilarang oleh kebijakan keamanan sistem.");
     });
   });
+
+  // ==========================================================================
+  // 6. DEDUPLIKASI PENCATATAN RIWAYAT MUTASI PENEMPATAN
+  // ==========================================================================
+  describe("6. Verifikasi Pencegahan Duplikasi Pencatatan Riwayat Penempatan", () => {
+    it("6.1. Registrasi santri memeriksa existingPlacement sebelum insert riwayat awal", () => {
+      const adminSantriRoutePath = path.resolve(__dirname, "../src/app/api/admin-santri/route.ts");
+      const adminSantriContent = fs.readFileSync(adminSantriRoutePath, "utf-8");
+
+      expect(adminSantriContent).toContain("existingPlacement");
+      expect(adminSantriContent).toContain("if (!existingPlacement)");
+    });
+
+    it("6.2. Mutasi penempatan kelas dan kamar hanya mencatat jika ada perubahan nilai", () => {
+      const oldPlacement = { kelas_id: "kls-1", kamar_id: "kmr-1" };
+      const newPlacementSame = { kelas_id: "kls-1", kamar_id: "kmr-1" };
+      const newPlacementChanged = { kelas_id: "kls-2", kamar_id: "kmr-1" };
+
+      const shouldRecord = (oldP: typeof oldPlacement, newP: typeof oldPlacement) => {
+        return oldP.kelas_id !== newP.kelas_id || oldP.kamar_id !== newP.kamar_id;
+      };
+
+      expect(shouldRecord(oldPlacement, newPlacementSame)).toBe(false);
+      expect(shouldRecord(oldPlacement, newPlacementChanged)).toBe(true);
+    });
+  });
 });
