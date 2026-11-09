@@ -8,3 +8,4 @@ export {
   type PengelolaPortalProps as AsatidzPortalProps,
   type PengelolaPortalProps,
 } from "@/modules/pengelola/pengelola-portal";
+

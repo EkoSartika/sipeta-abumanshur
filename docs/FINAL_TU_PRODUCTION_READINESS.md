@@ -235,3 +235,4 @@ Apabila pihak yayasan / administrator menyetujui penerapan role Tata Usaha (TU) 
 4. Klik tombol **Run**.
 5. Verifikasi pesan keberhasilan (*Success. No rows returned*).
 6. Setelah itu, Superadmin dapat membuka portal SIPETA (`/superadmin/login`), membuka menu **Manajemen Akun Staf**, dan membuat akun staf Tata Usaha baru dengan role **Tata Usaha (TU)**. Akun tersebut langsung dapat login di `/tu/login`.
+

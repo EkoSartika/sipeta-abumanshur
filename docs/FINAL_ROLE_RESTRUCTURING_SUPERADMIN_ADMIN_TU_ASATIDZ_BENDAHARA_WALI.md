@@ -231,3 +231,4 @@ ON public.riwayat_penempatan_santri(tanggal_pindah DESC);
 ## 7. KESIMPULAN
 
 Restrukturisasi role dan portal SIPETA telah selesai secara tuntas, aman, dan berstandar enterprise. Seluruh hak akses mencerminkan hierarki kepemimpinan dan operasional harian Pondok Pesantren Modern Abu Manshur dengan perlindungan data yang ketat.
+

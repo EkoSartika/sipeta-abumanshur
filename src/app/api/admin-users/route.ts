@@ -254,6 +254,7 @@ export async function POST(request: NextRequest) {
     }
 
     const newUserId = authCreated.user.id;
+    const normalizedDbRole = payload.role === "asatidz" ? "pengelola" : payload.role;
 
     // 5. Simpan profil ke public.profiles
     const profileInsertData: Record<string, any> = {
@@ -261,7 +262,7 @@ export async function POST(request: NextRequest) {
       nama_lengkap: payload.nama_lengkap,
       email: finalEmail,
       no_telepon: payload.no_telepon,
-      role: payload.role,
+      role: normalizedDbRole,
       is_active: true,
       username: finalUsername,
     };
@@ -591,7 +592,7 @@ export async function PATCH(request: NextRequest) {
       const profileUpdates: Record<string, any> = {};
       if (payload.nama_lengkap) profileUpdates.nama_lengkap = payload.nama_lengkap.trim();
       if (payload.no_telepon !== undefined) profileUpdates.no_telepon = payload.no_telepon.trim();
-      if (payload.role) profileUpdates.role = payload.role;
+      if (payload.role) profileUpdates.role = payload.role === "asatidz" ? "pengelola" : payload.role;
       if (payload.is_active !== undefined) profileUpdates.is_active = payload.is_active;
       if (payload.must_change_password !== undefined) profileUpdates.must_change_password = payload.must_change_password;
       if (finalNewUsername) profileUpdates.username = finalNewUsername;
