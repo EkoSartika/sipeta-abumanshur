@@ -12,19 +12,26 @@ const nextConfig = {
     ],
   },
   async redirects() {
-    return [
-      {
-        source: "/:path*",
-        has: [
-          {
-            type: "host",
-            value: "sipeta-abumanshur.vercel.app",
-          },
-        ],
-        destination: "https://sipetaabumanshur.vercel.app/:path*",
-        permanent: true,
-      },
-    ];
+    // Redirect permanen domain lama ke domain baru sipetaabumanshur.vercel.app.
+    // Diatur aktif saat ENABLE_DOMAIN_REDIRECT === "true".
+    // Proteksi zero-downtime: domain lama tetap melayani traffic operasional (200 OK)
+    // sampai domain baru diverifikasi dan terhubung di dashboard Vercel.
+    if (process.env.ENABLE_DOMAIN_REDIRECT === "true") {
+      return [
+        {
+          source: "/:path*",
+          has: [
+            {
+              type: "host",
+              value: "sipeta-abumanshur.vercel.app",
+            },
+          ],
+          destination: "https://sipetaabumanshur.vercel.app/:path*",
+          permanent: true,
+        },
+      ];
+    }
+    return [];
   },
 };
 

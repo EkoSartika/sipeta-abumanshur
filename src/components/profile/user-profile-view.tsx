@@ -533,3 +533,4 @@ export function UserProfileView() {
     </div>
   );
 }
+

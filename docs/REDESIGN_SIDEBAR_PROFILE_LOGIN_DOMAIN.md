@@ -264,3 +264,4 @@ Jika akun suatu role mencoba login melalui rute role lain (contoh: Wali santri m
 ## 8. KESIMPULAN
 
 Pembaruan navigasi kiri terpadu, penambahan fitur Profil Saya, pemisahan pintu masuk login per role, penghapusan badge status Supabase dari antarmuka visual, dan penyesuaian domain tujuan telah selesai diimplementasikan secara komprehensif tanpa merusak bisnis logika atau keamanan sistem yang telah ada sebelumnya. SIPETA kini siap digunakan secara profesional dan nyaman oleh seluruh civitas Pondok Pesantren Modern Abu Manshur.
+

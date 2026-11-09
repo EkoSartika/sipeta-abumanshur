@@ -5,29 +5,47 @@
 // ============================================================================
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// @ts-ignore
 import nextConfig from "../next.config.mjs";
 import { getRoleLabel, getRoleLoginUrl } from "../src/lib/utils/format";
 import type { UserRole } from "../src/types/database";
 
 describe("1. Domain Configuration & Permanent Redirect", () => {
-  it("harus memiliki aturan redirect permanen dari domain lama ke domain baru", async () => {
-    expect(nextConfig.redirects).toBeDefined();
-    const redirects = await nextConfig.redirects!();
-    expect(Array.isArray(redirects)).toBe(true);
+  it("harus memiliki aturan redirect permanen dari domain lama ke domain baru jika flag aktif", async () => {
+    const origEnv = process.env.ENABLE_DOMAIN_REDIRECT;
+    process.env.ENABLE_DOMAIN_REDIRECT = "true";
+    try {
+      expect(nextConfig.redirects).toBeDefined();
+      const redirects = await nextConfig.redirects!();
+      expect(Array.isArray(redirects)).toBe(true);
 
-    const oldDomainRedirect = redirects.find(
-      (r) =>
-        r.destination === "https://sipetaabumanshur.vercel.app/:path*" &&
-        r.permanent === true
-    );
+      const oldDomainRedirect = redirects.find(
+        (r: any) =>
+          r.destination === "https://sipetaabumanshur.vercel.app/:path*" &&
+          r.permanent === true
+      );
 
-    expect(oldDomainRedirect).toBeDefined();
-    expect(oldDomainRedirect?.has).toEqual([
-      {
-        type: "host",
-        value: "sipeta-abumanshur.vercel.app",
-      },
-    ]);
+      expect(oldDomainRedirect).toBeDefined();
+      expect(oldDomainRedirect?.has).toEqual([
+        {
+          type: "host",
+          value: "sipeta-abumanshur.vercel.app",
+        },
+      ]);
+    } finally {
+      process.env.ENABLE_DOMAIN_REDIRECT = origEnv;
+    }
+  });
+
+  it("harus menjaga domain lama tetap aktif (tanpa redirect paksa) jika flag belum aktif demi zero-downtime", async () => {
+    const origEnv = process.env.ENABLE_DOMAIN_REDIRECT;
+    delete process.env.ENABLE_DOMAIN_REDIRECT;
+    try {
+      const redirects = await nextConfig.redirects!();
+      expect(redirects).toEqual([]);
+    } finally {
+      process.env.ENABLE_DOMAIN_REDIRECT = origEnv;
+    }
   });
 });
 
@@ -112,3 +130,4 @@ describe("4. Password Strength & Rule Enforcement on Profil Saya", () => {
     expect(strongPassword.length >= 8).toBe(true);
   });
 });
+
