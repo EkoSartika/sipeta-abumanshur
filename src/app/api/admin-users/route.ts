@@ -19,6 +19,10 @@ import {
   validatePasswordStrength,
 } from "@/lib/utils/auth-mapping";
 
+const isUuid = (val: string) =>
+  typeof val === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
 const createUserSchema = z.object({
   nama_lengkap: z.string().min(3, "Nama lengkap minimal 3 karakter."),
   username: z
@@ -878,30 +882,39 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const queryUserId = searchParams.get("user_id");
+    const queryUserId = searchParams.get("user_id") || searchParams.get("id") || searchParams.get("username");
 
     let targetIds: string[] = [];
     let isBulk = false;
 
     if (queryUserId) {
-      targetIds = [queryUserId];
-    } else {
-      try {
-        const body = await request.json();
-        if (body.user_ids && Array.isArray(body.user_ids)) {
+      targetIds = [queryUserId.trim()];
+    }
+
+    try {
+      const body = await request.json();
+      if (body) {
+        if (Array.isArray(body.user_ids)) {
           targetIds = body.user_ids.filter((id: unknown): id is string => typeof id === "string" && id.trim() !== "");
           isBulk = true;
-        } else if (body.user_id && typeof body.user_id === "string") {
-          targetIds = [body.user_id];
+        } else if (Array.isArray(body.ids)) {
+          targetIds = body.ids.filter((id: unknown): id is string => typeof id === "string" && id.trim() !== "");
+          isBulk = true;
+        } else if (typeof body.user_id === "string" && body.user_id.trim() !== "") {
+          targetIds = [body.user_id.trim()];
+        } else if (typeof body.id === "string" && body.id.trim() !== "") {
+          targetIds = [body.id.trim()];
+        } else if (typeof body.username === "string" && body.username.trim() !== "") {
+          targetIds = [body.username.trim()];
         }
-      } catch {
-        // Body kosong atau bukan JSON
       }
+    } catch {
+      // Body kosong atau bukan JSON (pemanggilan DELETE via query parameter)
     }
 
     if (targetIds.length === 0) {
       return NextResponse.json(
-        { ok: false, message: "Parameter user_id atau user_ids wajib disertakan." },
+        { ok: false, message: "Parameter user_id, id, username, atau array user_ids wajib disertakan." },
         { status: 400 }
       );
     }
@@ -969,7 +982,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 3. Proses Penghapusan / Penonaktifan per Akun
+    // 3. Proses Penghapusan / Penonaktifan per Akun (Resolusi Multi-Strategi)
     const results: Array<{
       id: string;
       nama_lengkap?: string;
@@ -978,29 +991,120 @@ export async function DELETE(request: NextRequest) {
       message: string;
     }> = [];
 
-    for (const userId of targetIds) {
-      // Proteksi 1: Tidak boleh menghapus akun sendiri
-      if (callerUser.id === userId) {
+    for (const rawUserId of targetIds) {
+      const cleanRawId = typeof rawUserId === "string" ? rawUserId.trim() : String(rawUserId).trim();
+      if (!cleanRawId) continue;
+      const cleanUser = cleanRawId.replace(/^@/, "").toLowerCase();
+      const syntheticEmail = usernameToInternalEmail(cleanUser);
+
+      // Resolusi Target Pengguna (UUID -> Username -> Email -> Auth User Yatim -> Mock ID)
+      let targetUser: any = null;
+
+      // a. Kueri berdasarkan UUID jika format valid UUID
+      if (isUuid(cleanRawId)) {
+        const { data: byId } = await adminClient
+          .from("profiles")
+          .select("*")
+          .eq("id", cleanRawId)
+          .maybeSingle();
+        if (byId) targetUser = byId;
+      }
+
+      // b. Kueri berdasarkan username di public.profiles
+      if (!targetUser) {
+        const { data: byUsername } = await adminClient
+          .from("profiles")
+          .select("*")
+          .ilike("username", cleanUser)
+          .maybeSingle();
+        if (byUsername) targetUser = byUsername;
+      }
+
+      // c. Kueri berdasarkan email di public.profiles
+      if (!targetUser) {
+        const { data: byEmail } = await adminClient
+          .from("profiles")
+          .select("*")
+          .or(`email.ilike.${cleanRawId},email.ilike.${syntheticEmail}`)
+          .maybeSingle();
+        if (byEmail) targetUser = byEmail;
+      }
+
+      // d. Jika tidak ditemukan di public.profiles, periksa apakah ada akun yatim di Supabase Auth
+      if (!targetUser) {
+        let authUser: any = null;
+        if (isUuid(cleanRawId)) {
+          try {
+            const { data } = await adminClient.auth.admin.getUserById(cleanRawId);
+            if (data?.user) authUser = data.user;
+          } catch {}
+        }
+        if (!authUser) {
+          try {
+            const { data: listData } = await adminClient.auth.admin.listUsers();
+            if (listData?.users) {
+              authUser = listData.users.find(
+                (u) =>
+                  u.id === cleanRawId ||
+                  u.email?.toLowerCase() === cleanRawId.toLowerCase() ||
+                  u.email?.toLowerCase() === syntheticEmail.toLowerCase() ||
+                  u.user_metadata?.username?.toLowerCase() === cleanUser
+              );
+            }
+          } catch {}
+        }
+
+        if (authUser) {
+          try {
+            await adminClient.auth.admin.deleteUser(authUser.id);
+            results.push({
+              id: authUser.id,
+              nama_lengkap: authUser.user_metadata?.nama_lengkap || authUser.email,
+              status: "DELETED",
+              actionTaken: "DELETED",
+              message: `Akun autentikasi yatim (${authUser.email}) berhasil dibersihkan dari Supabase Auth.`,
+            });
+            continue;
+          } catch (e: any) {
+            results.push({
+              id: authUser.id,
+              status: "FAILED",
+              message: `Gagal menghapus akun auth yatim: ${e?.message}`,
+            });
+            continue;
+          }
+        }
+      }
+
+      // e. Tangani akun mock/contoh lokal yang tidak ada di Cloud database
+      if (!targetUser) {
+        if (cleanRawId.startsWith("usr-")) {
+          results.push({
+            id: cleanRawId,
+            status: "DELETED",
+            actionTaken: "DELETED",
+            message: `Akun lokal/contoh '${cleanRawId}' berhasil dibersihkan dari tampilan sistem.`,
+          });
+          continue;
+        }
+
         results.push({
-          id: userId,
-          status: "SKIPPED",
-          message: "Keamanan: Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif.",
+          id: cleanRawId,
+          status: "FAILED",
+          message: `Pengguna '${cleanRawId}' tidak ditemukan dalam sistem database Supabase (profiles & auth).`,
         });
         continue;
       }
 
-      // Dapatkan data profil target
-      const { data: targetUser } = await adminClient
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
+      const targetUserId = targetUser.id;
 
-      if (!targetUser) {
+      // Proteksi 1: Tidak boleh menghapus akun sendiri saat sedang aktif
+      if (callerUser.id === targetUserId) {
         results.push({
-          id: userId,
-          status: "FAILED",
-          message: "Pengguna tidak ditemukan dalam sistem database.",
+          id: targetUserId,
+          nama_lengkap: targetUser.nama_lengkap,
+          status: "SKIPPED",
+          message: "Keamanan: Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif.",
         });
         continue;
       }
@@ -1008,13 +1112,13 @@ export async function DELETE(request: NextRequest) {
       // Proteksi 2: Akun Superadmin mutlak tidak boleh dihapus (Mandat B & af7315fd)
       const isSuperadminTarget =
         targetUser.role === "superadmin" ||
-        targetUser.id === "af7315fd-a82f-4c73-9bd1-4967d038ae7e" ||
+        targetUserId === "af7315fd-a82f-4c73-9bd1-4967d038ae7e" ||
         targetUser.email?.toLowerCase() === "sipetaabumanshur@gmail.com" ||
         targetUser.username?.toLowerCase() === "superadmin";
 
       if (isSuperadminTarget) {
         results.push({
-          id: userId,
+          id: targetUserId,
           nama_lengkap: targetUser.nama_lengkap,
           status: "SKIPPED",
           message: "Keamanan: Akun Superadmin dilindungi sistem dan tidak boleh dihapus.",
@@ -1027,19 +1131,19 @@ export async function DELETE(request: NextRequest) {
       const { count: countPembayaran } = await adminClient
         .from("transaksi_pembayaran")
         .select("id", { count: "exact", head: true })
-        .or(`wali_user_id.eq.${userId},verified_by.eq.${userId}`);
+        .or(`wali_user_id.eq.${targetUserId},verified_by.eq.${targetUserId}`);
 
       // b. Uang Saku (sebagai petugas)
       const { count: countUangSaku } = await adminClient
         .from("mutasi_uang_saku")
         .select("id", { count: "exact", head: true })
-        .eq("petugas_id", userId);
+        .eq("petugas_id", targetUserId);
 
       // c. Topup Uang Saku (sebagai wali atau petugas verifikator)
       const { count: countTopup } = await adminClient
         .from("topup_uang_saku")
         .select("id", { count: "exact", head: true })
-        .or(`wali_user_id.eq.${userId},verified_by.eq.${userId}`);
+        .or(`wali_user_id.eq.${targetUserId},verified_by.eq.${targetUserId}`);
 
       const hasFinancialHistory =
         (countPembayaran ?? 0) > 0 ||
@@ -1051,10 +1155,10 @@ export async function DELETE(request: NextRequest) {
         await adminClient
           .from("profiles")
           .update({ is_active: false })
-          .eq("id", userId);
+          .eq("id", targetUserId);
 
         try {
-          await adminClient.auth.admin.updateUserById(userId, {
+          await adminClient.auth.admin.updateUserById(targetUserId, {
             user_metadata: { is_active: false },
           });
         } catch {
@@ -1067,14 +1171,14 @@ export async function DELETE(request: NextRequest) {
           user_role: "superadmin",
           aktivitas: "DEACTIVATE_USER_ACCOUNT",
           jenis_objek: "profiles",
-          objek_id: userId,
+          objek_id: targetUserId,
           data_sebelum: { is_active: targetUser.is_active },
           data_sesudah: { is_active: false },
           alasan_perubahan: `Akun ${targetUser.nama_lengkap} memiliki riwayat transaksi keuangan aktif sehingga dinonaktifkan secara aman (soft-deactivate) demi integritas pembukuan pesantren.`,
         });
 
         results.push({
-          id: userId,
+          id: targetUserId,
           nama_lengkap: targetUser.nama_lengkap,
           status: "DEACTIVATED",
           actionTaken: "DEACTIVATED",
@@ -1088,7 +1192,7 @@ export async function DELETE(request: NextRequest) {
       // Penting: Data santri, kelas, kamar, dan riwayat akademik di public.santri tetap 100% utuh!
       if (targetUser.role === "wali") {
         try {
-          await adminClient.from("wali_santri").delete().eq("user_id", userId);
+          await adminClient.from("wali_santri").delete().eq("user_id", targetUserId);
         } catch (e: any) {
           console.warn("Peringatan saat membersihkan data relasi wali_santri:", e?.message);
         }
@@ -1097,17 +1201,17 @@ export async function DELETE(request: NextRequest) {
       const { error: delProfileErr } = await adminClient
         .from("profiles")
         .delete()
-        .eq("id", userId);
+        .eq("id", targetUserId);
 
       if (delProfileErr) {
         // Fallback aman: jika delete profil gagal karena constraint foreign key tak terduga, lakukan soft-deactivate
         await adminClient
           .from("profiles")
           .update({ is_active: false })
-          .eq("id", userId);
+          .eq("id", targetUserId);
 
         results.push({
-          id: userId,
+          id: targetUserId,
           nama_lengkap: targetUser.nama_lengkap,
           status: "DEACTIVATED",
           actionTaken: "DEACTIVATED",
@@ -1118,7 +1222,7 @@ export async function DELETE(request: NextRequest) {
 
       // Hapus dari Supabase Auth
       try {
-        await adminClient.auth.admin.deleteUser(userId);
+        await adminClient.auth.admin.deleteUser(targetUserId);
       } catch (e: any) {
         console.warn("Peringatan: Gagal menghapus akun auth Supabase:", e?.message);
       }
@@ -1129,7 +1233,7 @@ export async function DELETE(request: NextRequest) {
         user_role: "superadmin",
         aktivitas: "DELETE_USER_ACCOUNT",
         jenis_objek: "profiles",
-        objek_id: userId,
+        objek_id: targetUserId,
         data_sebelum: {
           nama_lengkap: targetUser.nama_lengkap,
           username: targetUser.username,
@@ -1140,7 +1244,7 @@ export async function DELETE(request: NextRequest) {
       });
 
       results.push({
-        id: userId,
+        id: targetUserId,
         nama_lengkap: targetUser.nama_lengkap,
         status: "DELETED",
         actionTaken: "DELETED",
@@ -1158,6 +1262,7 @@ export async function DELETE(request: NextRequest) {
         ok: single.status === "DELETED" || single.status === "DEACTIVATED",
         actionTaken: single.actionTaken,
         message: single.message,
+        id: single.id,
       });
     }
 
@@ -1171,10 +1276,10 @@ export async function DELETE(request: NextRequest) {
     };
 
     return NextResponse.json({
-      ok: true,
+      ok: summary.deleted > 0 || summary.deactivated > 0,
       results,
       summary,
-      message: `Proses penghapusan selesai: ${summary.deleted} dihapus, ${summary.deactivated} dinonaktifkan, ${summary.skipped} dilewati, ${summary.failed} gagal.`,
+      message: `Proses penghapusan selesai: ${summary.deleted} akun dihapus permanen, ${summary.deactivated} dinonaktifkan aman, ${summary.skipped} dilewati, ${summary.failed} gagal.`,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

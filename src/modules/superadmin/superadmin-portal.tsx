@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -51,6 +51,7 @@ export function SuperadminPortal({
     santriList,
     rekeningResmi,
     auditLogs,
+    refreshFromSupabase,
     createUserAccount,
     manageUserAccount,
     toggleUserActive,
@@ -58,6 +59,10 @@ export function SuperadminPortal({
     deleteUserAccountBatch,
     updateRekeningResmi,
   } = useSipeta();
+
+  useEffect(() => {
+    refreshFromSupabase();
+  }, [refreshFromSupabase]);
 
   const [internalTab, setInternalTab] = useState<SuperadminTab>("dashboard");
   const activeTab = controlledTab ?? internalTab;

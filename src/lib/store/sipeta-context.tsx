@@ -466,7 +466,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       setPengumumanList(pengumuman ?? []);
       setNotifikasiList(notifikasi ?? []);
       if (fetchedUsers && fetchedUsers.length > 0) {
-        setUsers(fetchedUsers);
+        setUsers(fetchedUsers.filter((u) => !u.id.startsWith("usr-")));
       }
     } catch (e) {
       console.warn("Sinkronisasi Supabase ditunda/offline:", e);
@@ -507,13 +507,12 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
           setConnectionStatus("connected");
           setIsLiveSupabase(true);
           setDataSource("supabase");
-          await refreshFromSupabase();
 
           // Cek sesi autentikasi Supabase nyata dari cookies (@supabase/ssr)
           const profile = await authService.getCurrentProfile();
           if (isMounted) {
             if (profile && profile.is_active) {
-              setUsers((prev) => [profile, ...prev.filter((p) => p.id !== profile.id)]);
+              setUsers([profile]);
               setCurrentUser(profile);
               setCurrentUserId(profile.id);
               setIsAuthenticated(true);
@@ -526,6 +525,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
               setAuthMode("unauthenticated");
             }
           }
+          await refreshFromSupabase();
         } else {
           setConnectionStatus("demo");
           setIsLiveSupabase(false);
@@ -581,7 +581,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
           message: "Akun Anda telah dinonaktifkan. Hubungi Administrator untuk informasi lebih lanjut.",
         };
       }
-      setUsers((prev) => [res.user!, ...prev.filter((p) => p.id !== res.user!.id)]);
+      setUsers((prev) => [res.user!, ...prev.filter((p) => p.id !== res.user!.id && !p.id.startsWith("usr-"))]);
       setCurrentUser(res.user);
       setCurrentUserId(res.user.id);
       setIsAuthenticated(true);
@@ -1157,16 +1157,13 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: "Hanya Superadmin yang berwenang menghapus akun pengguna." };
     }
 
-    if (currentUser.id === userId) {
+    if (currentUser.id === userId || (currentUser.username && currentUser.username === userId)) {
       return { ok: false, message: "Keamanan: Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif." };
     }
 
-    const target = users.find((u) => u.id === userId);
-    if (!target) {
-      return { ok: false, message: "Akun pengguna tidak ditemukan." };
-    }
+    const target = users.find((u) => u.id === userId || u.username === userId);
 
-    if (target.role === "superadmin") {
+    if (target?.role === "superadmin") {
       const superadminCount = users.filter((u) => u.role === "superadmin").length;
       if (superadminCount <= 1) {
         return { ok: false, message: "Akun Superadmin terakhir tidak boleh dihapus demi keamanan sistem." };
@@ -1177,13 +1174,17 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       const res = await authService.deleteUserAccount(userId);
       if (res.ok) {
         if (res.actionTaken === "DEACTIVATED") {
-          setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u)));
+          setUsers((prev) => prev.map((u) => (u.id === userId || u.id === target?.id ? { ...u, is_active: false } : u)));
         } else {
-          setUsers((prev) => prev.filter((u) => u.id !== userId));
+          setUsers((prev) => prev.filter((u) => u.id !== userId && u.id !== target?.id && u.username !== userId));
         }
         await refreshFromSupabase();
       }
       return res;
+    }
+
+    if (!target) {
+      return { ok: false, message: "Akun pengguna tidak ditemukan." };
     }
 
     // Mode Demo: periksa relasi pembayaran atau transaksi
@@ -1234,8 +1235,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         const deactivatedIds = res.results.filter((r) => r.status === "DEACTIVATED").map((r) => r.id);
         setUsers((prev) =>
           prev
-            .filter((u) => !deletedIds.includes(u.id))
-            .map((u) => (deactivatedIds.includes(u.id) ? { ...u, is_active: false } : u))
+            .filter((u) => !deletedIds.includes(u.id) && !userIds.includes(u.id) && !(u.username && userIds.includes(u.username)))
+            .map((u) => (deactivatedIds.includes(u.id) || (u.username && userIds.includes(u.username) && deactivatedIds.length > 0) ? { ...u, is_active: false } : u))
         );
         await refreshFromSupabase();
       }

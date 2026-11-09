@@ -157,3 +157,4 @@ Seluruh skenario pengujian baru telah didokumentasikan dan diotomatisasi pada te
   3. Klik tombol **Hapus Akun Terpilih**.
   4. Periksa daftar akun yang akan diproses, lalu klik **Konfirmasi Hapus Massal**.
   5. Sistem akan mengeksekusi penghapusan seluruh akun sekaligus dan menampilkan ringkasan hasilnya.
+

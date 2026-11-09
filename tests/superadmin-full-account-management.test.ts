@@ -292,6 +292,10 @@ describe("SIPETA - Superadmin Full Account Management (Tambah, Hapus, Proteksi)"
 
     const results: Array<{ id: string; nama_lengkap?: string; status: string; actionTaken?: string; message: string }> = [];
 
+    const isUuid = (val: string) =>
+      typeof val === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
     for (const userId of targetIds) {
       // Proteksi akun sendiri
       if (callerId === userId) {
@@ -299,11 +303,38 @@ describe("SIPETA - Superadmin Full Account Management (Tambah, Hapus, Proteksi)"
         continue;
       }
 
-      // Ambil profile target
-      const targetRes = await db.query(`SELECT * FROM public.profiles WHERE id = '${userId}';`);
-      const target = targetRes.rows[0] as any;
+      // Resolusi Multi-Strategi (UUID vs Username vs Mock ID)
+      let target: any = null;
+      if (isUuid(userId)) {
+        const targetRes = await db.query(`SELECT * FROM public.profiles WHERE id = '${userId}';`);
+        target = targetRes.rows[0];
+      }
+
+      if (!target) {
+        const cleanUser = userId.replace(/^@/, "").toLowerCase();
+        const targetRes = await db.query(`SELECT * FROM public.profiles WHERE LOWER(username) = '${cleanUser}';`);
+        target = targetRes.rows[0];
+      }
+
+      if (!target && userId.startsWith("usr-")) {
+        results.push({
+          id: userId,
+          status: "DELETED",
+          actionTaken: "DELETED",
+          message: "Akun simulasi lokal berhasil dibersihkan dari tampilan sistem.",
+        });
+        continue;
+      }
+
       if (!target) {
         results.push({ id: userId, status: "FAILED", message: "Pengguna tidak ditemukan." });
+        continue;
+      }
+
+      const resolvedUserId = target.id;
+
+      if (callerId === resolvedUserId) {
+        results.push({ id: userId, status: "SKIPPED", message: "Keamanan: Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif." });
         continue;
       }
 
@@ -320,9 +351,9 @@ describe("SIPETA - Superadmin Full Account Management (Tambah, Hapus, Proteksi)"
       }
 
       // Periksa Relasi Transaksi Keuangan
-      const countPembayaran = await db.query(`SELECT count(*)::int as c FROM public.transaksi_pembayaran WHERE wali_user_id = '${userId}' OR verified_by = '${userId}';`);
-      const countUangSaku = await db.query(`SELECT count(*)::int as c FROM public.mutasi_uang_saku WHERE petugas_id = '${userId}';`);
-      const countTopup = await db.query(`SELECT count(*)::int as c FROM public.topup_uang_saku WHERE wali_user_id = '${userId}' OR verified_by = '${userId}';`);
+      const countPembayaran = await db.query(`SELECT count(*)::int as c FROM public.transaksi_pembayaran WHERE wali_user_id = '${resolvedUserId}' OR verified_by = '${resolvedUserId}';`);
+      const countUangSaku = await db.query(`SELECT count(*)::int as c FROM public.mutasi_uang_saku WHERE petugas_id = '${resolvedUserId}';`);
+      const countTopup = await db.query(`SELECT count(*)::int as c FROM public.topup_uang_saku WHERE wali_user_id = '${resolvedUserId}' OR verified_by = '${resolvedUserId}';`);
 
       const hasFinancialHistory =
         ((countPembayaran.rows[0] as any).c ?? 0) > 0 ||
@@ -331,13 +362,13 @@ describe("SIPETA - Superadmin Full Account Management (Tambah, Hapus, Proteksi)"
 
       if (hasFinancialHistory) {
         // Soft delete / penonaktifan aman
-        await db.query(`UPDATE public.profiles SET is_active = false WHERE id = '${userId}';`);
-        if (authStore.has(userId)) {
-          authStore.get(userId)!.is_banned = true;
+        await db.query(`UPDATE public.profiles SET is_active = false WHERE id = '${resolvedUserId}';`);
+        if (authStore.has(resolvedUserId)) {
+          authStore.get(resolvedUserId)!.is_banned = true;
         }
         await db.query(`
           INSERT INTO public.audit_logs (user_id, user_role, aktivitas, jenis_objek, objek_id, alasan_perubahan)
-          VALUES ('${callerId}', 'superadmin', 'DEACTIVATE_USER_ACCOUNT', 'profiles', '${userId}', 'Penonaktifan akun dengan riwayat transaksi keuangan');
+          VALUES ('${callerId}', 'superadmin', 'DEACTIVATE_USER_ACCOUNT', 'profiles', '${resolvedUserId}', 'Penonaktifan akun dengan riwayat transaksi keuangan');
         `);
         results.push({
           id: userId,
@@ -351,15 +382,15 @@ describe("SIPETA - Superadmin Full Account Management (Tambah, Hapus, Proteksi)"
 
       // Hard delete: jika wali, hapus wali_santri terlebih dahulu
       if (target.role === "wali") {
-        await db.query(`DELETE FROM public.wali_santri WHERE user_id = '${userId}';`);
+        await db.query(`DELETE FROM public.wali_santri WHERE user_id = '${resolvedUserId}';`);
       }
 
-      await db.query(`DELETE FROM public.profiles WHERE id = '${userId}';`);
-      authStore.delete(userId);
+      await db.query(`DELETE FROM public.profiles WHERE id = '${resolvedUserId}';`);
+      authStore.delete(resolvedUserId);
 
       await db.query(`
         INSERT INTO public.audit_logs (user_id, user_role, aktivitas, jenis_objek, objek_id, alasan_perubahan)
-        VALUES ('${callerId}', 'superadmin', 'DELETE_USER_ACCOUNT', 'profiles', '${userId}', 'Penghapusan akun resmi oleh Superadmin');
+        VALUES ('${callerId}', 'superadmin', 'DELETE_USER_ACCOUNT', 'profiles', '${resolvedUserId}', 'Penghapusan akun resmi oleh Superadmin');
       `);
 
       results.push({
@@ -663,6 +694,34 @@ describe("SIPETA - Superadmin Full Account Management (Tambah, Hapus, Proteksi)"
       expect(bulkRes.summary.deleted).toBe(2); // u1 & u2 dihapus permanen
       expect(bulkRes.summary.deactivated).toBe(1); // u3 dinonaktifkan aman
       expect(bulkRes.summary.skipped).toBe(1); // Superadmin dilewati
+    });
+
+    it("5. Resolusi Multi-Strategi: Berhasil menghapus akun via username dan @username", async () => {
+      const stafRes = await simulateCreateUser(SUPERADMIN_ID, {
+        nama_lengkap: "Staf Resolusi Username",
+        username: "staf_resolusi",
+        password: "PasswordKuat123!",
+        role: "admin",
+      });
+      expect(stafRes.ok).toBe(true);
+
+      // Coba hapus menggunakan prefix @username
+      const delRes = await simulateDeleteUser(SUPERADMIN_ID, ["@staf_resolusi"]);
+      expect(delRes.ok).toBe(true);
+      expect(delRes.summary.deleted).toBe(1);
+      expect(delRes.results[0]?.status).toBe("DELETED");
+
+      // Verifikasi akun sudah terhapus di database
+      const checkProfile = await db.query(`SELECT id FROM public.profiles WHERE username = 'staf_resolusi';`);
+      expect(checkProfile.rows.length).toBe(0);
+    });
+
+    it("6. Pembersihan Mock Akun: ID simulasi 'usr-*' dibersihkan dengan sukses", async () => {
+      const delRes = await simulateDeleteUser(SUPERADMIN_ID, ["usr-admin-01", "usr-tu-01"]);
+      expect(delRes.ok).toBe(true);
+      expect(delRes.summary.deleted).toBe(2);
+      expect(delRes.results[0]?.message).toContain("Akun simulasi lokal berhasil dibersihkan");
+      expect(delRes.results[1]?.message).toContain("Akun simulasi lokal berhasil dibersihkan");
     });
   });
 
