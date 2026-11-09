@@ -843,15 +843,22 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     if (authMode === "supabase") {
       const res = await authService.createUserAccount({
         nama_lengkap: payload.nama_lengkap,
-        username: normalizedUser ?? payload.email?.split("@")[0] ?? "user",
+        username: normalizedUser ?? "user",
         password: payload.password ?? "AbuManshur@123",
         no_telepon: payload.no_telepon,
         role: payload.role,
         santri_id: payload.santri_id,
       });
 
-      if (res.ok && res.user) {
-        setUsers((prev) => [...prev, res.user!]);
+      if (res.ok) {
+        if (res.user) {
+          setUsers((prev) => {
+            const filtered = prev.filter((u) => u.id !== res.user!.id);
+            return [...filtered, res.user!];
+          });
+        }
+        // Pastikan daftar akun dan log audit langsung disinkronisasi dari database
+        await refreshFromSupabase();
       }
       return { ok: res.ok, message: res.message };
     }

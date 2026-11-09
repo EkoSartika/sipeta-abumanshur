@@ -27,6 +27,7 @@ import {
 import { useSipeta } from "@/lib/store/sipeta-context";
 import { formatWaktuLengkap, getRoleLabel } from "@/lib/utils/format";
 import {
+  extractUsername,
   isValidUsername,
   normalizeUsername,
   validatePasswordStrength,
@@ -77,7 +78,6 @@ export function SuperadminPortal({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [namaUser, setNamaUser] = useState("");
   const [usernameUser, setUsernameUser] = useState("");
-  const [emailUser, setEmailUser] = useState("");
   const [teleponUser, setTeleponUser] = useState("");
   const [roleUser, setRoleUser] = useState<UserRole>("admin");
   const [passwordUser, setPasswordUser] = useState("");
@@ -139,7 +139,6 @@ export function SuperadminPortal({
   const handleOpenCreateModal = () => {
     setNamaUser("");
     setUsernameUser("");
-    setEmailUser("");
     setTeleponUser("");
     setRoleUser("admin");
     setPasswordUser("");
@@ -163,12 +162,16 @@ export function SuperadminPortal({
 
     if (passwordUser !== passwordConfirmUser) {
       setFeedback({ ok: false, text: "Konfirmasi kata sandi tidak cocok." });
+      setPasswordUser("");
+      setPasswordConfirmUser("");
       return;
     }
 
     const pwdCheck = validatePasswordStrength(passwordUser);
     if (!pwdCheck.valid) {
       setFeedback({ ok: false, text: pwdCheck.message ?? "Kata sandi tidak valid." });
+      setPasswordUser("");
+      setPasswordConfirmUser("");
       return;
     }
 
@@ -204,11 +207,19 @@ export function SuperadminPortal({
         setIsCreateModalOpen(false);
         setNamaUser("");
         setUsernameUser("");
-        setEmailUser("");
         setTeleponUser("");
         setPasswordUser("");
         setPasswordConfirmUser("");
+      } else {
+        // Pada kegagalan: modal tetap terbuka, nama & username & telepon tetap dipertahankan, kosongkan kata sandi
+        setPasswordUser("");
+        setPasswordConfirmUser("");
       }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFeedback({ ok: false, text: `Gagal membuat akun: ${msg}` });
+      setPasswordUser("");
+      setPasswordConfirmUser("");
     } finally {
       setCreateSubmitting(false);
     }
@@ -488,7 +499,9 @@ export function SuperadminPortal({
                       <div>
                         <strong>Username:</strong>{" "}
                         <span className="font-mono text-emerald-800 font-bold">
-                          {u.username ? `@${u.username}` : u.email}
+                          {u.role === "superadmin"
+                            ? u.email
+                            : `@${u.username || extractUsername(u.email)}`}
                         </span>
                       </div>
                       <div>
@@ -607,11 +620,9 @@ export function SuperadminPortal({
                           <td className="py-3.5 px-4">
                             <div className="font-extrabold text-slate-900">{u.nama_lengkap}</div>
                             <div className="font-mono text-[11px] text-emerald-800 font-bold">
-                              {u.username
-                                ? `@${u.username}`
-                                : u.role === "superadmin"
+                              {u.role === "superadmin"
                                 ? u.email
-                                : `@${u.email.split("@")[0]}`}
+                                : `@${u.username || extractUsername(u.email)}`}
                             </div>
                             {u.role === "superadmin" && (
                               <div className="text-[10px] text-slate-500 font-medium">
@@ -740,6 +751,13 @@ export function SuperadminPortal({
               </button>
             </div>
 
+            {feedback && !feedback.ok && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-950 font-medium">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span>{feedback.text}</span>
+              </div>
+            )}
+
             <form onSubmit={handleCreateUser} autoComplete="off" className="mt-4 space-y-4 text-xs">
               {/* Decoy inputs untuk mengelabui browser password autofill */}
               <input type="text" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" />
@@ -847,12 +865,11 @@ export function SuperadminPortal({
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Nomor Telepon / WhatsApp
+                  Nomor Telepon / WhatsApp <span className="font-normal text-slate-400">(opsional)</span>
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="contoh: 081234567890"
+                  placeholder="contoh: 081234567890 (opsional)"
                   value={teleponUser}
                   onChange={(e) => setTeleponUser(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
@@ -911,7 +928,7 @@ export function SuperadminPortal({
               <div>
                 <p className="font-bold text-slate-900">{manageModalUser.nama_lengkap}</p>
                 <p className="text-slate-500 text-[11px] mt-0.5">
-                  ID: <span className="font-mono">{manageModalUser.username ? `@${manageModalUser.username}` : manageModalUser.email}</span> • Peran: <strong>{getRoleLabel(manageModalUser.role)}</strong>
+                  ID: <span className="font-mono">{manageModalUser.role === "superadmin" ? manageModalUser.email : `@${manageModalUser.username || extractUsername(manageModalUser.email)}`}</span> • Peran: <strong>{getRoleLabel(manageModalUser.role)}</strong>
                 </p>
               </div>
               <span
@@ -1120,7 +1137,9 @@ export function SuperadminPortal({
                   <strong className="text-slate-900">{deleteModalUser.nama_lengkap}</strong>
                 </div>
                 <div className="font-mono text-emerald-800 font-bold">
-                  {deleteModalUser.username ? `@${deleteModalUser.username}` : deleteModalUser.email}
+                  {deleteModalUser.role === "superadmin"
+                    ? deleteModalUser.email
+                    : `@${deleteModalUser.username || extractUsername(deleteModalUser.email)}`}
                 </div>
                 <div className="text-slate-500">
                   Role: <span className="font-bold text-slate-800">{getRoleLabel(deleteModalUser.role)}</span>

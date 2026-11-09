@@ -22,11 +22,9 @@ import {
 const createUserSchema = z.object({
   nama_lengkap: z.string().min(3, "Nama lengkap minimal 3 karakter."),
   username: z
-    .string()
+    .string({ required_error: "Username wajib diisi untuk akun pengguna internal." })
     .min(3, "Username minimal 3 karakter.")
-    .max(30, "Username maksimal 30 karakter.")
-    .optional(),
-  email: z.string().email("Format email tidak valid.").optional(),
+    .max(30, "Username maksimal 30 karakter."),
   no_telepon: z
     .string()
     .optional()
@@ -131,12 +129,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolusi email & username berdasarkan kebijakan internal (admin, bendahara, pengelola)
-    if (!payload.username) {
-      return NextResponse.json(
-        { ok: false, message: "Username wajib diisi untuk akun pengguna internal." },
-        { status: 400 }
-      );
-    }
     const finalUsername = normalizeUsername(payload.username);
     if (!isValidUsername(finalUsername)) {
       return NextResponse.json(
@@ -159,8 +151,9 @@ export async function POST(request: NextRequest) {
           id: `usr-demo-${Date.now()}`,
           nama_lengkap: payload.nama_lengkap,
           username: finalUsername,
-          email: finalEmail,
           role: payload.role,
+          no_telepon: payload.no_telepon,
+          is_active: true,
         },
       });
     }
@@ -202,19 +195,17 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Verifikasi Unik Username dan Email di Tabel Profiles
-    if (finalUsername) {
-      const { data: existingUser } = await adminClient
-        .from("profiles")
-        .select("id, username")
-        .eq("username", finalUsername)
-        .maybeSingle();
+    const { data: existingUser } = await adminClient
+      .from("profiles")
+      .select("id, username")
+      .eq("username", finalUsername)
+      .maybeSingle();
 
-      if (existingUser) {
-        return NextResponse.json(
-          { ok: false, message: `Username '${finalUsername}' sudah digunakan. Pilih username lain.` },
-          { status: 409 }
-        );
-      }
+    if (existingUser) {
+      return NextResponse.json(
+        { ok: false, message: `Username '${finalUsername}' sudah digunakan. Silakan gunakan username lain.` },
+        { status: 409 }
+      );
     }
 
     const { data: existingEmail } = await adminClient
@@ -225,13 +216,13 @@ export async function POST(request: NextRequest) {
 
     if (existingEmail) {
       return NextResponse.json(
-        { ok: false, message: `Email / Username sudah terdaftar di sistem (${finalEmail}).` },
+        { ok: false, message: `Username '${finalUsername}' sudah terdaftar dalam sistem.` },
         { status: 409 }
       );
     }
 
-    // 5. Provisioning Akun melalui Supabase Admin Client (Service Role Key - Server Only)
-    // Email otomatis dikonfirmasi (email_confirm: true), tidak ada email undangan/verifikasi keluar
+    // 4. Provisioning Akun melalui Supabase Admin Client (Service Role Key - Server Only)
+    // Email sintetis dibuat murni di backend, email otomatis dikonfirmasi (email_confirm: true)
     const { data: authCreated, error: createAuthErr } = await adminClient.auth.admin.createUser({
       email: finalEmail,
       password: payload.password,
@@ -243,16 +234,26 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (createAuthErr || !authCreated.user) {
+    if (createAuthErr || !authCreated?.user) {
+      const errMsg = createAuthErr?.message || "Gagal membuat identitas autentikasi.";
+      const isDuplicate =
+        errMsg.toLowerCase().includes("already") ||
+        errMsg.toLowerCase().includes("registered") ||
+        errMsg.toLowerCase().includes("exists");
       return NextResponse.json(
-        { ok: false, message: `Gagal membuat akun auth: ${createAuthErr?.message}` },
-        { status: 400 }
+        {
+          ok: false,
+          message: isDuplicate
+            ? `Username '${finalUsername}' sudah terdaftar dalam autentikasi sistem. Silakan pilih username berbeda.`
+            : `Gagal membuat akun autentikasi: ${errMsg}`,
+        },
+        { status: isDuplicate ? 409 : 400 }
       );
     }
 
     const newUserId = authCreated.user.id;
 
-    // 6. Simpan profil ke public.profiles
+    // 5. Simpan profil ke public.profiles
     const profileInsertData: Record<string, any> = {
       id: newUserId,
       nama_lengkap: payload.nama_lengkap,
@@ -266,15 +267,43 @@ export async function POST(request: NextRequest) {
     const { error: insertProfileErr } = await adminClient.from("profiles").insert(profileInsertData);
 
     if (insertProfileErr) {
-      // Rollback auth user jika insert profile gagal
-      await adminClient.auth.admin.deleteUser(newUserId);
+      // Rollback kompensasi atomik: Hapus kembali akun Auth yang baru dibuat agar tidak meninggalkan orphaned auth user
+      let rollbackSuccess = false;
+      let rollbackErrorMsg: string | undefined;
+      try {
+        const { error: rollbackErr } = await adminClient.auth.admin.deleteUser(newUserId);
+        if (rollbackErr) {
+          rollbackErrorMsg = rollbackErr.message;
+          console.error(
+            `[CRITICAL][COMPENSATION_FAILED] Gagal menghapus akun auth yatim ${newUserId} (${finalEmail}) setelah insert profile gagal:`,
+            rollbackErr.message
+          );
+        } else {
+          rollbackSuccess = true;
+          console.info(
+            `[COMPENSATION_SUCCESS] Akun auth ${newUserId} (${finalEmail}) berhasil dibatalkan dan dihapus setelah insert profile gagal.`
+          );
+        }
+      } catch (rbEx) {
+        rollbackErrorMsg = rbEx instanceof Error ? rbEx.message : String(rbEx);
+        console.error(
+          `[CRITICAL][COMPENSATION_FAILED] Exception saat rollback akun auth ${newUserId} (${finalEmail}):`,
+          rbEx
+        );
+      }
+
       return NextResponse.json(
-        { ok: false, message: `Gagal membuat profil pengguna: ${insertProfileErr.message}` },
+        {
+          ok: false,
+          message: rollbackSuccess
+            ? `Gagal membuat profil pengguna: ${insertProfileErr.message}. Akun autentikasi berhasil dibatalkan.`
+            : `Gagal membuat profil pengguna: ${insertProfileErr.message}. PERINGATAN: Akun auth gagal dibatalkan (${rollbackErrorMsg ?? "Unknown error"}).`,
+        },
         { status: 500 }
       );
     }
 
-    // 7. Catat ke Audit Log secara otomatis (Password TIDAK PERNAH dicatat)
+    // 6. Catat ke Audit Log secara otomatis (Password TIDAK PERNAH dicatat)
     await adminClient.from("audit_logs").insert({
       user_id: callerUser.id,
       user_role: "superadmin",
@@ -283,11 +312,11 @@ export async function POST(request: NextRequest) {
       objek_id: newUserId,
       data_sesudah: {
         username: finalUsername,
-        email: finalEmail,
         nama_lengkap: payload.nama_lengkap,
         role: payload.role,
+        no_telepon: payload.no_telepon,
       },
-      alasan_perubahan: "Pembuatan akun resmi internal oleh Superadmin via Server API",
+      alasan_perubahan: "Pembuatan akun resmi internal oleh Superadmin via Server API tanpa input email",
     });
 
     return NextResponse.json({
@@ -296,9 +325,10 @@ export async function POST(request: NextRequest) {
       data: {
         id: newUserId,
         username: finalUsername,
-        email: finalEmail,
         nama_lengkap: payload.nama_lengkap,
         role: payload.role,
+        no_telepon: payload.no_telepon,
+        is_active: true,
       },
     });
   } catch (err: unknown) {

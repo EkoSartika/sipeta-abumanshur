@@ -598,8 +598,8 @@ describe("SIPETA Critical Test Suite: Kelola Akun (17 Skenario Wajib)", () => {
   });
 
   it("11. Password dan konfirmasi berbeda ditolak", () => {
-    const newPass = "PasswordBaru123!";
-    const confirmPass = "PasswordBaru999!"; // Berbeda
+    const newPass: string = "PasswordBaru123!";
+    const confirmPass: string = "PasswordBaru999!"; // Berbeda
     const isMatched = newPass === confirmPass;
     expect(isMatched).toBe(false);
   });
