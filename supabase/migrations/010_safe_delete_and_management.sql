@@ -90,22 +90,22 @@ DECLARE
     has_history BOOLEAN := FALSE;
 BEGIN
     -- Cek riwayat tagihan
-    IF EXISTS (SELECT 1 FROM public.tagihan_santri WHERE santri_id = OLD.id) THEN
+    IF EXISTS (SELECT 1 FROM public.tagihan WHERE santri_id = OLD.id) THEN
         has_history := TRUE;
     END IF;
 
     -- Cek riwayat pembayaran
-    IF NOT has_history AND EXISTS (SELECT 1 FROM public.pembayaran WHERE santri_id = OLD.id) THEN
+    IF NOT has_history AND EXISTS (SELECT 1 FROM public.transaksi_pembayaran WHERE santri_id = OLD.id) THEN
         has_history := TRUE;
     END IF;
 
     -- Cek riwayat uang saku
-    IF NOT has_history AND EXISTS (SELECT 1 FROM public.transaksi_uang_saku WHERE santri_id = OLD.id) THEN
+    IF NOT has_history AND EXISTS (SELECT 1 FROM public.mutasi_uang_saku WHERE santri_id = OLD.id) THEN
         has_history := TRUE;
     END IF;
 
-    -- Cek riwayat hafalan quran
-    IF NOT has_history AND EXISTS (SELECT 1 FROM public.riwayat_hafalan_quran WHERE santri_id = OLD.id) THEN
+    -- Cek riwayat hafalan quran / tahfidz
+    IF NOT has_history AND EXISTS (SELECT 1 FROM public.setoran_tahfidz WHERE santri_id = OLD.id) THEN
         has_history := TRUE;
     END IF;
 

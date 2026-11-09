@@ -79,6 +79,66 @@ export class AuthService {
   }
 
   /**
+   * Mengambil seluruh profil pengguna dari Supabase (khusus akun internal berwenang)
+   */
+  async getAllProfiles(): Promise<UserProfile[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      // 1. Coba melalui secure server endpoint GET /api/admin-users
+      try {
+        const res = await fetch("/api/admin-users", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
+            return json.data;
+          }
+        }
+      } catch {
+        // Fallback ke kueri browser client langsung melalui RLS
+      }
+
+      // 2. Kueri browser client langsung melalui RLS
+      const { data: profiles, error } = await this.client
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error || !profiles || profiles.length === 0) return [];
+
+      const { data: waliList } = await this.client
+        .from("wali_santri")
+        .select("user_id, santri_id");
+
+      const waliMap = new Map<string, string>();
+      if (waliList) {
+        for (const w of waliList) {
+          if (w.user_id && w.santri_id) {
+            waliMap.set(w.user_id, w.santri_id);
+          }
+        }
+      }
+
+      return profiles.map((p) => ({
+        id: p.id,
+        email: p.email,
+        username: extractUsername(p.email, p.username),
+        nama_lengkap: p.nama_lengkap,
+        no_telepon: p.no_telepon ?? "-",
+        role: p.role as UserRole,
+        is_active: p.is_active,
+        santri_id: waliMap.get(p.id),
+        must_change_password: p.must_change_password === true,
+        created_at: p.created_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Login pengguna menggunakan username (akun internal) atau email resmi (Superadmin)
    */
   async login(identifier: string, kataSandi: string): Promise<AuthResponse> {

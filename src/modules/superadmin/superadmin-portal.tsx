@@ -286,6 +286,9 @@ export function SuperadminPortal({
       if (res.ok) {
         setManageModalUser(null);
       }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFeedback({ ok: false, text: `Gagal memperbarui akun: ${msg}` });
     } finally {
       setManageSubmitting(false);
     }
@@ -921,6 +924,13 @@ export function SuperadminPortal({
                 {manageModalUser.is_active ? "Akun Aktif" : "Akun Nonaktif"}
               </span>
             </div>
+
+            {feedback && !feedback.ok && (
+              <div className="flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-950 font-medium">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span>{feedback.text}</span>
+              </div>
+            )}
 
             <form onSubmit={handleManageAccountSubmit} className="space-y-3.5 text-xs">
               {/* Nama Lengkap */}

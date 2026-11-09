@@ -12,6 +12,7 @@ import {
 } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import {
+  extractUsername,
   isValidUsername,
   normalizeUsername,
   usernameToInternalEmail,
@@ -26,7 +27,11 @@ const createUserSchema = z.object({
     .max(30, "Username maksimal 30 karakter.")
     .optional(),
   email: z.string().email("Format email tidak valid.").optional(),
-  no_telepon: z.string().min(8, "Nomor telepon minimal 8 digit.").optional().default("-"),
+  no_telepon: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => (!val || val.trim() === "" ? "-" : val.trim())),
   role: z.enum(["superadmin", "admin", "bendahara", "pengelola", "wali"]),
   password: z.string().min(8, "Kata sandi minimal 8 karakter."),
   santri_id: z.string().uuid("ID Santri tidak valid.").optional(),
@@ -39,11 +44,19 @@ const patchUserSchema = z.discriminatedUnion("action", [
     nama_lengkap: z.string().min(3, "Nama lengkap minimal 3 karakter.").optional(),
     username: z
       .string()
-      .min(3, "Username minimal 3 karakter.")
-      .max(30, "Username maksimal 30 karakter.")
-      .optional(),
-    new_password: z.string().min(8, "Kata sandi baru minimal 8 karakter.").optional(),
-    no_telepon: z.string().min(8, "Nomor telepon minimal 8 digit.").optional(),
+      .optional()
+      .nullable()
+      .transform((val) => (!val || val.trim() === "" ? undefined : normalizeUsername(val))),
+    new_password: z
+      .string()
+      .optional()
+      .nullable()
+      .transform((val) => (!val || val.trim() === "" ? undefined : val.trim())),
+    no_telepon: z
+      .string()
+      .optional()
+      .nullable()
+      .transform((val) => (!val || val.trim() === "" ? "-" : val.trim())),
     role: z.enum(["superadmin", "admin", "bendahara", "pengelola", "wali"]).optional(),
     is_active: z.boolean().optional(),
   }),
@@ -61,7 +74,11 @@ const patchUserSchema = z.discriminatedUnion("action", [
     action: z.literal("UPDATE_PROFILE"),
     user_id: z.string().min(1, "ID Pengguna wajib diisi."),
     nama_lengkap: z.string().min(3, "Nama lengkap minimal 3 karakter.").optional(),
-    no_telepon: z.string().min(8, "Nomor telepon minimal 8 digit.").optional(),
+    no_telepon: z
+      .string()
+      .optional()
+      .nullable()
+      .transform((val) => (!val || val.trim() === "" ? "-" : val.trim())),
     role: z.enum(["superadmin", "admin", "bendahara", "pengelola", "wali"]).optional(),
   }),
 ]);
@@ -396,8 +413,24 @@ export async function PATCH(request: NextRequest) {
         }
       }
 
+      // Proteksi Peran Wali Santri: Tidak dapat diubah rolenya karena terikat dengan santri
+      if (targetUser.role === "wali" && payload.role && payload.role !== "wali") {
+        return NextResponse.json(
+          { ok: false, message: "Peran akun Wali Santri tidak dapat diubah karena terikat relasi data santri." },
+          { status: 400 }
+        );
+      }
+
+      // Proteksi Non-Wali: Tidak dapat diubah menjadi wali melalui menu ini
+      if (targetUser.role !== "wali" && payload.role === "wali") {
+        return NextResponse.json(
+          { ok: false, message: "Role 'wali' hanya dapat dibuat melalui registrasi santri atau import Excel." },
+          { status: 400 }
+        );
+      }
+
       // 2. Validasi Password Baru (Opsional)
-      if (payload.new_password && payload.new_password.trim() !== "") {
+      if (payload.new_password) {
         const pwdStrength = validatePasswordStrength(payload.new_password);
         if (!pwdStrength.valid) {
           return NextResponse.json(
@@ -411,7 +444,7 @@ export async function PATCH(request: NextRequest) {
       let finalNewUsername: string | undefined = undefined;
       let finalNewEmail: string | undefined = undefined;
 
-      if (payload.username && payload.username.trim() !== "") {
+      if (payload.username && targetUser.role !== "superadmin") {
         const cleanUsername = normalizeUsername(payload.username);
         if (!isValidUsername(cleanUsername)) {
           return NextResponse.json(
@@ -444,26 +477,42 @@ export async function PATCH(request: NextRequest) {
           }
 
           finalNewUsername = cleanUsername;
+          finalNewEmail = usernameToInternalEmail(cleanUsername);
 
-          // Jika bukan superadmin resmi, hitung email sintetis internal
-          if (targetUser.role !== "superadmin") {
-            finalNewEmail = usernameToInternalEmail(cleanUsername);
+          // Periksa keunikan email sintetis
+          const { data: existingEmailUser } = await adminClient
+            .from("profiles")
+            .select("id, email")
+            .eq("email", finalNewEmail)
+            .neq("id", payload.user_id)
+            .maybeSingle();
+
+          if (existingEmailUser) {
+            return NextResponse.json(
+              {
+                ok: false,
+                message: `Identitas login untuk username '${cleanUsername}' sudah terdaftar di sistem.`,
+              },
+              { status: 409 }
+            );
           }
         }
       }
 
       // 4. Update Supabase Auth via Admin Client
       const authUpdates: Record<string, any> = {};
-      if (payload.new_password && payload.new_password.trim() !== "") {
+      if (payload.new_password) {
         authUpdates.password = payload.new_password;
       }
       if (finalNewEmail) {
         authUpdates.email = finalNewEmail;
+        authUpdates.email_confirm = true; // Langsung aktif tanpa verifikasi email
       }
-      if (payload.nama_lengkap || finalNewUsername) {
+      if (payload.nama_lengkap || finalNewUsername || payload.role) {
         authUpdates.user_metadata = {
           nama_lengkap: payload.nama_lengkap ? payload.nama_lengkap.trim() : targetUser.nama_lengkap,
           username: finalNewUsername ?? targetUser.username,
+          role: payload.role ?? targetUser.role,
         };
       }
 
@@ -497,10 +546,41 @@ export async function PATCH(request: NextRequest) {
           .eq("id", payload.user_id);
 
         if (updateProfileErr) {
+          // KOMPENSASI: Batalkan perubahan pada Auth jika update profiles gagal
+          if (Object.keys(authUpdates).length > 0) {
+            try {
+              const rollbackAuthUpdates: Record<string, any> = {
+                email: targetUser.email,
+                email_confirm: true,
+                user_metadata: {
+                  nama_lengkap: targetUser.nama_lengkap,
+                  username: targetUser.username,
+                  role: targetUser.role,
+                },
+              };
+              await adminClient.auth.admin.updateUserById(payload.user_id, rollbackAuthUpdates);
+            } catch (rollbackErr) {
+              console.error("Critical: Rollback Auth failed after profiles update failure:", rollbackErr);
+            }
+          }
           return NextResponse.json(
-            { ok: false, message: `Gagal memperbarui profil pengguna: ${updateProfileErr.message}` },
+            {
+              ok: false,
+              message: `Gagal memperbarui profil pengguna: ${updateProfileErr.message}. Perubahan autentikasi telah dibatalkan.`,
+            },
             { status: 500 }
           );
+        }
+
+        // Jika peran adalah wali, sinkronisasi juga tabel wali_santri
+        if (targetUser.role === "wali") {
+          const waliUpdates: Record<string, any> = {};
+          if (profileUpdates.nama_lengkap) waliUpdates.nama_lengkap = profileUpdates.nama_lengkap;
+          if (profileUpdates.no_telepon) waliUpdates.no_telepon = profileUpdates.no_telepon;
+          if (profileUpdates.email) waliUpdates.email = profileUpdates.email;
+          if (Object.keys(waliUpdates).length > 0) {
+            await adminClient.from("wali_santri").update(waliUpdates).eq("user_id", payload.user_id);
+          }
         }
       }
 
@@ -514,14 +594,18 @@ export async function PATCH(request: NextRequest) {
         data_sebelum: {
           nama_lengkap: targetUser.nama_lengkap,
           username: targetUser.username,
+          email: targetUser.email,
           role: targetUser.role,
           is_active: targetUser.is_active,
+          no_telepon: targetUser.no_telepon,
         },
         data_sesudah: {
           nama_lengkap: profileUpdates.nama_lengkap ?? targetUser.nama_lengkap,
           username: profileUpdates.username ?? targetUser.username,
+          email: profileUpdates.email ?? targetUser.email,
           role: profileUpdates.role ?? targetUser.role,
           is_active: profileUpdates.is_active ?? targetUser.is_active,
+          no_telepon: profileUpdates.no_telepon ?? targetUser.no_telepon,
           password_diubah: !!payload.new_password,
         },
         alasan_perubahan: "Pembaruan informasi akun terpadu oleh Superadmin",
@@ -534,6 +618,7 @@ export async function PATCH(request: NextRequest) {
           id: payload.user_id,
           nama_lengkap: profileUpdates.nama_lengkap ?? targetUser.nama_lengkap,
           username: profileUpdates.username ?? targetUser.username,
+          email: profileUpdates.email ?? targetUser.email,
           role: profileUpdates.role ?? targetUser.role,
           is_active: profileUpdates.is_active ?? targetUser.is_active,
           no_telepon: profileUpdates.no_telepon ?? targetUser.no_telepon,
@@ -890,6 +975,90 @@ export async function DELETE(request: NextRequest) {
       ok: true,
       actionTaken: "DELETED",
       message: `Akun ${targetUser.nama_lengkap} berhasil dihapus permanen dari sistem.`,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { ok: false, message: `Kesalahan server internal: ${msg}` },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        ok: true,
+        data: [],
+        message: "Mode Demo Standalone: Supabase belum dikonfigurasi.",
+      });
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user: callerUser },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !callerUser) {
+      return NextResponse.json(
+        { ok: false, message: "Akses ditolak: Anda harus login terlebih dahulu." },
+        { status: 401 }
+      );
+    }
+
+    const adminClient = createSupabaseAdminClient();
+    if (!adminClient) {
+      return NextResponse.json(
+        { ok: false, message: "Konfigurasi server admin Supabase belum lengkap." },
+        { status: 500 }
+      );
+    }
+
+    // Ambil data profil dari database
+    const { data: profiles, error: profErr } = await adminClient
+      .from("profiles")
+      .select("id, nama_lengkap, email, username, role, is_active, no_telepon, must_change_password, created_at")
+      .order("created_at", { ascending: false });
+
+    if (profErr) {
+      return NextResponse.json(
+        { ok: false, message: `Gagal memuat profil: ${profErr.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Ambil relasi wali_santri jika ada
+    const { data: waliList } = await adminClient
+      .from("wali_santri")
+      .select("user_id, santri_id");
+
+    const waliMap = new Map<string, string>();
+    if (waliList) {
+      for (const w of waliList) {
+        if (w.user_id && w.santri_id) {
+          waliMap.set(w.user_id, w.santri_id);
+        }
+      }
+    }
+
+    const users = (profiles || []).map((p) => ({
+      id: p.id,
+      email: p.email,
+      username: extractUsername(p.email, p.username),
+      nama_lengkap: p.nama_lengkap,
+      no_telepon: p.no_telepon ?? "-",
+      role: p.role,
+      is_active: p.is_active,
+      santri_id: waliMap.get(p.id),
+      must_change_password: p.must_change_password === true,
+      created_at: p.created_at,
+    }));
+
+    return NextResponse.json({
+      ok: true,
+      data: users,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

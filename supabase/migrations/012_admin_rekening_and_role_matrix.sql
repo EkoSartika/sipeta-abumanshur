@@ -47,3 +47,4 @@ USING (
 -- USING (public.get_my_role() = 'superadmin')
 -- WITH CHECK (public.get_my_role() = 'superadmin');
 -- ============================================================================
+

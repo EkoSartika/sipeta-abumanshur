@@ -210,20 +210,20 @@ describe("SIPETA Final Authorization Matrix & Account Management (14 Poin Kritis
   // =========================================================================
   describe("Poin 6, 7, 8: Non-Superadmin Dilarang Membuat Akun Pengguna Internal", () => {
     it("Poin 6: Admin TIDAK dapat membuat Admin lain, Bendahara, atau Pengelola", () => {
-      const callerRole = "admin";
+      const callerRole: string = "admin";
       const isSuperadmin = callerRole === "superadmin";
       expect(isSuperadmin).toBe(false);
       // Pemeriksaan server-side di /api/admin-users mewajibkan callerProfile.role === 'superadmin'
     });
 
     it("Poin 7: Bendahara TIDAK dapat membuat akun pengguna apa pun", () => {
-      const callerRole = "bendahara";
+      const callerRole: string = "bendahara";
       const canCreateAccount = callerRole === "superadmin";
       expect(canCreateAccount).toBe(false);
     });
 
     it("Poin 8: Pengelola TIDAK dapat membuat akun pengguna apa pun", () => {
-      const callerRole = "pengelola";
+      const callerRole: string = "pengelola";
       const canCreateAccount = callerRole === "superadmin";
       expect(canCreateAccount).toBe(false);
     });

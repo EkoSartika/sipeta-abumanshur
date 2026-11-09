@@ -395,6 +395,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         kedisiplinan,
         pengumuman,
         notifikasi,
+        fetchedUsers,
       ] = await Promise.all([
         administrasiService.getRekeningResmi(),
         administrasiService.getKelasList(),
@@ -411,6 +412,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         kepesantrenanService.getCatatanKedisiplinan(),
         administrasiService.getPengumumanList(),
         notifikasiService.getNotifikasi(),
+        authService.getAllProfiles(),
       ]);
 
       if (rekening) setRekeningResmi(rekening);
@@ -428,6 +430,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       if (kedisiplinan.length) setKedisiplinanList(kedisiplinan);
       if (pengumuman.length) setPengumumanList(pengumuman);
       if (notifikasi.length) setNotifikasiList(notifikasi);
+      if (fetchedUsers && fetchedUsers.length > 0) {
+        setUsers(fetchedUsers);
+      }
     } catch (e) {
       console.warn("Sinkronisasi Supabase ditunda/offline:", e);
     }
@@ -977,6 +982,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     if (authMode === "supabase") {
       const res = await authService.manageUserAccount(userId, payload);
       if (res.ok) {
+        // Segarkan data dari Supabase agar sinkron dengan database
+        await refreshFromSupabase();
+
         setUsers((prev) =>
           prev.map((u) => {
             if (u.id !== userId) return u;
@@ -994,6 +1002,20 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
             return updated;
           })
         );
+
+        if (currentUser && currentUser.id === userId) {
+          setCurrentUser((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  nama_lengkap: payload.nama_lengkap ?? prev.nama_lengkap,
+                  no_telepon: payload.no_telepon !== undefined ? payload.no_telepon : prev.no_telepon,
+                  role: payload.role ?? prev.role,
+                  is_active: payload.is_active !== undefined ? payload.is_active : prev.is_active,
+                }
+              : null
+          );
+        }
       }
       return res;
     }
@@ -1016,6 +1038,20 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         return updated;
       })
     );
+
+    if (currentUser && currentUser.id === userId) {
+      setCurrentUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              nama_lengkap: payload.nama_lengkap ?? prev.nama_lengkap,
+              no_telepon: payload.no_telepon !== undefined ? payload.no_telepon : prev.no_telepon,
+              role: payload.role ?? prev.role,
+              is_active: payload.is_active !== undefined ? payload.is_active : prev.is_active,
+            }
+          : null
+      );
+    }
 
     appendAuditLog(
       "MANAGE_USER_ACCOUNT",
