@@ -299,17 +299,89 @@ export class AdministrasiService {
   // --------------------------------------------------------------------------
   // JENIS PEMBAYARAN, GENERATOR TAGIHAN, & PENGUMUMAN
   // --------------------------------------------------------------------------
-  async getJenisPembayaranList(): Promise<JenisPembayaran[]> {
+  async getJenisPembayaranList(includeAll = true): Promise<JenisPembayaran[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data } = await this.client.from("jenis_pembayaran").select("*").eq("is_active", true);
+    let query = this.client.from("jenis_pembayaran").select("*").order("created_at", { ascending: false });
+    if (!includeAll) {
+      query = query.eq("is_active", true);
+    }
+    const { data } = await query;
     return (data as JenisPembayaran[]) ?? [];
   }
 
-  async createJenisPembayaran(payload: Omit<JenisPembayaran, "id" | "is_active" | "created_at" | "updated_at">): Promise<{ ok: boolean; message: string }> {
+  async createJenisPembayaran(payload: Omit<JenisPembayaran, "id" | "is_active" | "created_at" | "updated_at">): Promise<{ ok: boolean; message: string; data?: JenisPembayaran }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { error } = await this.client.from("jenis_pembayaran").insert(payload);
+    const { data, error } = await this.client.from("jenis_pembayaran").insert({
+      ...payload,
+      is_active: payload.status_persetujuan === "DISETUJUI",
+    }).select().single();
     if (error) return { ok: false, message: error.message };
-    return { ok: true, message: `Jenis pembayaran "${payload.nama_pembayaran}" berhasil dibuat.` };
+    return { ok: true, data: data as JenisPembayaran, message: `Jenis pembiayaan "${payload.nama_pembayaran}" berhasil dibuat.` };
+  }
+
+  async updateJenisPembayaran(id: string, payload: Partial<JenisPembayaran>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    const { error } = await this.client.from("jenis_pembayaran").update(payload).eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Data pembiayaan berhasil diperbarui." };
+  }
+
+  async deleteJenisPembayaran(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+
+    // Pastikan pembiayaan belum disetujui / belum memiliki tagihan aktif
+    const { data: jp } = await this.client.from("jenis_pembayaran").select("status_persetujuan, is_active").eq("id", id).single();
+    if (jp && (jp.status_persetujuan === "DISETUJUI" || jp.is_active)) {
+      return {
+        ok: false,
+        message: "Pembiayaan yang telah disetujui Pengasuh/Admin tidak boleh dihapus demi integritas data keuangan santri.",
+      };
+    }
+
+    const { error } = await this.client.from("jenis_pembayaran").delete().eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Pengajuan pembiayaan berhasil dihapus." };
+  }
+
+  async approveJenisPembayaran(
+    id: string,
+    payload: { catatan?: string; approved_by: string; approved_by_name: string }
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+
+    const { error } = await this.client.from("jenis_pembayaran").update({
+      status_persetujuan: "DISETUJUI",
+      is_active: true,
+      catatan_persetujuan: payload.catatan || "Disetujui oleh Pengasuh/Admin.",
+      disetujui_oleh_nama: payload.approved_by_name,
+      disetujui_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", id);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Pengajuan pembiayaan berhasil disetujui dan berstatus aktif." };
+  }
+
+  async rejectJenisPembayaran(
+    id: string,
+    payload: { catatan: string; rejected_by: string; rejected_by_name?: string }
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    if (!payload.catatan || !payload.catatan.trim()) {
+      return { ok: false, message: "Pengasuh/Admin wajib menyertakan catatan evaluasi penolakan pembiayaan." };
+    }
+
+    const { error } = await this.client.from("jenis_pembayaran").update({
+      status_persetujuan: "DITOLAK",
+      is_active: false,
+      catatan_persetujuan: payload.catatan,
+      disetujui_oleh_nama: payload.rejected_by_name,
+      disetujui_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", id);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Pengajuan pembiayaan telah ditolak dengan catatan evaluasi." };
   }
 
   async getTagihanList(santriId?: string): Promise<Tagihan[]> {
@@ -360,13 +432,17 @@ export class AdministrasiService {
     }
   }
 
-  async getPengumumanList(): Promise<Pengumuman[]> {
+  async getPengumumanList(includeAll = false): Promise<Pengumuman[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data } = await this.client
+    let query = this.client
       .from("pengumuman")
       .select("*")
-      .eq("is_published", true)
       .order("tanggal_publikasi", { ascending: false });
+
+    if (!includeAll) {
+      query = query.eq("is_published", true);
+    }
+    const { data } = await query;
     return (data as Pengumuman[]) ?? [];
   }
 
@@ -375,19 +451,44 @@ export class AdministrasiService {
     kategori: string;
     isi: string;
     is_penting: boolean;
+    is_published?: boolean;
     created_by: string;
-  }): Promise<{ ok: boolean; message: string }> {
+    created_by_nama?: string;
+    masa_berlaku?: string;
+    sasaran?: "SEMUA" | "KELAS" | "SANTRI";
+    target_id?: string;
+    status_publikasi?: "DRAF" | "PUBLIKASI";
+  }): Promise<{ ok: boolean; message: string; data?: Pengumuman }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { error } = await this.client.from("pengumuman").insert({
+    const isPub = payload.status_publikasi !== "DRAF" && (payload.is_published ?? true);
+    const { data, error } = await this.client.from("pengumuman").insert({
       judul: payload.judul,
       kategori: payload.kategori,
       isi: payload.isi,
       is_penting: payload.is_penting,
-      is_published: true,
+      is_published: isPub,
       created_by: payload.created_by,
-    });
+      masa_berlaku: payload.masa_berlaku,
+      sasaran: payload.sasaran ?? "SEMUA",
+      target_id: payload.target_id,
+      status_publikasi: payload.status_publikasi ?? (isPub ? "PUBLIKASI" : "DRAF"),
+    }).select().single();
     if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Pengumuman berhasil dipublikasikan." };
+    return { ok: true, data: data as Pengumuman, message: isPub ? "Pengumuman berhasil dipublikasikan." : "Pengumuman berhasil disimpan sebagai draf." };
+  }
+
+  async updatePengumuman(id: string, payload: Partial<Pengumuman>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    const { error } = await this.client.from("pengumuman").update(payload).eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Pengumuman berhasil diperbarui." };
+  }
+
+  async deletePengumuman(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    const { error } = await this.client.from("pengumuman").delete().eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Pengumuman berhasil dihapus." };
   }
 
   async importSantriBatch(rows: any[]): Promise<{

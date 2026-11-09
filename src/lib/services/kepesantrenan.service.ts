@@ -446,6 +446,59 @@ export class KepesantrenanService {
     };
   }
 
+  async updateCatatanKedisiplinan(
+    id: string,
+    payload: Partial<CatatanKedisiplinan>
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return { ok: false, message: "Koneksi Supabase belum aktif." };
+    }
+
+    const {
+      data: { user },
+    } = await this.client.auth.getUser();
+
+    const updateData: Record<string, unknown> = {
+      updated_by: user?.id,
+      updated_at: new Date().toISOString(),
+    };
+    if (payload.tanggal_kejadian) updateData.tanggal_kejadian = payload.tanggal_kejadian;
+    if (payload.waktu_kejadian) updateData.waktu_kejadian = payload.waktu_kejadian;
+    if (payload.kategori_id) updateData.kategori_id = payload.kategori_id;
+    if (payload.deskripsi) updateData.deskripsi = payload.deskripsi;
+    if (payload.tindak_lanjut) updateData.tindak_lanjut = payload.tindak_lanjut;
+    if (payload.catatan_pembinaan) updateData.catatan_pembinaan = payload.catatan_pembinaan;
+    if (payload.status_tindak_lanjut) updateData.status_tindak_lanjut = payload.status_tindak_lanjut;
+
+    const { error } = await this.client
+      .from("catatan_kedisiplinan")
+      .update(updateData)
+      .eq("id", id);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Catatan pelanggaran santri berhasil diperbarui." };
+  }
+
+  async deleteCatatanKedisiplinan(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return { ok: false, message: "Koneksi Supabase belum aktif." };
+    }
+
+    // Hapus riwayat perubahan terlebih dahulu jika ada
+    await this.client
+      .from("riwayat_perubahan_kedisiplinan")
+      .delete()
+      .eq("catatan_kedisiplinan_id", id);
+
+    const { error } = await this.client
+      .from("catatan_kedisiplinan")
+      .delete()
+      .eq("id", id);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Catatan pelanggaran santri berhasil dihapus secara aman." };
+  }
+
   async getRiwayatPerubahanKedisiplinan(
     catatanId: string
   ): Promise<RiwayatPerubahanKedisiplinan[]> {

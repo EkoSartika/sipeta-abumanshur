@@ -233,6 +233,24 @@ interface SipetaContextValue {
   updateKamar: (id: string, payload: Partial<Kamar>) => ActionResponse;
   deleteKamar: (id: string) => ActionResponse;
   createJenisPembayaran: (payload: Omit<JenisPembayaran, "id" | "is_active">) => ActionResponse;
+  createPengajuanPembiayaan: (payload: {
+    nama_pembayaran: string;
+    deskripsi: string;
+    nominal: number;
+    kategori: string;
+    tahun_ajaran_id: string;
+    periode_pembayaran: "Bulanan" | "Semester" | "Tahunan" | "Sekali Bayar";
+    tanggal_mulai: string;
+    tanggal_jatuh_tempo: string;
+    sasaran_santri: "SEMUA" | "KELAS_TERTENTU" | "KAMAR_TERTENTU" | "INDIVIDU";
+    sasaran_target_id?: string;
+    kebijakan_cicilan: KebijakanCicilan;
+    minimal_nominal_cicilan: number | null;
+  }) => ActionResponse;
+  updateJenisPembayaran: (id: string, payload: Partial<JenisPembayaran>) => ActionResponse;
+  deleteJenisPembayaran: (id: string) => ActionResponse;
+  approveJenisPembayaran: (id: string, catatan?: string) => ActionResponse;
+  rejectJenisPembayaran: (id: string, catatan: string) => ActionResponse;
   generateTagihan: (payload: {
     jenis_pembayaran_id: string;
     periode_label: string;
@@ -251,7 +269,14 @@ interface SipetaContextValue {
     kategori: Pengumuman["kategori"];
     isi: string;
     is_penting: boolean;
+    is_published?: boolean;
+    masa_berlaku?: string;
+    sasaran?: "SEMUA" | "KELAS" | "SANTRI";
+    target_id?: string;
+    status_publikasi?: "DRAF" | "PUBLIKASI";
   }) => ActionResponse;
+  updatePengumuman: (id: string, payload: Partial<Pengumuman>) => ActionResponse;
+  deletePengumuman: (id: string) => ActionResponse;
 
   // Orang Tua / Wali Actions
   addOrUpdateKeranjang: (tagihanId: string, nominalBayar: number) => ActionResponse;
@@ -332,6 +357,8 @@ interface SipetaContextValue {
     status_baru: StatusTindakLanjut;
     alasan_perubahan: string;
   }) => ActionResponse;
+  updateCatatanKedisiplinan: (id: string, payload: Partial<CatatanKedisiplinan>) => ActionResponse;
+  deleteCatatanKedisiplinan: (id: string) => ActionResponse;
   createMasterKategoriPelanggaran: (payload: {
     kode_kategori: string;
     nama_kategori: string;
@@ -2066,12 +2093,12 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, message: `Kamar '${target.nama_kamar}' berhasil dihapus.` };
   };
 
-  const createJenisPembayaran: SipetaContextValue["createJenisPembayaran"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Admin yang dapat mengelola jenis pembayaran." };
+  const createPengajuanPembiayaan: SipetaContextValue["createPengajuanPembiayaan"] = (payload) => {
+    if (!currentUser || (currentUser.role !== "tu" && currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU) dan Pengasuh/Admin yang dapat mengajukan pembiayaan santri." };
     }
     if (payload.nominal <= 0) {
-      return { ok: false, message: "Nominal pembayaran harus lebih dari Rp 0." };
+      return { ok: false, message: "Nominal pembiayaan harus lebih dari Rp 0." };
     }
     if (
       payload.kebijakan_cicilan === "MINIMAL_NOMINAL" &&
@@ -2082,25 +2109,332 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       return {
         ok: false,
         message:
-          "Untuk kebijakan Cicilan Minimal Nominal, batas minimal cicilan wajib diisi (> 0 dan <= nominal tagihan).",
+          "Untuk opsi Bisa Dicicil (Minimal Nominal), batas minimal cicilan wajib diisi (> 0 dan <= nominal tagihan).",
       };
     }
 
+    // Alur Persetujuan PRD:
+    // Jika TU yang membuat -> Status awal: MENUNGGU_PERSETUJUAN, is_active: false
+    // Jika Admin/Superadmin yang membuat -> Langsung DISETUJUI, is_active: true
+    const isDirectAdmin = currentUser.role === "admin" || currentUser.role === "superadmin";
+    const statusPersetujuan: "MENUNGGU_PERSETUJUAN" | "DISETUJUI" = isDirectAdmin
+      ? "DISETUJUI"
+      : "MENUNGGU_PERSETUJUAN";
+    const isActive = isDirectAdmin;
+
+    const newId = `jp-${Date.now()}`;
+    const cleanKode = `BYR-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Math.floor(1000 + Math.random() * 9000)}`;
+
     const newJenis: JenisPembayaran = {
       ...payload,
-      id: `jp-${Date.now()}`,
-      is_active: true,
+      id: newId,
+      kode_pembayaran: cleanKode,
+      is_active: isActive,
+      status_persetujuan: statusPersetujuan,
+      created_by: currentUser.id,
+      created_at: new Date().toISOString(),
+      disetujui_oleh_nama: isDirectAdmin ? currentUser.nama_lengkap : undefined,
+      disetujui_at: isDirectAdmin ? new Date().toISOString() : undefined,
+      catatan_persetujuan: isDirectAdmin ? "Dibuat langsung oleh Pengasuh/Admin." : undefined,
     };
+
     setJenisPembayaranList((prev) => [newJenis, ...prev]);
-    appendAuditLog("BUAT_JENIS_PEMBAYARAN", "jenis_pembayaran", newJenis.id, {
-      kode: newJenis.kode_pembayaran,
+
+    // Jika Admin/Pengasuh langsung membuat, terbitkan tagihan aktif secara otomatis
+    if (isDirectAdmin) {
+      let targetSantri = santriList.filter((s) => s.status === "AKTIF");
+      if (newJenis.sasaran_santri === "KELAS_TERTENTU" && newJenis.sasaran_target_id) {
+        targetSantri = targetSantri.filter((s) => s.kelas_id === newJenis.sasaran_target_id);
+      } else if (newJenis.sasaran_santri === "KAMAR_TERTENTU" && newJenis.sasaran_target_id) {
+        targetSantri = targetSantri.filter((s) => s.kamar_id === newJenis.sasaran_target_id);
+      } else if (newJenis.sasaran_santri === "INDIVIDU" && newJenis.sasaran_target_id) {
+        targetSantri = targetSantri.filter((s) => s.id === newJenis.sasaran_target_id);
+      }
+
+      if (targetSantri.length > 0) {
+        const newBills: Tagihan[] = targetSantri.map((s, idx) => ({
+          id: `tgh-${Date.now()}-${idx}`,
+          nomor_tagihan: `INV-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Math.floor(100 + Math.random() * 900)}-${idx + 1}`,
+          santri_id: s.id,
+          jenis_pembayaran_id: newJenis.id,
+          judul_tagihan: newJenis.nama_pembayaran,
+          kategori: newJenis.kategori,
+          periode_label: newJenis.periode_pembayaran,
+          nominal_awal: newJenis.nominal,
+          nominal_penyesuaian: 0,
+          nominal_tagihan: newJenis.nominal,
+          total_terbayar: 0,
+          sisa_tagihan: newJenis.nominal,
+          kebijakan_cicilan_snapshot: newJenis.kebijakan_cicilan,
+          minimal_cicilan_snapshot: newJenis.minimal_nominal_cicilan,
+          tanggal_mulai: newJenis.tanggal_mulai,
+          tanggal_jatuh_tempo: newJenis.tanggal_jatuh_tempo,
+          status: "BELUM_BAYAR",
+          is_active: true,
+          created_at: new Date().toISOString(),
+        }));
+        setTagihanList((prev) => [...newBills, ...prev]);
+      }
+    }
+
+    appendAuditLog("PENGAJUAN_PEMBIAYAAN", "jenis_pembayaran", newJenis.id, {
       nama: newJenis.nama_pembayaran,
       nominal: newJenis.nominal,
-      kebijakan_cicilan: newJenis.kebijakan_cicilan,
+      status: newJenis.status_persetujuan,
+      diajukan_oleh: currentUser.nama_lengkap,
     });
+
+    if (authMode === "supabase") {
+      administrasiService.createJenisPembayaran({
+        kode_pembayaran: newJenis.kode_pembayaran,
+        nama_pembayaran: newJenis.nama_pembayaran,
+        deskripsi: newJenis.deskripsi,
+        nominal: newJenis.nominal,
+        kategori: newJenis.kategori,
+        tahun_ajaran_id: newJenis.tahun_ajaran_id,
+        periode_pembayaran: newJenis.periode_pembayaran,
+        tanggal_mulai: newJenis.tanggal_mulai,
+        tanggal_jatuh_tempo: newJenis.tanggal_jatuh_tempo,
+        sasaran_santri: newJenis.sasaran_santri,
+        sasaran_target_id: newJenis.sasaran_target_id,
+        kebijakan_cicilan: newJenis.kebijakan_cicilan,
+        minimal_nominal_cicilan: newJenis.minimal_nominal_cicilan,
+        status_persetujuan: newJenis.status_persetujuan,
+        created_by: currentUser.id,
+      }).catch(console.error);
+    }
+
     return {
       ok: true,
-      message: `Jenis pembayaran "${newJenis.nama_pembayaran}" berhasil ditambahkan.`,
+      message: isDirectAdmin
+        ? `Pembiayaan "${newJenis.nama_pembayaran}" langsung disetujui & tagihan santri aktif diterbitkan.`
+        : `Pengajuan pembiayaan "${newJenis.nama_pembayaran}" berhasil dikirim. Menunggu persetujuan Pengasuh/Admin.`,
+    };
+  };
+
+  const createJenisPembayaran: SipetaContextValue["createJenisPembayaran"] = (payload) => {
+    return createPengajuanPembiayaan({
+      ...payload,
+      sasaran_santri: payload.sasaran_santri || "SEMUA",
+    });
+  };
+
+  const updateJenisPembayaran: SipetaContextValue["updateJenisPembayaran"] = (id, payload) => {
+    if (!currentUser || (currentUser.role !== "tu" && currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+
+    const existing = jenisPembayaranList.find((j) => j.id === id);
+    if (!existing) return { ok: false, message: "Data pembiayaan tidak ditemukan." };
+
+    // TU dilarang mengedit pembiayaan yang telah disetujui
+    if (currentUser.role === "tu" && existing.status_persetujuan === "DISETUJUI") {
+      return {
+        ok: false,
+        message: "Pembiayaan yang telah disetujui Pengasuh/Admin tidak dapat diedit oleh TU. Hubungi Pengasuh untuk penyesuaian.",
+      };
+    }
+
+    // TU dilarang mengubah status_persetujuan atau is_active secara sepihak
+    const cleanPayload = { ...payload };
+    if (currentUser.role === "tu") {
+      delete cleanPayload.status_persetujuan;
+      delete cleanPayload.is_active;
+      delete cleanPayload.disetujui_oleh_nama;
+      delete cleanPayload.disetujui_at;
+    }
+
+    setJenisPembayaranList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...cleanPayload } : item))
+    );
+
+    appendAuditLog("UPDATE_PEMBIAYAAN", "jenis_pembayaran", id, {
+      id,
+      nama: existing.nama_pembayaran,
+      diubah_oleh: currentUser.nama_lengkap,
+    });
+
+    if (authMode === "supabase") {
+      administrasiService.updateJenisPembayaran(id, cleanPayload).catch(console.error);
+    }
+
+    return { ok: true, message: `Data pembiayaan "${existing.nama_pembayaran}" berhasil diperbarui.` };
+  };
+
+  const deleteJenisPembayaran: SipetaContextValue["deleteJenisPembayaran"] = (id) => {
+    if (!currentUser || (currentUser.role !== "tu" && currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+
+    const existing = jenisPembayaranList.find((j) => j.id === id);
+    if (!existing) return { ok: false, message: "Data pembiayaan tidak ditemukan." };
+
+    // Validasi aturan: Pembiayaan yang sudah disetujui DILARANG dihapus oleh TU
+    if (existing.status_persetujuan === "DISETUJUI" || existing.is_active) {
+      return {
+        ok: false,
+        message: "Pembiayaan yang telah disetujui Pengasuh/Admin tidak boleh dihapus demi integritas data keuangan dan tagihan santri.",
+      };
+    }
+
+    setJenisPembayaranList((prev) => prev.filter((j) => j.id !== id));
+    appendAuditLog("HAPUS_PEMBIAYAAN_DRAF", "jenis_pembayaran", id, {
+      nama: existing.nama_pembayaran,
+      status: existing.status_persetujuan,
+      dihapus_oleh: currentUser.nama_lengkap,
+    });
+
+    if (authMode === "supabase") {
+      administrasiService.deleteJenisPembayaran(id).catch(console.error);
+    }
+
+    return { ok: true, message: `Pengajuan pembiayaan "${existing.nama_pembayaran}" berhasil dihapus.` };
+  };
+
+  const approveJenisPembayaran: SipetaContextValue["approveJenisPembayaran"] = (id, catatan) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Pengasuh/Admin yang berwenang menyetujui pengajuan pembiayaan." };
+    }
+
+    const target = jenisPembayaranList.find((j) => j.id === id);
+    if (!target) return { ok: false, message: "Data pembiayaan tidak ditemukan." };
+
+    const approvedAt = new Date().toISOString();
+    const approvedCatatan = catatan || "Disetujui oleh Pengasuh/Admin.";
+
+    setJenisPembayaranList((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status_persetujuan: "DISETUJUI",
+              is_active: true,
+              catatan_persetujuan: approvedCatatan,
+              disetujui_oleh_nama: currentUser.nama_lengkap,
+              disetujui_at: approvedAt,
+            }
+          : item
+      )
+    );
+
+    // Otomatis terbitkan tagihan aktif untuk santri target sesuai sasaran
+    let targetSantri = santriList.filter((s) => s.status === "AKTIF");
+    if (target.sasaran_santri === "KELAS_TERTENTU" && target.sasaran_target_id) {
+      targetSantri = targetSantri.filter((s) => s.kelas_id === target.sasaran_target_id);
+    } else if (target.sasaran_santri === "KAMAR_TERTENTU" && target.sasaran_target_id) {
+      targetSantri = targetSantri.filter((s) => s.kamar_id === target.sasaran_target_id);
+    } else if (target.sasaran_santri === "INDIVIDU" && target.sasaran_target_id) {
+      targetSantri = targetSantri.filter((s) => s.id === target.sasaran_target_id);
+    }
+
+    if (targetSantri.length > 0) {
+      const newBills: Tagihan[] = targetSantri.map((s, idx) => ({
+        id: `tgh-${Date.now()}-${idx}`,
+        nomor_tagihan: `INV-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Math.floor(100 + Math.random() * 900)}-${idx + 1}`,
+        santri_id: s.id,
+        jenis_pembayaran_id: target.id,
+        judul_tagihan: target.nama_pembayaran,
+        kategori: target.kategori,
+        periode_label: target.periode_pembayaran,
+        nominal_awal: target.nominal,
+        nominal_penyesuaian: 0,
+        nominal_tagihan: target.nominal,
+        total_terbayar: 0,
+        sisa_tagihan: target.nominal,
+        kebijakan_cicilan_snapshot: target.kebijakan_cicilan,
+        minimal_cicilan_snapshot: target.minimal_nominal_cicilan,
+        tanggal_mulai: target.tanggal_mulai,
+        tanggal_jatuh_tempo: target.tanggal_jatuh_tempo,
+        status: "BELUM_BAYAR",
+        is_active: true,
+        created_at: new Date().toISOString(),
+      }));
+
+      setTagihanList((prev) => [...newBills, ...prev]);
+
+      for (const bill of newBills) {
+        notifyWaliOfSantri(
+          bill.santri_id,
+          "TAGIHAN_BARU",
+          `Tagihan Baru: ${bill.judul_tagihan}`,
+          `Tagihan resmi sebesar Rp ${bill.nominal_tagihan.toLocaleString("id-ID")} telah diterbitkan dengan batas jatuh tempo ${bill.tanggal_jatuh_tempo}.`,
+          "/wali/informasi-tagihan"
+        );
+      }
+    }
+
+    appendAuditLog("SETUJUI_PEMBIAYAAN", "jenis_pembayaran", id, {
+      nama: target.nama_pembayaran,
+      disetujui_oleh: currentUser.nama_lengkap,
+      tagihan_diterbitkan: targetSantri.length,
+    });
+
+    if (authMode === "supabase") {
+      administrasiService.approveJenisPembayaran(id, {
+        catatan: approvedCatatan,
+        approved_by: currentUser.id,
+        approved_by_name: currentUser.nama_lengkap,
+      }).catch(console.error);
+
+      if (targetSantri.length > 0) {
+        administrasiService.generateTagihan({
+          jenis_pembayaran_id: target.id,
+          periode_label: target.periode_pembayaran,
+          tanggal_jatuh_tempo: target.tanggal_jatuh_tempo,
+          target_santri_ids: targetSantri.map((s) => s.id),
+        }).catch(console.error);
+      }
+    }
+
+    return {
+      ok: true,
+      message: `Pembiayaan "${target.nama_pembayaran}" berhasil disetujui. ${targetSantri.length} tagihan aktif telah diterbitkan untuk wali santri.`,
+    };
+  };
+
+  const rejectJenisPembayaran: SipetaContextValue["rejectJenisPembayaran"] = (id, catatan) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Pengasuh/Admin yang berwenang menolak pengajuan pembiayaan." };
+    }
+    if (!catatan || !catatan.trim()) {
+      return { ok: false, message: "Catatan alasan penolakan wajib diisi untuk evaluasi TU." };
+    }
+
+    const target = jenisPembayaranList.find((j) => j.id === id);
+    if (!target) return { ok: false, message: "Data pembiayaan tidak ditemukan." };
+
+    setJenisPembayaranList((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status_persetujuan: "DITOLAK",
+              is_active: false,
+              catatan_persetujuan: catatan.trim(),
+              disetujui_oleh_nama: currentUser.nama_lengkap,
+              disetujui_at: new Date().toISOString(),
+            }
+          : item
+      )
+    );
+
+    appendAuditLog("TOLAK_PEMBIAYAAN", "jenis_pembayaran", id, {
+      nama: target.nama_pembayaran,
+      ditolak_oleh: currentUser.nama_lengkap,
+      alasan: catatan.trim(),
+    });
+
+    if (authMode === "supabase") {
+      administrasiService.rejectJenisPembayaran(id, {
+        catatan: catatan.trim(),
+        rejected_by: currentUser.id,
+        rejected_by_name: currentUser.nama_lengkap,
+      }).catch(console.error);
+    }
+
+    return {
+      ok: true,
+      message: `Pengajuan pembiayaan "${target.nama_pembayaran}" telah ditolak dengan catatan evaluasi.`,
     };
   };
 
@@ -2286,22 +2620,97 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createPengumuman: SipetaContextValue["createPengumuman"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Tidak memiliki akses membuat pengumuman." };
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU) dan Pengasuh/Admin yang dapat membuat pengumuman." };
     }
+    const isPub = payload.status_publikasi !== "DRAF" && (payload.is_published ?? true);
     const item: Pengumuman = {
       id: `pgm-${Date.now()}`,
       judul: payload.judul.trim(),
       kategori: payload.kategori,
       isi: payload.isi.trim(),
       is_penting: payload.is_penting,
-      is_published: true,
+      is_published: isPub,
       tanggal_publikasi: new Date().toISOString(),
       created_by_nama: currentUser.nama_lengkap,
+      masa_berlaku: payload.masa_berlaku,
+      sasaran: payload.sasaran ?? "SEMUA",
+      target_id: payload.target_id,
+      status_publikasi: payload.status_publikasi ?? (isPub ? "PUBLIKASI" : "DRAF"),
     };
     setPengumumanList((prev) => [item, ...prev]);
-    appendAuditLog("PUBLIKASI_PENGUMUMAN", "pengumuman", item.id, { judul: item.judul });
-    return { ok: true, message: "Pengumuman pesantren berhasil dipublikasikan." };
+    appendAuditLog("BUAT_PENGUMUMAN", "pengumuman", item.id, { judul: item.judul, status: item.status_publikasi });
+
+    if (authMode === "supabase") {
+      administrasiService.createPengumuman({
+        judul: item.judul,
+        kategori: item.kategori,
+        isi: item.isi,
+        is_penting: item.is_penting,
+        is_published: item.is_published,
+        created_by: currentUser.id,
+        created_by_nama: currentUser.nama_lengkap,
+        masa_berlaku: item.masa_berlaku,
+        sasaran: item.sasaran,
+        target_id: item.target_id,
+        status_publikasi: item.status_publikasi,
+      }).catch(console.error);
+    }
+
+    return { ok: true, message: isPub ? "Pengumuman pesantren berhasil dipublikasikan." : "Pengumuman berhasil disimpan sebagai draf." };
+  };
+
+  const updatePengumuman: SipetaContextValue["updatePengumuman"] = (id, payload) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+
+    const target = pengumumanList.find((p) => p.id === id);
+    if (!target) return { ok: false, message: "Pengumuman tidak ditemukan." };
+
+    const isPub = payload.status_publikasi ? payload.status_publikasi !== "DRAF" : payload.is_published ?? target.is_published;
+
+    setPengumumanList((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...payload,
+              is_published: isPub,
+              status_publikasi: payload.status_publikasi ?? (isPub ? "PUBLIKASI" : "DRAF"),
+            }
+          : item
+      )
+    );
+
+    appendAuditLog("UPDATE_PENGUMUMAN", "pengumuman", id, { judul: target.judul });
+
+    if (authMode === "supabase") {
+      administrasiService.updatePengumuman(id, {
+        ...payload,
+        is_published: isPub,
+      }).catch(console.error);
+    }
+
+    return { ok: true, message: "Pengumuman berhasil diperbarui." };
+  };
+
+  const deletePengumuman: SipetaContextValue["deletePengumuman"] = (id) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+
+    const target = pengumumanList.find((p) => p.id === id);
+    if (!target) return { ok: false, message: "Pengumuman tidak ditemukan." };
+
+    setPengumumanList((prev) => prev.filter((p) => p.id !== id));
+    appendAuditLog("HAPUS_PENGUMUMAN", "pengumuman", id, { judul: target.judul });
+
+    if (authMode === "supabase") {
+      administrasiService.deletePengumuman(id).catch(console.error);
+    }
+
+    return { ok: true, message: "Pengumuman berhasil dihapus." };
   };
 
   // ============================================================================
@@ -2905,8 +3314,15 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   // ============================================================================
 
   const recordPerkembanganMengaji: SipetaContextValue["recordPerkembanganMengaji"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Pengelola Kepesantrenan yang dapat mencatat mengaji." };
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Hanya Asatidz, Bendahara, atau Admin yang berwenang mencatat perkembangan mengaji." };
     }
     const item: PerkembanganMengaji = {
       ...payload,
@@ -2927,6 +3343,22 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       santri_id: item.santri_id,
       materi_terakhir: item.materi_terakhir,
     });
+
+    if (authMode === "supabase") {
+      kepesantrenanService.catatPerkembanganMengaji({
+        santri_id: payload.santri_id,
+        tanggal_penilaian: payload.tanggal_penilaian,
+        pembimbing_name: payload.pembimbing_name,
+        metode_pembelajaran: payload.metode_pembelajaran,
+        tingkat_jilid: payload.tingkat_jilid,
+        materi_terakhir: payload.materi_terakhir,
+        kelancaran_bacaan: payload.kelancaran_bacaan,
+        makharijul_huruf: payload.makharijul_huruf,
+        tajwid: payload.tajwid,
+        catatan_perkembangan: payload.catatan_perkembangan,
+      }).catch(console.error);
+    }
+
     return { ok: true, message: "Catatan perkembangan mengaji berhasil disimpan." };
   };
 
@@ -2994,10 +3426,17 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const recordCatatanKedisiplinan: SipetaContextValue["recordCatatanKedisiplinan"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "tu" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
       return {
         ok: false,
-        message: "Hanya Pengelola Kepesantrenan yang dapat mencatat kedisiplinan.",
+        message: "Hanya Tata Usaha, Asatidz, atau Admin yang dapat mencatat kedisiplinan.",
       };
     }
     const kategori = masterPelanggaranList.find((k) => k.id === payload.kategori_id);
@@ -3034,14 +3473,90 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       kategori: item.nama_kategori,
       status: item.status_tindak_lanjut,
     });
+
+    if (authMode === "supabase") {
+      kepesantrenanService.catatKedisiplinan({
+        santri_id: payload.santri_id,
+        tanggal_kejadian: payload.tanggal_kejadian,
+        waktu_kejadian: payload.waktu_kejadian,
+        kategori_id: payload.kategori_id,
+        deskripsi: payload.deskripsi,
+        tindak_lanjut: payload.tindak_lanjut,
+        catatan_pembinaan: payload.catatan_pembinaan,
+        status_tindak_lanjut: payload.status_tindak_lanjut,
+      }).catch(console.error);
+    }
+
     return { ok: true, message: "Catatan kedisiplinan & pembinaan berhasil disimpan." };
+  };
+
+  const updateCatatanKedisiplinan: SipetaContextValue["updateCatatanKedisiplinan"] = (id, payload) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "tu" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+    const target = kedisiplinanList.find((c) => c.id === id);
+    if (!target) return { ok: false, message: "Catatan kedisiplinan tidak ditemukan." };
+
+    setKedisiplinanList((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...payload } : c))
+    );
+
+    appendAuditLog("UPDATE_KEDISIPLINAN_SANTRI", "catatan_kedisiplinan", id, payload);
+
+    if (authMode === "supabase") {
+      kepesantrenanService.updateCatatanKedisiplinan(id, payload).catch(console.error);
+    }
+
+    return { ok: true, message: "Catatan kedisiplinan berhasil diperbarui." };
+  };
+
+  const deleteCatatanKedisiplinan: SipetaContextValue["deleteCatatanKedisiplinan"] = (id) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "tu" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+    const target = kedisiplinanList.find((c) => c.id === id);
+    if (!target) return { ok: false, message: "Catatan kedisiplinan tidak ditemukan." };
+
+    setKedisiplinanList((prev) => prev.filter((c) => c.id !== id));
+
+    appendAuditLog("HAPUS_KEDISIPLINAN_SANTRI", "catatan_kedisiplinan", id, {
+      santri_id: target.santri_id,
+      kategori: target.nama_kategori,
+    });
+
+    if (authMode === "supabase") {
+      kepesantrenanService.deleteCatatanKedisiplinan(id).catch(console.error);
+    }
+
+    return { ok: true, message: "Catatan kedisiplinan berhasil dihapus secara aman." };
   };
 
   const updateTindakLanjutKedisiplinan: SipetaContextValue["updateTindakLanjutKedisiplinan"] = (
     payload
   ) => {
-    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Pengelola Kepesantrenan yang dapat memperbarui pembinaan." };
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "tu" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Hanya Pengelola/TU yang dapat memperbarui pembinaan." };
     }
     const target = kedisiplinanList.find((c) => c.id === payload.catatan_id);
     if (!target) return { ok: false, message: "Catatan kedisiplinan tidak ditemukan." };
@@ -3092,8 +3607,15 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   const createMasterKategoriPelanggaran: SipetaContextValue["createMasterKategoriPelanggaran"] = async (
     payload
   ) => {
-    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Pengelola Kepesantrenan atau Superadmin yang berwenang menambah kategori pelanggaran." };
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "tu" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Hanya TU, Pengelola Kepesantrenan, atau Superadmin yang berwenang menambah kategori pelanggaran." };
     }
 
     if (authMode === "supabase") {
@@ -3135,8 +3657,15 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     id,
     payload
   ) => {
-    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Pengelola Kepesantrenan atau Superadmin yang berwenang mengubah kategori pelanggaran." };
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "tu" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Hanya TU, Pengelola Kepesantrenan, atau Superadmin yang berwenang mengubah kategori pelanggaran." };
     }
 
     if (authMode === "supabase") {
@@ -3154,8 +3683,15 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   const deleteMasterKategoriPelanggaranBatch: SipetaContextValue["deleteMasterKategoriPelanggaranBatch"] = async (
     ids
   ) => {
-    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Pengelola Kepesantrenan atau Superadmin yang berwenang menghapus kategori pelanggaran." };
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "tu" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Hanya TU, Pengelola Kepesantrenan, atau Superadmin yang berwenang menghapus kategori pelanggaran." };
     }
     if (!ids || ids.length === 0) {
       return { ok: false, message: "Pilih setidaknya satu kategori pelanggaran untuk dihapus." };
@@ -3277,9 +3813,16 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         updateKamar,
         deleteKamar,
         createJenisPembayaran,
+        createPengajuanPembiayaan,
+        updateJenisPembayaran,
+        deleteJenisPembayaran,
+        approveJenisPembayaran,
+        rejectJenisPembayaran,
         generateTagihan,
         adjustTagihan,
         createPengumuman,
+        updatePengumuman,
+        deletePengumuman,
         addOrUpdateKeranjang,
         removeFromKeranjang,
         clearKeranjang,
@@ -3296,6 +3839,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         recordSetoranTahfidz,
         recordPrestasiSantri,
         recordCatatanKedisiplinan,
+        updateCatatanKedisiplinan,
+        deleteCatatanKedisiplinan,
         updateTindakLanjutKedisiplinan,
         createMasterKategoriPelanggaran,
         updateMasterKategoriPelanggaran,

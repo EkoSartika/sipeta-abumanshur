@@ -230,6 +230,23 @@ export function WaliPortal({
   );
   const unreadNotifCount = myNotifikasi.filter((n) => !n.is_read).length;
 
+  // Filter Pengumuman khusus Wali: hanya PUBLIKASI, masa berlaku aktif, dan sesuai sasaran (SEMUA / KELAS / SANTRI)
+  const myPengumuman = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return pengumumanList.filter((p) => {
+      if (!p.is_published || p.status_publikasi === "DRAF") return false;
+      if (p.masa_berlaku && p.masa_berlaku < today) return false;
+      if (!p.sasaran || p.sasaran === "SEMUA") return true;
+      if (p.sasaran === "KELAS") {
+        return p.target_id === santri.kelas_id;
+      }
+      if (p.sasaran === "SANTRI") {
+        return p.target_id === santri.id;
+      }
+      return false;
+    });
+  }, [pengumumanList, santri.kelas_id, santri.id]);
+
   const totalKeranjang = useMemo(
     () => keranjang.reduce((sum, item) => sum + item.nominal_bayar, 0),
     [keranjang]
@@ -397,7 +414,7 @@ export function WaliPortal({
       {activeTab === "dashboard" && (
         <div className="space-y-6">
           {/* Pengumuman Terbaru */}
-          {pengumumanList.length > 0 && (
+          {myPengumuman.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 sm:p-5">
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-800">
@@ -405,14 +422,14 @@ export function WaliPortal({
                   Pengumuman Resmi Pesantren Terbaru
                 </span>
                 <span className="text-xs text-amber-700">
-                  {formatTanggal(pengumumanList[0]!.tanggal_publikasi)}
+                  {formatTanggal(myPengumuman[0]!.tanggal_publikasi)}
                 </span>
               </div>
               <h3 className="mt-1 text-base font-bold text-slate-900">
-                {pengumumanList[0]!.judul}
+                {myPengumuman[0]!.judul}
               </h3>
               <p className="mt-1 text-xs sm:text-sm text-slate-700 leading-relaxed">
-                {pengumumanList[0]!.isi}
+                {myPengumuman[0]!.isi}
               </p>
             </div>
           )}
@@ -1781,18 +1798,29 @@ export function WaliPortal({
               Papan Pengumuman Resmi Pesantren
             </h3>
             <div className="mt-3 space-y-3">
-              {pengumumanList.map((p) => (
-                <div key={p.id} className="rounded-xl border border-slate-200 p-4">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="rounded bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">
-                      {p.kategori}
-                    </span>
-                    <span className="text-slate-400">{formatTanggal(p.tanggal_publikasi)}</span>
+              {myPengumuman.length === 0 ? (
+                <p className="text-xs text-slate-500 italic py-4 text-center">
+                  Belum ada pengumuman aktif untuk santri Anda saat ini.
+                </p>
+              ) : (
+                myPengumuman.map((p) => (
+                  <div key={p.id} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="rounded bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">
+                        {p.kategori}
+                      </span>
+                      <span className="text-slate-400">{formatTanggal(p.tanggal_publikasi)}</span>
+                    </div>
+                    <h4 className="mt-1.5 text-sm font-bold text-slate-900">{p.judul}</h4>
+                    <p className="mt-1 text-xs text-slate-600 leading-relaxed">{p.isi}</p>
+                    {p.masa_berlaku && (
+                      <p className="mt-2 text-[11px] text-slate-400">
+                        Berlaku sampai: {formatTanggal(p.masa_berlaku)}
+                      </p>
+                    )}
                   </div>
-                  <h4 className="mt-1.5 text-sm font-bold text-slate-900">{p.judul}</h4>
-                  <p className="mt-1 text-xs text-slate-600 leading-relaxed">{p.isi}</p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

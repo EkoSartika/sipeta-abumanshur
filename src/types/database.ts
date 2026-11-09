@@ -155,6 +155,29 @@ export interface RiwayatPenempatanSantri {
   created_at: string;
 }
 
+export type StatusPersetujuanPembiayaan =
+  | "MENUNGGU_PERSETUJUAN"
+  | "DISETUJUI"
+  | "DITOLAK";
+
+export type KelancaranMengajiGrade =
+  | "Sangat Lancar (A)"
+  | "Lancar (B)"
+  | "Cukup Lancar (C)"
+  | "Perlu Bimbingan (D)";
+
+export type MakharijMengajiGrade =
+  | "Fasih & Tepat (A)"
+  | "Baik (B)"
+  | "Cukup (C)"
+  | "Perlu Bimbingan (D)";
+
+export type TajwidMengajiGrade =
+  | "Sangat Baik (A)"
+  | "Baik (B)"
+  | "Cukup (C)"
+  | "Perlu Bimbingan (D)";
+
 export interface JenisPembayaran {
   id: string;
   kode_pembayaran: string;
@@ -167,9 +190,16 @@ export interface JenisPembayaran {
   tanggal_mulai: string;
   tanggal_jatuh_tempo: string;
   sasaran_santri: "SEMUA" | "KELAS_TERTENTU" | "KAMAR_TERTENTU" | "INDIVIDU";
+  sasaran_target_id?: string;
   kebijakan_cicilan: KebijakanCicilan;
   minimal_nominal_cicilan: number | null;
   is_active: boolean;
+  status_persetujuan?: StatusPersetujuanPembiayaan;
+  catatan_persetujuan?: string;
+  disetujui_oleh_nama?: string;
+  disetujui_at?: string;
+  created_by?: string;
+  created_at?: string;
 }
 
 export interface Tagihan {
@@ -389,6 +419,10 @@ export interface Pengumuman {
   is_published: boolean;
   tanggal_publikasi: string;
   created_by_nama: string;
+  masa_berlaku?: string;
+  sasaran?: "SEMUA" | "KELAS" | "SANTRI";
+  target_id?: string;
+  status_publikasi?: "DRAF" | "PUBLIKASI";
 }
 
 export interface NotifikasiItem {

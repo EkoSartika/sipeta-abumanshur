@@ -6,17 +6,22 @@ import {
   AlertTriangle,
   Award,
   BookOpen,
+  Calendar,
   CheckCircle2,
   Edit2,
+  Eye,
   FileSpreadsheet,
+  Filter,
   History,
   Info,
   Plus,
   RefreshCw,
   RotateCcw,
+  Search,
   ShieldAlert,
   Sparkles,
   Trash2,
+  UserCheck,
   X,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
@@ -46,6 +51,8 @@ export function PengelolaPortal({
   onTabChange,
 }: PengelolaPortalProps = {}) {
   const {
+    currentUser,
+    kelasList,
     santriList,
     mengajiList,
     tahfidzList,
@@ -73,9 +80,14 @@ export function PengelolaPortal({
   };
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // State Mengaji
+  // State Mengaji Form (Bab 2 PRD: Evaluasi Mengaji A-D & Tanggal & Petugas)
   const [santriMengaji, setSantriMengaji] = useState(santriList[0]?.id ?? "snt-001");
-  const [pembimbingMengaji, setPembimbingMengaji] = useState("Ustadz H. Fauzan Azima, Lc.");
+  const [tanggalPenilaianMengaji, setTanggalPenilaianMengaji] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [pembimbingMengaji, setPembimbingMengaji] = useState(
+    currentUser?.nama_lengkap ?? "Ustadz H. Fauzan Azima, Lc."
+  );
   const [metodeMengaji, setMetodeMengaji] = useState("Al-Qur'an Bin-Nadzor & Tahsin");
   const [tingkatJilid, setTingkatJilid] = useState("Tahsin Al-Qur'an Juz 15");
   const [materiTerakhir, setMateriTerakhir] = useState("QS. Al-Isra Ayat 1 - 35");
@@ -83,8 +95,14 @@ export function PengelolaPortal({
   const [makharij, setMakharij] = useState("Fasih & Tepat (A)");
   const [tajwid, setTajwid] = useState("Sangat Baik (A)");
   const [catatanMengaji, setCatatanMengaji] = useState(
-    "Bacaan tartil dan makharijul huruf stabil, siap melanjutkan ke halaman berikutnya."
+    "Bacaan tartil dan makharijul huruf stabil, siap melanjutkan ke materi berikutnya."
   );
+
+  // State Filter & Modal Rekapitulasi Mengaji
+  const [filterKelasMengaji, setFilterKelasMengaji] = useState("all");
+  const [searchSantriMengaji, setSearchSantriMengaji] = useState("");
+  const [filterPeriodeMengaji, setFilterPeriodeMengaji] = useState("all");
+  const [modalRiwayatSantriId, setModalRiwayatSantriId] = useState<string | null>(null);
 
   // State Tahfidz
   const [santriTahfidz, setSantriTahfidz] = useState(santriList[0]?.id ?? "snt-001");
@@ -266,6 +284,61 @@ export function PengelolaPortal({
     return s ? `${s.nama_lengkap} (${s.nis})` : id;
   };
 
+  const getSantriKelas = (id: string) => {
+    const s = santriList.find((x) => x.id === id);
+    if (!s || !s.kelas_id) return "-";
+    const k = kelasList.find((kls) => kls.id === s.kelas_id);
+    return k?.nama_kelas || "-";
+  };
+
+  const getGradeBadge = (gradeStr: string) => {
+    if (gradeStr.includes("(A)")) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+          {gradeStr}
+        </span>
+      );
+    }
+    if (gradeStr.includes("(B)")) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+          {gradeStr}
+        </span>
+      );
+    }
+    if (gradeStr.includes("(C)")) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+          {gradeStr}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+        {gradeStr}
+      </span>
+    );
+  };
+
+  const filteredMengajiList = useMemo(() => {
+    return mengajiList.filter((m) => {
+      const s = santriList.find((x) => x.id === m.santri_id);
+      if (filterKelasMengaji !== "all" && s?.kelas_id !== filterKelasMengaji) {
+        return false;
+      }
+      if (searchSantriMengaji.trim()) {
+        const q = searchSantriMengaji.toLowerCase();
+        const matchName = s?.nama_lengkap.toLowerCase().includes(q);
+        const matchNis = s?.nis.toLowerCase().includes(q);
+        if (!matchName && !matchNis) return false;
+      }
+      if (filterPeriodeMengaji !== "all") {
+        if (!m.tanggal_penilaian.startsWith(filterPeriodeMengaji)) return false;
+      }
+      return true;
+    });
+  }, [mengajiList, santriList, filterKelasMengaji, searchSantriMengaji, filterPeriodeMengaji]);
+
   return (
     <div className="space-y-6">
       {/* Header Asatidz (Bab 3.4 PRD) */}
@@ -436,150 +509,393 @@ export function PengelolaPortal({
 
       {/* TAB 1: MENGAJI */}
       {activeTab === "mengaji" && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-bold text-slate-900">
-              Catat Evaluasi Perkembangan Mengaji
-            </h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const res = recordPerkembanganMengaji({
-                  santri_id: santriMengaji,
-                  tanggal_penilaian: new Date().toISOString().slice(0, 10),
-                  pembimbing_name: pembimbingMengaji,
-                  metode_pembelajaran: metodeMengaji,
-                  tingkat_jilid: tingkatJilid,
-                  materi_terakhir: materiTerakhir,
-                  kelancaran_bacaan: kelancaran,
-                  makharijul_huruf: makharij,
-                  tajwid,
-                  catatan_perkembangan: catatanMengaji,
-                });
-                setFeedback({ ok: res.ok, text: res.message });
-              }}
-              className="mt-3 space-y-3 text-xs"
-            >
-              <div>
-                <label className="font-semibold text-slate-700">Santri</label>
-                <select
-                  value={santriMengaji}
-                  onChange={(e) => setSantriMengaji(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {/* Form Evaluasi Mengaji (Bab 2 PRD: Dropdown Nilai A-D Wajib, Tanggal & Petugas) */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <BookOpen className="h-5 w-5 text-emerald-700" />
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Formulir Evaluasi Mengaji
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Penilaian tajwid, makharijul huruf, &amp; kelancaran (A-D)
+                  </p>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const res = recordPerkembanganMengaji({
+                    santri_id: santriMengaji,
+                    tanggal_penilaian: tanggalPenilaianMengaji,
+                    pembimbing_name: pembimbingMengaji.trim() || (currentUser?.nama_lengkap ?? "Asatidz"),
+                    metode_pembelajaran: metodeMengaji.trim(),
+                    tingkat_jilid: tingkatJilid.trim(),
+                    materi_terakhir: materiTerakhir.trim(),
+                    kelancaran_bacaan: kelancaran,
+                    makharijul_huruf: makharij,
+                    tajwid,
+                    catatan_perkembangan: catatanMengaji.trim(),
+                  });
+                  setFeedback({ ok: res.ok, text: res.message });
+                }}
+                className="mt-4 space-y-3.5 text-xs"
+              >
+                <div>
+                  <label className="font-semibold text-slate-700">Pilih Santri *</label>
+                  <select
+                    value={santriMengaji}
+                    onChange={(e) => setSantriMengaji(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium"
+                  >
+                    {santriList.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nis} — {s.nama_lengkap} ({getSantriKelas(s.id)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700">Tanggal Penilaian *</label>
+                    <input
+                      type="date"
+                      required
+                      value={tanggalPenilaianMengaji}
+                      onChange={(e) => setTanggalPenilaianMengaji(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700">Nama Pembimbing *</label>
+                    <input
+                      type="text"
+                      required
+                      value={pembimbingMengaji}
+                      onChange={(e) => setPembimbingMengaji(e.target.value)}
+                      placeholder="Nama Asatidz / Penguji"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700">Metode Pembelajaran *</label>
+                  <input
+                    type="text"
+                    required
+                    value={metodeMengaji}
+                    onChange={(e) => setMetodeMengaji(e.target.value)}
+                    placeholder="Contoh: Yanbu'a, Qiroati, Tahsin Al-Qur'an"
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700">Tingkat / Jilid *</label>
+                    <input
+                      type="text"
+                      required
+                      value={tingkatJilid}
+                      onChange={(e) => setTingkatJilid(e.target.value)}
+                      placeholder="Jilid 4 / Juz 15"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700">Materi Terakhir *</label>
+                    <input
+                      type="text"
+                      required
+                      value={materiTerakhir}
+                      onChange={(e) => setMateriTerakhir(e.target.value)}
+                      placeholder="Halaman 20 / QS. Al-Isra 1-10"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Dropdown Wajib Nilai A-D (BUKAN Teks Bebas) */}
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 space-y-2.5">
+                  <div className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide">
+                    Predikat Evaluasi (Wajib Pilihan A–D)
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700">1. Kelancaran Bacaan *</label>
+                    <select
+                      value={kelancaran}
+                      onChange={(e) => setKelancaran(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-800"
+                    >
+                      <option value="Sangat Lancar (A)">Sangat Lancar (A)</option>
+                      <option value="Lancar (B)">Lancar (B)</option>
+                      <option value="Cukup Lancar (C)">Cukup Lancar (C)</option>
+                      <option value="Perlu Bimbingan (D)">Perlu Bimbingan (D)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700">2. Makharijul Huruf *</label>
+                    <select
+                      value={makharij}
+                      onChange={(e) => setMakharij(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-800"
+                    >
+                      <option value="Fasih & Tepat (A)">Fasih & Tepat (A)</option>
+                      <option value="Baik (B)">Baik (B)</option>
+                      <option value="Cukup (C)">Cukup (C)</option>
+                      <option value="Perlu Bimbingan (D)">Perlu Bimbingan (D)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700">3. Kaidah Tajwid *</label>
+                    <select
+                      value={tajwid}
+                      onChange={(e) => setTajwid(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-800"
+                    >
+                      <option value="Sangat Baik (A)">Sangat Baik (A)</option>
+                      <option value="Baik (B)">Baik (B)</option>
+                      <option value="Cukup (C)">Cukup (C)</option>
+                      <option value="Perlu Bimbingan (D)">Perlu Bimbingan (D)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700">Catatan Pembimbing *</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={catatanMengaji}
+                    onChange={(e) => setCatatanMengaji(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    placeholder="Tuliskan catatan perkembangan dan bimbingan untuk santri..."
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-emerald-700 py-2.5 font-bold text-white hover:bg-emerald-800 transition min-h-[42px] cursor-pointer shadow-sm"
                 >
-                  {santriList.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nis} — {s.nama_lengkap}
+                  Simpan Catatan Perkembangan Mengaji
+                </button>
+              </form>
+            </div>
+
+            {/* Rekapitulasi Perkembangan Mengaji Seluruh Santri */}
+            <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Rekapitulasi Perkembangan Mengaji Santri
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Data riil evaluasi mutaba&apos;ah seluruh santri ({filteredMengajiList.length} dari {mengajiList.length} catatan)
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter Bar: Kelas, Santri, Periode */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari nama santri / NIS..."
+                    value={searchSantriMengaji}
+                    onChange={(e) => setSearchSantriMengaji(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 min-h-[38px] focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                <select
+                  value={filterKelasMengaji}
+                  onChange={(e) => setFilterKelasMengaji(e.target.value)}
+                  className="w-full text-xs rounded-xl border border-slate-300 bg-white px-3 py-1.5 min-h-[38px]"
+                >
+                  <option value="all">Semua Kelas</option>
+                  {kelasList.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.nama_kelas}
                     </option>
                   ))}
                 </select>
+
+                <select
+                  value={filterPeriodeMengaji}
+                  onChange={(e) => setFilterPeriodeMengaji(e.target.value)}
+                  className="w-full text-xs rounded-xl border border-slate-300 bg-white px-3 py-1.5 min-h-[38px]"
+                >
+                  <option value="all">Semua Periode</option>
+                  <option value="2026-11">November 2026</option>
+                  <option value="2026-10">Oktober 2026</option>
+                  <option value="2026-09">September 2026</option>
+                </select>
               </div>
-              <div>
-                <label className="font-semibold text-slate-700">Metode Pembelajaran</label>
-                <input
-                  type="text"
-                  required
-                  value={metodeMengaji}
-                  onChange={(e) => setMetodeMengaji(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5"
-                />
+
+              {/* Table Rekapitulasi Mengaji */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 font-bold uppercase text-[10px]">
+                    <tr>
+                      <th className="px-3.5 py-2.5">Santri</th>
+                      <th className="px-3 py-2.5">Kelas</th>
+                      <th className="px-3 py-2.5">Tingkat &amp; Materi</th>
+                      <th className="px-2.5 py-2.5">Kelancaran</th>
+                      <th className="px-2.5 py-2.5">Makharij</th>
+                      <th className="px-2.5 py-2.5">Tajwid</th>
+                      <th className="px-3 py-2.5">Tanggal</th>
+                      <th className="px-3 py-2.5 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredMengajiList.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-400 italic">
+                          Tidak ditemukan catatan perkembangan mengaji yang sesuai filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredMengajiList.map((m) => {
+                        const s = santriList.find((x) => x.id === m.santri_id);
+                        return (
+                          <tr key={m.id} className="hover:bg-slate-50/80 transition">
+                            <td className="px-3.5 py-2.5 font-bold text-slate-900">
+                              <div>{s?.nama_lengkap || m.santri_id}</div>
+                              <div className="text-[10px] text-slate-400 font-mono font-normal">
+                                {s?.nis}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-600 font-medium">
+                              {getSantriKelas(m.santri_id)}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span className="font-semibold text-emerald-950 block">
+                                {m.tingkat_jilid}
+                              </span>
+                              <span className="text-[11px] text-slate-500 line-clamp-1">
+                                {m.materi_terakhir}
+                              </span>
+                            </td>
+                            <td className="px-2.5 py-2.5">
+                              {getGradeBadge(m.kelancaran_bacaan)}
+                            </td>
+                            <td className="px-2.5 py-2.5">
+                              {getGradeBadge(m.makharijul_huruf)}
+                            </td>
+                            <td className="px-2.5 py-2.5">
+                              {getGradeBadge(m.tajwid)}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap text-[11px]">
+                              {formatTanggal(m.tanggal_penilaian)}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setModalRiwayatSantriId(m.santri_id)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                                title="Buka Riwayat Lengkap"
+                              >
+                                <Eye className="h-3 w-3" />
+                                <span>Riwayat</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-semibold text-slate-700">Tingkat / Jilid</label>
-                  <input
-                    type="text"
-                    required
-                    value={tingkatJilid}
-                    onChange={(e) => setTingkatJilid(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Materi Terakhir</label>
-                  <input
-                    type="text"
-                    required
-                    value={materiTerakhir}
-                    onChange={(e) => setMateriTerakhir(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="font-semibold text-slate-700">Kelancaran</label>
-                  <input
-                    type="text"
-                    required
-                    value={kelancaran}
-                    onChange={(e) => setKelancaran(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Makharij</label>
-                  <input
-                    type="text"
-                    required
-                    value={makharij}
-                    onChange={(e) => setMakharij(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Tajwid</label>
-                  <input
-                    type="text"
-                    required
-                    value={tajwid}
-                    onChange={(e) => setTajwid(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="font-semibold text-slate-700">Catatan Pembimbing</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={catatanMengaji}
-                  onChange={(e) => setCatatanMengaji(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5"
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-emerald-700 py-2 font-bold text-white hover:bg-emerald-800"
-              >
-                Simpan Perkembangan Mengaji
-              </button>
-            </form>
+            </div>
           </div>
 
-          <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-            <h3 className="text-base font-bold text-slate-900">
-              Rekapitulasi Perkembangan Mengaji Seluruh Santri ({mengajiList.length})
-            </h3>
-            {mengajiList.map((m) => (
-              <div key={m.id} className="rounded-xl border border-slate-200 p-3.5 text-xs space-y-1">
-                <div className="flex justify-between font-bold text-slate-900">
-                  <span>{getSantriName(m.santri_id)}</span>
-                  <span className="text-slate-500">{formatTanggal(m.tanggal_penilaian)}</span>
+          {/* Modal Riwayat Lengkap Mengaji Per Santri */}
+          {modalRiwayatSantriId && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Riwayat Lengkap Evaluasi Mengaji
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Santri: <strong>{getSantriName(modalRiwayatSantriId)}</strong> • Kelas:{" "}
+                      {getSantriKelas(modalRiwayatSantriId)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalRiwayatSantriId(null)}
+                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
-                <p className="text-emerald-800 font-semibold">
-                  {m.metode_pembelajaran} • {m.tingkat_jilid} • Materi: {m.materi_terakhir}
-                </p>
-                <p className="text-slate-600">
-                  Kelancaran: {m.kelancaran_bacaan} | Makharij: {m.makharijul_huruf} | Tajwid:{" "}
-                  {m.tajwid}
-                </p>
-                <p className="text-slate-700 bg-slate-50 p-2 rounded">
-                  <strong>Catatan ({m.pembimbing_name}):</strong> {m.catatan_perkembangan}
-                </p>
+
+                <div className="space-y-3">
+                  {mengajiList
+                    .filter((m) => m.santri_id === modalRiwayatSantriId)
+                    .map((item, idx) => (
+                      <div
+                        key={item.id || idx}
+                        className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900 text-sm">
+                            {item.tingkat_jilid} — {item.materi_terakhir}
+                          </span>
+                          <span className="text-[11px] font-medium text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                            {formatTanggal(item.tanggal_penilaian)}
+                          </span>
+                        </div>
+                        <div className="text-slate-600">
+                          Metode: <strong className="text-slate-800">{item.metode_pembelajaran}</strong> • Pembimbing:{" "}
+                          <strong className="text-slate-800">{item.pembimbing_name}</strong>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <div>
+                            <span className="text-[10px] text-slate-400 block">Kelancaran:</span>
+                            {getGradeBadge(item.kelancaran_bacaan)}
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 block">Makharijul Huruf:</span>
+                            {getGradeBadge(item.makharijul_huruf)}
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 block">Kaidah Tajwid:</span>
+                            {getGradeBadge(item.tajwid)}
+                          </div>
+                        </div>
+                        {item.catatan_perkembangan && (
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-slate-700 mt-2 text-[11px]">
+                            <strong>Catatan Pembimbing:</strong> {item.catatan_perkembangan}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setModalRiwayatSantriId(null)}
+                    className="rounded-xl bg-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-300"
+                  >
+                    Tutup
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

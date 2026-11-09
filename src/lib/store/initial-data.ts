@@ -383,6 +383,9 @@ export const INITIAL_JENIS_PEMBAYARAN: JenisPembayaran[] = [
     kebijakan_cicilan: "TIDAK_BOLEH",
     minimal_nominal_cicilan: null,
     is_active: true,
+    status_persetujuan: "DISETUJUI",
+    disetujui_oleh_nama: "Kyai Abu Manshur (Pengasuh)",
+    disetujui_at: "2026-11-01T08:00:00.000Z",
   },
   {
     id: "jp-makan-nov",
@@ -399,6 +402,9 @@ export const INITIAL_JENIS_PEMBAYARAN: JenisPembayaran[] = [
     kebijakan_cicilan: "MINIMAL_NOMINAL",
     minimal_nominal_cicilan: 300000,
     is_active: true,
+    status_persetujuan: "DISETUJUI",
+    disetujui_oleh_nama: "Kyai Abu Manshur (Pengasuh)",
+    disetujui_at: "2026-11-01T08:00:00.000Z",
   },
   {
     id: "jp-rihlah-2026",
@@ -415,6 +421,9 @@ export const INITIAL_JENIS_PEMBAYARAN: JenisPembayaran[] = [
     kebijakan_cicilan: "MINIMAL_NOMINAL",
     minimal_nominal_cicilan: 400000,
     is_active: true,
+    status_persetujuan: "DISETUJUI",
+    disetujui_oleh_nama: "Kyai Abu Manshur (Pengasuh)",
+    disetujui_at: "2026-10-01T08:00:00.000Z",
   },
   {
     id: "jp-kitab-2026",
@@ -431,6 +440,28 @@ export const INITIAL_JENIS_PEMBAYARAN: JenisPembayaran[] = [
     kebijakan_cicilan: "BEBAS",
     minimal_nominal_cicilan: null,
     is_active: true,
+    status_persetujuan: "DISETUJUI",
+    disetujui_oleh_nama: "Kyai Abu Manshur (Pengasuh)",
+    disetujui_at: "2026-07-01T08:00:00.000Z",
+  },
+  {
+    id: "jp-ujian-des",
+    kode_pembayaran: "UJN-DES-2026",
+    nama_pembayaran: "Biaya Ujian Imtihan & Penilaian Akhir Semester (PAS)",
+    deskripsi: "Biaya administrasi soal, naskah ujian, dan syahadah kelulusan semester",
+    nominal: 250000,
+    kategori: "Akademik & Ujian",
+    tahun_ajaran_id: "ta-2026-2027",
+    periode_pembayaran: "Semester",
+    tanggal_mulai: "2026-11-10",
+    tanggal_jatuh_tempo: "2026-12-05",
+    sasaran_santri: "SEMUA",
+    kebijakan_cicilan: "TIDAK_BOLEH",
+    minimal_nominal_cicilan: null,
+    is_active: false,
+    status_persetujuan: "MENUNGGU_PERSETUJUAN",
+    created_by: "usr-tu-01",
+    created_at: "2026-11-10T04:00:00.000Z",
   },
 ];
 
@@ -1000,6 +1031,9 @@ export const INITIAL_PENGUMUMAN: Pengumuman[] = [
     is_published: true,
     tanggal_publikasi: "2026-11-05T08:00:00Z",
     created_by_nama: "Ustadz Lukman Hakim, S.Kom.",
+    sasaran: "SEMUA",
+    status_publikasi: "PUBLIKASI",
+    masa_berlaku: "2026-12-15",
   },
   {
     id: "pgm-002",
@@ -1010,6 +1044,9 @@ export const INITIAL_PENGUMUMAN: Pengumuman[] = [
     is_published: true,
     tanggal_publikasi: "2026-11-01T09:00:00Z",
     created_by_nama: "Ustadzah Hj. Rahmawati, S.E., Ak.",
+    sasaran: "SEMUA",
+    status_publikasi: "PUBLIKASI",
+    masa_berlaku: "2026-12-31",
   },
 ];
 

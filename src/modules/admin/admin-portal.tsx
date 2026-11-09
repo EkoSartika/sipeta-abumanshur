@@ -32,6 +32,7 @@ import {
   Trophy,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
 import {
@@ -43,6 +44,7 @@ import {
   getStatusTransaksiBadge,
 } from "@/lib/utils/format";
 import type {
+  JenisPembayaran,
   Santri,
   StatusSantri,
   Tagihan,
@@ -84,6 +86,8 @@ export function AdminPortal({
     pengumumanList,
     rekeningResmi,
     auditLogs,
+    approveJenisPembayaran,
+    rejectJenisPembayaran,
   } = useSipeta();
 
   const [internalTab, setInternalTab] = useState<AdminTab>("dashboard");
@@ -95,6 +99,13 @@ export function AdminPortal({
       setInternalTab(tab);
     }
   };
+
+  // State Persetujuan Pengajuan Pembiayaan Santri (Alur Pengasuh/Admin PRD)
+  const [pembiayaanApprovalTab, setPembiayaanApprovalTab] = useState<"pending" | "approved" | "rejected">("pending");
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectTargetItem, setRejectTargetItem] = useState<JenisPembayaran | null>(null);
+  const [rejectCatatan, setRejectCatatan] = useState("");
+  const [approvalFeedback, setApprovalFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Filter Santri di Pengawasan Santri & Asrama
   const [santriSearch, setSantriSearch] = useState("");
@@ -195,6 +206,33 @@ export function AdminPortal({
       return matchAktivitas && matchRole && matchSearch;
     });
   }, [auditLogs, auditFilterAktivitas, auditFilterRole, auditSearch]);
+
+  // Pengelompokan Usulan Pembiayaan dari Tata Usaha (TU)
+  const pendingFees = useMemo(
+    () => jenisPembayaranList.filter((j) => j.status_persetujuan === "MENUNGGU_PERSETUJUAN"),
+    [jenisPembayaranList]
+  );
+  const approvedFees = useMemo(
+    () => jenisPembayaranList.filter((j) => j.status_persetujuan === "DISETUJUI"),
+    [jenisPembayaranList]
+  );
+  const rejectedFees = useMemo(
+    () => jenisPembayaranList.filter((j) => j.status_persetujuan === "DITOLAK"),
+    [jenisPembayaranList]
+  );
+
+  const getSasaranLabel = (jp: JenisPembayaran) => {
+    if (jp.sasaran_santri === "SEMUA") return "Seluruh Santri Aktif";
+    if (jp.sasaran_santri === "KELAS_TERTENTU") {
+      const k = kelasList.find((x) => x.id === jp.sasaran_target_id);
+      return `Kelas: ${k?.nama_kelas || "Kelas Tertentu"}`;
+    }
+    if (jp.sasaran_santri === "INDIVIDU") {
+      const s = santriList.find((x) => x.id === jp.sasaran_target_id);
+      return `Santri: ${s?.nama_lengkap || "Santri Tertentu"}`;
+    }
+    return jp.sasaran_santri || "Semua Santri";
+  };
 
   return (
     <div className="space-y-6">
@@ -504,15 +542,340 @@ export function AdminPortal({
          ===================================================================== */}
       {activeTab === "keuangan" && (
         <div className="space-y-6">
+          {approvalFeedback && (
+            <div
+              className={`rounded-2xl p-4 text-xs font-semibold flex items-center justify-between border ${
+                approvalFeedback.ok
+                  ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                  : "bg-rose-50 text-rose-900 border-rose-200"
+              }`}
+            >
+              <span>{approvalFeedback.text}</span>
+              <button
+                type="button"
+                onClick={() => setApprovalFeedback(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold ml-2"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 text-xs text-blue-900 space-y-1">
             <span className="font-bold flex items-center gap-1.5">
               <Info className="h-4 w-4 text-blue-700" />
-              Mode Pengawasan Keuangan (Read-Only)
+              Mode Pengawasan &amp; Persetujuan Keuangan Pesantren
             </span>
             <p className="text-slate-600">
-              Pengasuh Pondok memiliki akses pemantauan penuh terhadap tagihan, setoran, dan mutasi uang saku santri tanpa kewenangan mutasi ledger demi kepatuhan audit.
+              Pengasuh Pondok memiliki kewenangan meninjau, menyetujui, atau menolak pengajuan jenis pembiayaan santri dari Tata Usaha (TU). Pembiayaan yang disetujui akan otomatis aktif dan menerbitkan tagihan bagi santri sasaran.
             </p>
           </div>
+
+          {/* ALUR PERSETUJUAN PEMBIAYAAN SANTRI (DARI TU) */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-emerald-800" />
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    Persetujuan Pengajuan Pembiayaan Santri
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tinjau usulan tagihan baru yang diajukan oleh Tata Usaha (TU)
+                </p>
+              </div>
+
+              {/* Subtab Status */}
+              <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setPembiayaanApprovalTab("pending")}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                    pembiayaanApprovalTab === "pending"
+                      ? "bg-white text-emerald-950 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span>Menunggu</span>
+                  {pendingFees.length > 0 && (
+                    <span className="rounded-full bg-amber-500 text-white px-1.5 py-0.2 text-[10px]">
+                      {pendingFees.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPembiayaanApprovalTab("approved")}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                    pembiayaanApprovalTab === "approved"
+                      ? "bg-white text-emerald-950 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span>Disetujui ({approvedFees.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPembiayaanApprovalTab("rejected")}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                    pembiayaanApprovalTab === "rejected"
+                      ? "bg-white text-emerald-950 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span>Ditolak ({rejectedFees.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* TAB PENDING */}
+            {pembiayaanApprovalTab === "pending" && (
+              <div className="space-y-3">
+                {pendingFees.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400 italic">
+                    Tidak ada pengajuan pembiayaan santri yang menunggu persetujuan.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {pendingFees.map((fee) => (
+                      <div
+                        key={fee.id}
+                        className="rounded-xl border border-amber-200 bg-amber-50/30 p-4 space-y-3 text-xs"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="inline-flex rounded-full bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 text-[10px] font-bold">
+                              MENUNGGU PERSETUJUAN
+                            </span>
+                            <h4 className="font-extrabold text-sm text-slate-900 mt-1">
+                              {fee.nama_pembayaran}
+                            </h4>
+                            <span className="text-[11px] text-slate-500">
+                              Kategori: {fee.kategori} • Periode: {fee.periode_pembayaran}
+                            </span>
+                          </div>
+                          <span className="font-extrabold text-base text-emerald-800">
+                            {formatRupiah(fee.nominal)}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 bg-white/80 p-2.5 rounded-lg border border-amber-100 text-[11px]">
+                          <div>
+                            <span className="text-slate-400 block">Sasaran Santri:</span>
+                            <strong className="text-slate-800">{getSasaranLabel(fee)}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Metode Pembayaran:</span>
+                            <strong className="text-slate-800">
+                              {fee.kebijakan_cicilan === "TIDAK_BOLEH" ? "Harus Dibayar Lunas" : "Bisa Dicicil"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Tanggal Jatuh Tempo:</span>
+                            <strong className="text-slate-800">{formatTanggal(fee.tanggal_jatuh_tempo)}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Kode Referensi:</span>
+                            <strong className="text-slate-800 font-mono">{fee.kode_pembayaran}</strong>
+                          </div>
+                        </div>
+
+                        {fee.deskripsi && (
+                          <p className="text-[11px] text-slate-600 bg-white/60 p-2 rounded">
+                            {fee.deskripsi}
+                          </p>
+                        )}
+
+                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-amber-200/60">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRejectTargetItem(fee);
+                              setRejectCatatan("");
+                              setRejectModalOpen(true);
+                            }}
+                            className="rounded-xl border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 transition cursor-pointer"
+                          >
+                            Tolak dengan Catatan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const res = approveJenisPembayaran(fee.id);
+                              setApprovalFeedback({ ok: res.ok, text: res.message });
+                            }}
+                            className="rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition shadow-sm cursor-pointer"
+                          >
+                            Setujui &amp; Terbitkan Tagihan
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB APPROVED */}
+            {pembiayaanApprovalTab === "approved" && (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                    <tr>
+                      <th className="px-3.5 py-2.5">Nama Pembiayaan</th>
+                      <th className="px-3 py-2.5">Nominal</th>
+                      <th className="px-3 py-2.5">Sasaran</th>
+                      <th className="px-3 py-2.5">Metode</th>
+                      <th className="px-3 py-2.5">Jatuh Tempo</th>
+                      <th className="px-3 py-2.5">Disetujui Oleh</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {approvedFees.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-slate-400 italic">
+                          Belum ada pembiayaan yang disetujui.
+                        </td>
+                      </tr>
+                    ) : (
+                      approvedFees.map((fee) => (
+                        <tr key={fee.id} className="hover:bg-slate-50/80">
+                          <td className="px-3.5 py-2.5 font-bold text-slate-900">
+                            <div>{fee.nama_pembayaran}</div>
+                            <span className="text-[10px] text-slate-400 font-mono font-normal">
+                              {fee.kode_pembayaran} • {fee.kategori}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 font-bold text-emerald-800">
+                            {formatRupiah(fee.nominal)}
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-700">{getSasaranLabel(fee)}</td>
+                          <td className="px-3 py-2.5 text-slate-600">
+                            {fee.kebijakan_cicilan === "TIDAK_BOLEH" ? "Harus Lunas" : "Bisa Dicicil"}
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-500">
+                            {formatTanggal(fee.tanggal_jatuh_tempo)}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className="inline-flex items-center gap-1 rounded bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">
+                              ✓ {fee.disetujui_oleh_nama || "Pengasuh Pondok"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB REJECTED */}
+            {pembiayaanApprovalTab === "rejected" && (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                    <tr>
+                      <th className="px-3.5 py-2.5">Nama Pembiayaan</th>
+                      <th className="px-3 py-2.5">Nominal</th>
+                      <th className="px-3 py-2.5">Sasaran</th>
+                      <th className="px-3 py-2.5">Catatan Evaluasi Penolakan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {rejectedFees.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-6 text-center text-slate-400 italic">
+                          Tidak ada pengajuan pembiayaan yang ditolak.
+                        </td>
+                      </tr>
+                    ) : (
+                      rejectedFees.map((fee) => (
+                        <tr key={fee.id} className="hover:bg-slate-50/80">
+                          <td className="px-3.5 py-2.5 font-bold text-slate-900">
+                            <div>{fee.nama_pembayaran}</div>
+                            <span className="text-[10px] text-slate-400 font-mono font-normal">
+                              {fee.kode_pembayaran}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 font-bold text-slate-700">
+                            {formatRupiah(fee.nominal)}
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-700">{getSasaranLabel(fee)}</td>
+                          <td className="px-3 py-2.5 text-rose-700 bg-rose-50/50 font-medium">
+                            {fee.catatan_persetujuan || "Ditolak tanpa catatan khusus"}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Modal Catatan Penolakan Pengajuan Pembiayaan */}
+          {rejectModalOpen && rejectTargetItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Tolak Pengajuan Pembiayaan
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {rejectTargetItem.nama_pembayaran} ({formatRupiah(rejectTargetItem.nominal)})
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRejectModalOpen(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">
+                      Catatan Evaluasi / Alasan Penolakan *
+                    </label>
+                    <textarea
+                      rows={4}
+                      required
+                      value={rejectCatatan}
+                      onChange={(e) => setRejectCatatan(e.target.value)}
+                      placeholder="Tuliskan catatan perbaikan atau alasan penolakan untuk Tata Usaha (TU)..."
+                      className="w-full rounded-xl border border-slate-300 p-3 text-xs focus:outline-none focus:border-rose-600"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setRejectModalOpen(false)}
+                      className="rounded-xl bg-slate-100 px-4 py-2 font-bold text-slate-700 hover:bg-slate-200"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!rejectCatatan.trim()}
+                      onClick={() => {
+                        const res = rejectJenisPembayaran(rejectTargetItem.id, rejectCatatan.trim());
+                        setApprovalFeedback({ ok: res.ok, text: res.message });
+                        setRejectModalOpen(false);
+                      }}
+                      className="rounded-xl bg-rose-700 px-4 py-2 font-bold text-white hover:bg-rose-800 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      Konfirmasi Tolak Pengajuan
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Tagihan Santri */}

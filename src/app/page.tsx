@@ -83,6 +83,7 @@ export default function SipetaHomePage() {
     loginWithSupabase,
     logout,
     enterDemoMode,
+    jenisPembayaranList,
     pengumumanList,
     tagihanList,
     transaksiPembayaranList,
@@ -166,10 +167,11 @@ export default function SipetaHomePage() {
         ];
 
       case "admin":
+        const pendingAdminFeeCount = jenisPembayaranList.filter((j) => j.status_persetujuan === "MENUNGGU_PERSETUJUAN").length;
         return [
           { id: "dashboard", label: "Dashboard Pengawasan", icon: LayoutGrid },
           { id: "santri_asrama", label: "Pengawasan Santri & Asrama", icon: Users, badge: santriList.length },
-          { id: "keuangan", label: "Pengawasan Keuangan SPP", icon: Wallet },
+          { id: "keuangan", label: "Pengawasan & Persetujuan Keuangan", icon: Wallet, badge: pendingAdminFeeCount || undefined },
           { id: "kepesantrenan", label: "Tahfidz & Kedisiplinan", icon: BookOpen },
           { id: "pengumuman", label: "Pengumuman Pondok", icon: Megaphone },
           { id: "audit_log", label: "Jejak Aktivitas Staf", icon: FileText, badge: auditLogs.length },
@@ -178,13 +180,21 @@ export default function SipetaHomePage() {
         ];
 
       case "tu":
+        const pendingTuFeeCount = jenisPembayaranList.filter((j) => j.status_persetujuan === "MENUNGGU_PERSETUJUAN").length;
         return [
           { id: "dashboard", label: "Dashboard TU", icon: LayoutGrid },
+          {
+            id: "pembiayaan",
+            label: "Manajemen Pembiayaan Santri",
+            icon: Receipt,
+            badge: pendingTuFeeCount || undefined,
+          },
+          { id: "pelanggaran", label: "Manajemen Pelanggaran Santri", icon: ShieldAlert },
+          { id: "pengumuman", label: "Pengumuman Wali Santri", icon: Megaphone },
+          { id: "rekapitulasi", label: "Rekapitulasi & Laporan", icon: BarChart3 },
           { id: "santri_wali", label: "Data Santri & Akun Wali", icon: Users, badge: santriList.length },
           { id: "tambah_santri", label: "Tambah Data Santri", icon: UserPlus },
           { id: "kelas_kamar", label: "Kelas, Kamar & Penempatan", icon: Building2 },
-          { id: "pengumuman", label: "Pengumuman Pesantren", icon: Megaphone },
-          { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
           { id: "profile", label: "Profil Saya", icon: UserCheck },
         ];
 
