@@ -1036,7 +1036,7 @@ export default function SipetaHomePage() {
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
                   connectionStatus === "checking"
                     ? "bg-slate-50 text-slate-700 border-slate-300"
-                    : healthStatus?.connectionState === "CONNECTED_EMPTY_SCHEMA"
+                    : healthStatus?.connectionState === "CONNECTED_EMPTY_SCHEMA" || healthStatus?.connectionState === "CONNECTED_EMPTY_DATA"
                     ? "bg-blue-50 text-blue-800 border-blue-300"
                     : isLiveSupabase
                     ? "bg-emerald-50 text-emerald-800 border-emerald-300"
@@ -1047,7 +1047,7 @@ export default function SipetaHomePage() {
                   className={`h-2 w-2 rounded-full ${
                     connectionStatus === "checking"
                       ? "bg-slate-400 animate-pulse"
-                      : healthStatus?.connectionState === "CONNECTED_EMPTY_SCHEMA"
+                      : healthStatus?.connectionState === "CONNECTED_EMPTY_SCHEMA" || healthStatus?.connectionState === "CONNECTED_EMPTY_DATA"
                       ? "bg-blue-500 animate-pulse"
                       : isLiveSupabase
                       ? "bg-emerald-600 animate-pulse"

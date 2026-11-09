@@ -9,13 +9,16 @@ import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabas
 export type ConnectionState =
   | "NOT_CONFIGURED"         // Config belum ada / masih placeholder
   | "CONNECTION_FAILED"      // Jaringan gagal / kredensial tidak valid
-  | "CONNECTED_EMPTY_SCHEMA" // Terhubung ke PostgreSQL, tetapi tabel masih kosong (belum migrasi/seed)
+  | "CONNECTED_EMPTY_SCHEMA" // Legacy fallback untuk kompatibilitas
+  | "CONNECTED_UNMIGRATED"   // Terhubung ke PostgreSQL, tetapi tabel belum dibuat (42P01 / PGRST205)
+  | "CONNECTED_EMPTY_DATA"   // Skema tabel sudah siap & termigrasi, namun data tabel masih 0 baris
   | "CONNECTED_HEALTHY";     // Terhubung aktif & data master operasional siap
 
 export interface DatabaseHealthStatus {
   isConfigured: boolean;
   isConnected: boolean;
   connectionState: ConnectionState;
+  schemaStatus?: "TABLES_MISSING" | "SCHEMA_READY_EMPTY" | "SCHEMA_READY_WITH_DATA" | "NOT_CONFIGURED" | "UNREACHABLE";
   mode: "supabase_live" | "demo_local";
   latencyMs?: number;
   databaseVersion?: string;
@@ -79,13 +82,14 @@ export async function checkSupabaseHealth(
         return {
           isConfigured: true,
           isConnected: true,
-          connectionState: "CONNECTED_EMPTY_SCHEMA",
+          connectionState: "CONNECTED_UNMIGRATED",
+          schemaStatus: "TABLES_MISSING",
           mode: "supabase_live",
           latencyMs,
           recordCount: 0,
           databaseVersion: "PostgreSQL 15+ (Supabase Managed - Belum Migrasi)",
           message:
-            "Koneksi berhasil ke PostgreSQL Supabase, namun skema tabel belum dimigrasikan (siap menjalankan migrasi 0001–0007).",
+            "Koneksi berhasil ke PostgreSQL Supabase, namun skema tabel belum dimigrasikan (siap menjalankan migrasi 0001–012).",
           checkedAt,
         };
       }
@@ -95,6 +99,7 @@ export async function checkSupabaseHealth(
         isConfigured: true,
         isConnected: false,
         connectionState: "CONNECTION_FAILED",
+        schemaStatus: "UNREACHABLE",
         mode: "demo_local",
         latencyMs,
         message: `Koneksi ke Supabase gagal: ${error.message}`,
@@ -103,18 +108,19 @@ export async function checkSupabaseHealth(
       };
     }
 
-    // Kasus 3: Tabel sudah ada, namun belum diisi data awal (seed data belum dijalankan)
+    // Kasus 3: Tabel sudah ada dan skema siap, namun belum diisi data awal
     if (!data || data.length === 0) {
       return {
         isConfigured: true,
         isConnected: true,
-        connectionState: "CONNECTED_EMPTY_SCHEMA",
+        connectionState: "CONNECTED_EMPTY_DATA",
+        schemaStatus: "SCHEMA_READY_EMPTY",
         mode: "supabase_live",
         latencyMs,
         recordCount: 0,
-        databaseVersion: "PostgreSQL 15+ (Supabase Managed - Schema Kosong)",
+        databaseVersion: "PostgreSQL 15+ (Supabase Managed - Skema Siap, Data Kosong)",
         message:
-          "Terhubung ke database, namun tabel master belum berisi data (seed data belum dijalankan).",
+          "Terhubung ke database dan skema tabel sudah siap, namun tabel master belum berisi data (siap input operasional).",
         checkedAt,
       };
     }
@@ -124,6 +130,7 @@ export async function checkSupabaseHealth(
       isConfigured: true,
       isConnected: true,
       connectionState: "CONNECTED_HEALTHY",
+      schemaStatus: "SCHEMA_READY_WITH_DATA",
       mode: "supabase_live",
       latencyMs,
       recordCount: count ?? data.length,

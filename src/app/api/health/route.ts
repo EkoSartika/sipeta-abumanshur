@@ -61,11 +61,12 @@ export async function GET() {
       if (isTableNotCreated) {
         return NextResponse.json({
           status: "connected_unmigrated",
-          connectionState: "CONNECTED_EMPTY_SCHEMA",
+          connectionState: "CONNECTED_UNMIGRATED",
+          schemaStatus: "TABLES_MISSING",
           mode: "supabase_live",
           latencyMs,
           message:
-            "Koneksi berhasil ke PostgreSQL Supabase, namun skema tabel belum dimigrasikan (siap menjalankan migrasi 0001–0007).",
+            "Koneksi berhasil ke PostgreSQL Supabase, namun skema tabel belum dimigrasikan (perlu menjalankan migrasi 0001–012).",
           checkedAt,
         });
       }
@@ -74,6 +75,7 @@ export async function GET() {
         {
           status: "connection_error",
           connectionState: "CONNECTION_FAILED",
+          schemaStatus: "UNREACHABLE",
           mode: "demo_local_fallback",
           message: `Koneksi database gagal: ${error.message}`,
           latencyMs,
@@ -85,11 +87,14 @@ export async function GET() {
 
     if (!data || data.length === 0) {
       return NextResponse.json({
-        status: "empty_schema",
-        connectionState: "CONNECTED_EMPTY_SCHEMA",
+        status: "schema_ready_empty",
+        connectionState: "CONNECTED_EMPTY_DATA",
+        schemaStatus: "SCHEMA_READY_EMPTY",
         mode: "supabase_live",
         latencyMs,
-        message: "Database terhubung, namun tabel masih kosong (belum dieksekusi seed data).",
+        recordCount: 0,
+        message:
+          "Database terhubung dan skema tabel sudah siap/termigrasi, namun tabel master masih kosong (siap digunakan operasional).",
         checkedAt,
       });
     }
@@ -97,6 +102,7 @@ export async function GET() {
     return NextResponse.json({
       status: "healthy",
       connectionState: "CONNECTED_HEALTHY",
+      schemaStatus: "SCHEMA_READY_WITH_DATA",
       mode: "supabase_live",
       latencyMs,
       recordCount: count ?? data.length,

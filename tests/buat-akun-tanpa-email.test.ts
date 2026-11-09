@@ -388,7 +388,7 @@ describe("SIPETA - Buat Akun Internal Tanpa Input Email (13 Skenario Wajib)", ()
       `SELECT * FROM public.profiles WHERE username = 'admin_pesantren';`
     );
     expect(checkDb.rows.length).toBe(1);
-    expect(checkDb.rows[0].email).toBe(`admin_pesantren@${SYNTHETIC_EMAIL_DOMAIN}`);
+    expect((checkDb.rows[0] as any).email).toBe(`admin_pesantren@${SYNTHETIC_EMAIL_DOMAIN}`);
   });
 
   it("2. Pembuatan akun Bendahara Pesantren tanpa input email berhasil", async () => {
@@ -409,7 +409,7 @@ describe("SIPETA - Buat Akun Internal Tanpa Input Email (13 Skenario Wajib)", ()
       `SELECT * FROM public.profiles WHERE username = 'bendahara_putri';`
     );
     expect(checkDb.rows.length).toBe(1);
-    expect(checkDb.rows[0].email).toBe(`bendahara_putri@${SYNTHETIC_EMAIL_DOMAIN}`);
+    expect((checkDb.rows[0] as any).email).toBe(`bendahara_putri@${SYNTHETIC_EMAIL_DOMAIN}`);
   });
 
   it("3. Pembuatan akun Pengelola Kepesantrenan tanpa input email berhasil", async () => {
@@ -430,7 +430,7 @@ describe("SIPETA - Buat Akun Internal Tanpa Input Email (13 Skenario Wajib)", ()
       `SELECT * FROM public.profiles WHERE username = 'pengelola_asrama';`
     );
     expect(checkDb.rows.length).toBe(1);
-    expect(checkDb.rows[0].email).toBe(`pengelola_asrama@${SYNTHETIC_EMAIL_DOMAIN}`);
+    expect((checkDb.rows[0] as any).email).toBe(`pengelola_asrama@${SYNTHETIC_EMAIL_DOMAIN}`);
   });
 
   it("4. Ketiadaan field email pada form / payload (email masukan diabaikan sepenuhnya)", async () => {
@@ -448,8 +448,8 @@ describe("SIPETA - Buat Akun Internal Tanpa Input Email (13 Skenario Wajib)", ()
     const checkDb = await db.query(
       `SELECT email FROM public.profiles WHERE username = 'petugas_uji';`
     );
-    expect(checkDb.rows[0].email).toBe(`petugas_uji@${SYNTHETIC_EMAIL_DOMAIN}`);
-    expect(checkDb.rows[0].email).not.toBe("insecure_email@gmail.com");
+    expect((checkDb.rows[0] as any).email).toBe(`petugas_uji@${SYNTHETIC_EMAIL_DOMAIN}`);
+    expect((checkDb.rows[0] as any).email).not.toBe("insecure_email@gmail.com");
   });
 
   it("5. Email sintetis digenerate murni di backend dan Superadmin email tidak terganggu", async () => {
@@ -461,7 +461,7 @@ describe("SIPETA - Buat Akun Internal Tanpa Input Email (13 Skenario Wajib)", ()
     const superadminCheck = await db.query(
       `SELECT email FROM public.profiles WHERE role = 'superadmin';`
     );
-    expect(superadminCheck.rows[0].email).toBe(SUPERADMIN_EMAIL);
+    expect((superadminCheck.rows[0] as any).email).toBe(SUPERADMIN_EMAIL);
   });
 
   it("6. Login pengguna baru dapat langsung menggunakan username dan password", async () => {
