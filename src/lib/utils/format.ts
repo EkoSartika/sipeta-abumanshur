@@ -60,6 +60,17 @@ export function getRoleLabel(role: UserRole): string {
   return labels[role];
 }
 
+export function getRoleLoginUrl(role: UserRole): string {
+  const routes: Record<UserRole, string> = {
+    superadmin: "/superadmin/login",
+    admin: "/admin/login",
+    bendahara: "/bendahara/login",
+    pengelola: "/pengelola/login",
+    wali: "/login",
+  };
+  return routes[role];
+}
+
 export function getKebijakanCicilanLabel(
   kebijakan: KebijakanCicilan,
   minimalNominal: number | null

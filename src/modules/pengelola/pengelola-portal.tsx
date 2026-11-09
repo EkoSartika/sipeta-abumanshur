@@ -10,9 +10,17 @@ import type {
   TingkatPrestasi,
 } from "@/types/database";
 
-type PengelolaTab = "mengaji" | "tahfidz" | "prestasi" | "kedisiplinan";
+export type PengelolaTab = "dashboard" | "mengaji" | "tahfidz" | "prestasi" | "kedisiplinan";
 
-export function PengelolaPortal() {
+export interface PengelolaPortalProps {
+  activeTab?: PengelolaTab | string;
+  onTabChange?: (tab: string) => void;
+}
+
+export function PengelolaPortal({
+  activeTab: controlledTab,
+  onTabChange,
+}: PengelolaPortalProps = {}) {
   const {
     santriList,
     mengajiList,
@@ -27,7 +35,15 @@ export function PengelolaPortal() {
     updateTindakLanjutKedisiplinan,
   } = useSipeta();
 
-  const [activeTab, setActiveTab] = useState<PengelolaTab>("mengaji");
+  const [internalTab, setInternalTab] = useState<PengelolaTab>("dashboard");
+  const activeTab = ((controlledTab as PengelolaTab) || internalTab);
+  const setActiveTab = (tab: PengelolaTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
   // State Mengaji
@@ -119,40 +135,6 @@ export function PengelolaPortal() {
             />
           </div>
         </div>
-
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-white/15 pt-4">
-          {[
-            { id: "mengaji", label: "Perkembangan Mengaji", icon: BookOpen },
-            { id: "tahfidz", label: "Setoran Tahfidz Al-Qur'an", icon: Sparkles },
-            { id: "prestasi", label: "Prestasi Santri", icon: Award },
-            {
-              id: "kedisiplinan",
-              label: "Kedisiplinan & Riwayat Pembinaan",
-              icon: ShieldAlert,
-            },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab.id as PengelolaTab);
-                  setFeedback(null);
-                }}
-                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
-                  active
-                    ? "bg-white text-emerald-950 shadow-sm"
-                    : "bg-white/10 text-emerald-100 hover:bg-white/20"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {feedback && (
@@ -174,6 +156,128 @@ export function PengelolaPortal() {
           >
             Tutup
           </button>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 0: DASHBOARD PENGELOLA KEPESANTRENAN
+         ===================================================================== */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-6">
+          {/* Quick Metrics Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+                Mutaba&apos;ah Mengaji
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-emerald-950">
+                {mengajiList.length}
+              </p>
+              <span className="text-[11px] text-emerald-700">Catatan perkembangan</span>
+            </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800">
+                Setoran Tahfidz
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-blue-950">
+                {tahfidzList.length}
+              </p>
+              <span className="text-[11px] text-blue-700">Setoran Al-Qur&apos;an</span>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                Prestasi Santri
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-amber-950">
+                {prestasiList.length}
+              </p>
+              <span className="text-[11px] text-amber-700">Penghargaan tercatat</span>
+            </div>
+            <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-purple-800">
+                Catatan Kedisiplinan
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-purple-950">
+                {kedisiplinanList.length}
+              </p>
+              <span className="text-[11px] text-purple-700">Riwayat pembinaan</span>
+            </div>
+          </div>
+
+          {/* Quick Shortcuts */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab("mengaji")}
+              className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 group-hover:bg-emerald-800 group-hover:text-white transition shrink-0">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-slate-900 group-hover:text-emerald-900 transition">
+                  Perkembangan Mengaji
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                  Input mutaba&apos;ah harian dan jilid bacaan.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("tahfidz")}
+              className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-blue-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-800 border border-blue-200 group-hover:bg-blue-800 group-hover:text-white transition shrink-0">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-900 transition">
+                  Setoran Tahfidz
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                  Catat hafalan baru, muroja&apos;ah, dan juz.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("prestasi")}
+              className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-amber-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-200 group-hover:bg-amber-800 group-hover:text-white transition shrink-0">
+                <Award className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-slate-900 group-hover:text-amber-900 transition">
+                  Prestasi Santri
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                  Catat kejuaraan, lomba, dan sertifikat.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("kedisiplinan")}
+              className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-purple-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-800 border border-purple-200 group-hover:bg-purple-800 group-hover:text-white transition shrink-0">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-slate-900 group-hover:text-purple-900 transition">
+                  Kedisiplinan &amp; Pembinaan
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                  Kelola poin pelanggaran &amp; tindak lanjut.
+                </p>
+              </div>
+            </button>
+          </div>
         </div>
       )}
 

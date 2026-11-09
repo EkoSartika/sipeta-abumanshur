@@ -39,14 +39,32 @@ import { validateUploadedFile } from "@/lib/supabase/storage";
 import { MediaPreviewModal } from "@/components/ui/media-modal";
 import type { TransaksiPembayaran } from "@/types/database";
 
-type WaliTab =
+export type WaliTab =
   | "dashboard"
+  | "profil_santri"
+  | "informasi_tagihan"
   | "pembayaran"
+  | "riwayat_pembayaran"
   | "uang_saku"
+  | "riwayat_mutasi"
+  | "mengaji"
+  | "tahfidz"
+  | "prestasi"
+  | "kedisiplinan"
+  | "pengumuman"
+  | "dokumen"
   | "kepesantrenan"
   | "notifikasi";
 
-export function WaliPortal() {
+export interface WaliPortalProps {
+  activeTab?: WaliTab | string;
+  onTabChange?: (tab: string) => void;
+}
+
+export function WaliPortal({
+  activeTab: controlledTab,
+  onTabChange,
+}: WaliPortalProps = {}) {
   const {
     currentUser,
     santriList,
@@ -74,7 +92,15 @@ export function WaliPortal() {
     markAllNotifikasiRead,
   } = useSipeta();
 
-  const [activeTab, setActiveTab] = useState<WaliTab>("dashboard");
+  const [internalTab, setInternalTab] = useState<WaliTab>("dashboard");
+  const activeTab = ((controlledTab as WaliTab) || internalTab);
+  const setActiveTab = (tab: WaliTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
   // State input nominal cicilan per tagihan
@@ -112,6 +138,14 @@ export function WaliPortal() {
   const [subTabPesantren, setSubTabPesantren] = useState<
     "mengaji" | "tahfidz" | "prestasi" | "kedisiplinan"
   >("mengaji");
+
+  const effectiveSubTab =
+    activeTab === "mengaji" ||
+    activeTab === "tahfidz" ||
+    activeTab === "prestasi" ||
+    activeTab === "kedisiplinan"
+      ? activeTab
+      : subTabPesantren;
 
   // Modal Pratinjau Foto Penyerahan / Bukti Transfer
   const [previewModal, setPreviewModal] = useState<{
@@ -327,50 +361,6 @@ export function WaliPortal() {
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Navigasi Mobile-Friendly Portal Orang Tua */}
-        <div className="mt-5 flex overflow-x-auto no-scrollbar gap-1.5 border-t border-white/15 pt-4 pb-1 -mx-2 px-2 sm:mx-0 sm:px-0 sm:flex-wrap">
-          {[
-            { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-            {
-              id: "kepesantrenan",
-              label: "Mengaji, Tahfidz & Prestasi",
-              icon: BookOpen,
-            },
-            {
-              id: "pembayaran",
-              label: `Pembayaran & Cicilan (${unpaidTagihan.length})`,
-              icon: CreditCard,
-            },
-            { id: "uang_saku", label: "Uang Saku & Foto Bukti", icon: Wallet },
-            {
-              id: "notifikasi",
-              label: `Notifikasi & Pengumuman (${unreadNotifCount})`,
-              icon: Bell,
-            },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab.id as WaliTab);
-                  setFeedback(null);
-                }}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold transition whitespace-nowrap min-h-[44px] ${
-                  active
-                    ? "bg-white text-emerald-950 shadow-md font-bold"
-                    : "bg-white/10 text-emerald-100 hover:bg-white/20"
-                }`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -669,9 +659,119 @@ export function WaliPortal() {
       )}
 
       {/* =====================================================================
+          TAB: PROFIL LENGKAP SANTRI
+         ===================================================================== */}
+      {activeTab === "profil_santri" && (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 pb-6 border-b border-slate-100">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white text-2xl font-extrabold shadow-md border-2 border-emerald-100 shrink-0">
+                {santri.nama_lengkap.charAt(0)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-extrabold text-slate-900">{santri.nama_lengkap}</h3>
+                  <span className="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-900">
+                    Santri Aktif
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  NIS: <span className="font-mono font-bold text-slate-800">{santri.nis}</span> • Tahun Masuk:{" "}
+                  <span className="font-mono font-bold text-slate-800">{santri.tahun_masuk}</span>
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Kelas: <strong>{kelas?.nama_kelas ?? "-"}</strong> • Kamar:{" "}
+                  <strong>{kamar?.nama_kamar ?? "-"}</strong> ({kamar?.gedung_asrama ?? "Asrama Pesantren"})
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100">
+                  Data Diri Santri
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-slate-500 text-[11px]">Nama Lengkap:</span>
+                    <p className="font-bold text-slate-800">{santri.nama_lengkap}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px]">Jenis Kelamin:</span>
+                    <p className="font-bold text-slate-800">
+                      {santri.jenis_kelamin === "L" ? "Laki-laki (Putra)" : "Perempuan (Putri)"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px]">Tempat, Tanggal Lahir:</span>
+                    <p className="font-bold text-slate-800">
+                      {santri.tempat_lahir ?? "-"}, {formatTanggal(santri.tanggal_lahir)}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px]">Tahun Masuk:</span>
+                    <p className="font-bold text-slate-800">{santri.tahun_masuk ?? "-"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100">
+                  Informasi Wali &amp; Kontak
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-slate-500 text-[11px]">Nama Wali:</span>
+                    <p className="font-bold text-slate-800">{currentUser?.nama_lengkap ?? "-"}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px]">No. Telepon / WhatsApp:</span>
+                    <p className="font-bold text-slate-800">{currentUser?.no_telepon ?? "-"}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-slate-500 text-[11px]">Alamat Terdaftar:</span>
+                    <p className="font-bold text-slate-800">{santri.alamat ?? "-"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setActiveTab("pembayaran")}
+                className="rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-900 transition flex items-center gap-1.5"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span>Lihat Tagihan &amp; Pembayaran</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("uang_saku")}
+                className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-slate-900 transition flex items-center gap-1.5"
+              >
+                <Wallet className="h-4 w-4" />
+                <span>Kelola Uang Saku</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("kepesantrenan")}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>Perkembangan Mengaji &amp; Tahfidz</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
           TAB 2: MODUL PEMBAYARAN & KERANJANG CICILAN (BAB 5.4 & 5.5 PRD)
          ===================================================================== */}
-      {activeTab === "pembayaran" && (
+      {(activeTab === "pembayaran" ||
+        activeTab === "informasi_tagihan" ||
+        activeTab === "riwayat_pembayaran") && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Kolom Kiri (2/3): Daftar Tagihan & Pemilihan Cicilan */}
           <div className="lg:col-span-2 space-y-6">
@@ -1033,7 +1133,7 @@ export function WaliPortal() {
       {/* =====================================================================
           TAB 3: MODUL UANG SAKU SANTRI (BAB 6 PRD - LEDGER & FOTO PENYERAHAN)
          ===================================================================== */}
-      {activeTab === "uang_saku" && (
+      {(activeTab === "uang_saku" || activeTab === "riwayat_mutasi") && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* Ringkasan Saldo Ledger */}
@@ -1416,7 +1516,11 @@ export function WaliPortal() {
       {/* =====================================================================
           TAB 4: PERKEMBANGAN KEPESANTRENAN (MENGAJI, TAHFIDZ, PRESTASI, DISIPLIN)
          ===================================================================== */}
-      {activeTab === "kepesantrenan" && (
+      {(activeTab === "kepesantrenan" ||
+        activeTab === "mengaji" ||
+        activeTab === "tahfidz" ||
+        activeTab === "prestasi" ||
+        activeTab === "kedisiplinan") && (
         <div className="space-y-5">
           <div className="flex flex-wrap gap-2">
             {[
@@ -1434,7 +1538,7 @@ export function WaliPortal() {
                   )
                 }
                 className={`rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold transition ${
-                  subTabPesantren === st.id
+                  effectiveSubTab === st.id
                     ? "bg-emerald-800 text-white shadow-sm"
                     : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
                 }`}
@@ -1444,7 +1548,7 @@ export function WaliPortal() {
             ))}
           </div>
 
-          {subTabPesantren === "mengaji" && (
+          {effectiveSubTab === "mengaji" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <h3 className="text-base font-bold text-slate-900">
                 Riwayat Evaluasi & Perkembangan Mengaji
@@ -1485,7 +1589,7 @@ export function WaliPortal() {
             </div>
           )}
 
-          {subTabPesantren === "tahfidz" && (
+          {effectiveSubTab === "tahfidz" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
@@ -1535,7 +1639,7 @@ export function WaliPortal() {
             </div>
           )}
 
-          {subTabPesantren === "prestasi" && (
+          {effectiveSubTab === "prestasi" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <h3 className="text-base font-bold text-slate-900">Dokumentasi Prestasi Santri</h3>
               {myPrestasi.map((p) => (
@@ -1556,7 +1660,7 @@ export function WaliPortal() {
             </div>
           )}
 
-          {subTabPesantren === "kedisiplinan" && (
+          {effectiveSubTab === "kedisiplinan" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
@@ -1626,7 +1730,9 @@ export function WaliPortal() {
       {/* =====================================================================
           TAB 5: NOTIFIKASI & PENGUMUMAN (BAB 12 PRD)
          ===================================================================== */}
-      {activeTab === "notifikasi" && (
+      {(activeTab === "notifikasi" ||
+        activeTab === "pengumuman" ||
+        activeTab === "dokumen") && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">

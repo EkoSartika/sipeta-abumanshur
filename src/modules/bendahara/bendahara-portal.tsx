@@ -29,14 +29,24 @@ import { SAMPLE_HANDOVER_PHOTO_1 } from "@/lib/store/initial-data";
 import { validateUploadedFile } from "@/lib/supabase/storage";
 import { MediaPreviewModal } from "@/components/ui/media-modal";
 
-type BendaharaTab =
+export type BendaharaTab =
+  | "dashboard"
   | "verifikasi_pembayaran"
   | "verifikasi_saku"
   | "penyerahan_saku"
+  | "saldo_santri"
   | "ledger_koreksi"
   | "rekening_info";
 
-export function BendaharaPortal() {
+export interface BendaharaPortalProps {
+  activeTab?: BendaharaTab | string;
+  onTabChange?: (tab: string) => void;
+}
+
+export function BendaharaPortal({
+  activeTab: controlledTab,
+  onTabChange,
+}: BendaharaPortalProps = {}) {
   const {
     santriList,
     kelasList,
@@ -52,7 +62,15 @@ export function BendaharaPortal() {
     recordKoreksiLedgerSaku,
   } = useSipeta();
 
-  const [activeTab, setActiveTab] = useState<BendaharaTab>("verifikasi_pembayaran");
+  const [internalTab, setInternalTab] = useState<BendaharaTab>("dashboard");
+  const activeTab = ((controlledTab as BendaharaTab) || internalTab);
+  const setActiveTab = (tab: BendaharaTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [catatanMap, setCatatanMap] = useState<Record<string, string>>({});
 
@@ -183,57 +201,6 @@ export function BendaharaPortal() {
             </div>
           </div>
         </div>
-
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-white/15 pt-4">
-          {[
-            {
-              id: "verifikasi_pembayaran",
-              label: `Verifikasi Pembayaran Tagihan (${pendingPembayaran.length})`,
-              icon: CreditCard,
-            },
-            {
-              id: "verifikasi_saku",
-              label: `Verifikasi Top-Up Uang Saku (${pendingTopupSaku.length})`,
-              icon: FileCheck2,
-            },
-            {
-              id: "penyerahan_saku",
-              label: "Catat Penyerahan Uang Saku (+Foto Wajib)",
-              icon: Camera,
-            },
-            {
-              id: "ledger_koreksi",
-              label: "Saldo Santri, Ledger & Jurnal Koreksi",
-              icon: History,
-            },
-            {
-              id: "rekening_info",
-              label: "Rekening Resmi Pesantren",
-              icon: Landmark,
-            },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab.id as BendaharaTab);
-                  setFeedback(null);
-                }}
-                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
-                  active
-                    ? "bg-white text-emerald-950 shadow-sm"
-                    : "bg-white/10 text-emerald-100 hover:bg-white/20"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {feedback && (
@@ -255,6 +222,112 @@ export function BendaharaPortal() {
           >
             Tutup
           </button>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 0: DASHBOARD BENDAHARA
+         ===================================================================== */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-6">
+          {/* Quick Metrics Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                Antrean Bayar Tagihan
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-amber-950">
+                {pendingPembayaran.length}
+              </p>
+              <span className="text-[11px] text-amber-700">Menunggu verifikasi</span>
+            </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800">
+                Antrean Top-Up Saku
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-blue-950">
+                {pendingTopupSaku.length}
+              </p>
+              <span className="text-[11px] text-blue-700">Menunggu verifikasi</span>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+                Penyerahan Hari Ini
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-emerald-950">
+                {mutasiUangSakuList.filter((m) => m.jenis_mutasi === "KELUAR").length}
+              </p>
+              <span className="text-[11px] text-emerald-700">Tercatat di ledger</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Rekening Resmi
+              </span>
+              <p className="mt-1 text-sm font-extrabold text-slate-900 truncate">
+                {rekeningResmi.nama_bank} {rekeningResmi.nomor_rekening}
+              </p>
+              <span className="text-[11px] text-slate-500 truncate block">
+                {rekeningResmi.atas_nama}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Shortcuts */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab("verifikasi_pembayaran")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-200 group-hover:bg-amber-700 group-hover:text-white transition shrink-0">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-amber-900 transition">
+                  Verifikasi Pembayaran Tagihan
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Periksa bukti transfer wali, nomor referensi, dan sahkan pelunasan SPP/tagihan santri.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("verifikasi_saku")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-800 border border-blue-200 group-hover:bg-blue-700 group-hover:text-white transition shrink-0">
+                <FileCheck2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-900 transition">
+                  Verifikasi Top-Up Uang Saku
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Konfirmasi permohonan pengisian uang saku dari wali dan tambahkan kredit ke saldo santri.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("penyerahan_saku")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 group-hover:bg-emerald-800 group-hover:text-white transition shrink-0">
+                <Camera className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-900 transition">
+                  Catat Penyerahan Uang Saku (+Foto Wajib)
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Rekam penyerahan uang saku langsung ke tangan santri dengan bukti foto dokumentasi wajib.
+                </p>
+              </div>
+            </button>
+          </div>
         </div>
       )}
 
@@ -812,7 +885,7 @@ export function BendaharaPortal() {
       {/* =====================================================================
           TAB 4: SALDO SANTRI, LEDGER IMMUTABLE & JURNAL KOREKSI (BAB 6.4 PRD)
          ===================================================================== */}
-      {activeTab === "ledger_koreksi" && (
+      {(activeTab === "ledger_koreksi" || activeTab === "saldo_santri") && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* Rekap Saldo Seluruh Santri */}

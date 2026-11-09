@@ -9,6 +9,7 @@ import {
   extractUsername,
   resolveLoginIdentifier,
 } from "@/lib/utils/auth-mapping";
+import { getRoleLabel, getRoleLoginUrl } from "@/lib/utils/format";
 import type { UserProfile, UserRole } from "@/types/database";
 
 export interface AuthResponse {
@@ -140,8 +141,9 @@ export class AuthService {
 
   /**
    * Login pengguna menggunakan username (akun internal) atau email resmi (Superadmin)
+   * Dilengkapi validasi kecocokan role portal (Role Isolation)
    */
-  async login(identifier: string, kataSandi: string): Promise<AuthResponse> {
+  async login(identifier: string, kataSandi: string, expectedRole?: UserRole): Promise<AuthResponse> {
     if (!isSupabaseConfigured()) {
       return {
         ok: false,
@@ -185,6 +187,17 @@ export class AuthService {
           ok: false,
           message:
             "AKUN DINONAKTIFKAN: Akun pengguna ini telah dinonaktifkan oleh Administrator. Hubungi pihak pesantren untuk aktivasi.",
+        };
+      }
+
+      // Validasi role di sisi server sesuai halaman portal yang dituju
+      if (expectedRole && profile.role !== expectedRole) {
+        await this.client.auth.signOut();
+        const correctPortalName = getRoleLabel(profile.role as UserRole);
+        const correctPortalUrl = getRoleLoginUrl(profile.role as UserRole);
+        return {
+          ok: false,
+          message: `Akses ditolak: Akun Anda terdaftar sebagai ${correctPortalName}. Silakan gunakan portal masuk ${correctPortalName} (${correctPortalUrl}).`,
         };
       }
 
@@ -438,6 +451,34 @@ export class AuthService {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, message: `Gagal menghapus akun: ${msg}` };
+    }
+  }
+
+  /**
+   * Pembaruan profil mandiri dan kata sandi oleh pengguna aktif ("Profil Saya")
+   */
+  async updateMyProfile(payload: {
+    nama_lengkap: string;
+    no_telepon?: string;
+    old_password?: string;
+    new_password?: string;
+  }): Promise<{ ok: boolean; message: string; data?: Partial<UserProfile> }> {
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      return {
+        ok: res.ok && data.ok,
+        message: data.message ?? (res.ok ? "Profil berhasil diperbarui." : "Gagal memperbarui profil."),
+        data: data.data,
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal memperbarui profil: ${msg}` };
     }
   }
 }

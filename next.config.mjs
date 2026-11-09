@@ -11,6 +11,21 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "host",
+            value: "sipeta-abumanshur.vercel.app",
+          },
+        ],
+        destination: "https://sipetaabumanshur.vercel.app/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

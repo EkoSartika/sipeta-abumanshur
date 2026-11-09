@@ -4,7 +4,7 @@
 [![Next.js 15](https://img.shields.io/badge/Next.js-15.5.29-black?logo=next.js)](https://nextjs.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%2015+-emerald?logo=supabase)](https://supabase.com/)
 [![Tests Passing](https://img.shields.io/badge/Tests-261%20Passed-brightgreen)](https://github.com/EkoSartika/sipeta-abumanshur)
-[![Production URL](https://img.shields.io/badge/Production-Live%20on%20Vercel-blue)](https://sipeta-abumanshur.vercel.app)
+[![Production URL](https://img.shields.io/badge/Production-Live%20on%20Vercel-blue)](https://sipetaabumanshur.vercel.app)
 
 Sistem Informasi Pelayanan Terpadu (**SIPETA**) adalah platform tata kelola terpadu berbasis web dan *mobile-responsive* yang dibangun khusus untuk mengelola operasional, keuangan, kepengasuhan, dan akademik santri di **Pondok Pesantren Modern Abu Manshur**, Plered, Cirebon.
 
@@ -13,8 +13,8 @@ Sistem Informasi Pelayanan Terpadu (**SIPETA**) adalah platform tata kelola terp
 ## 1. Tautan Penting
 
 - **Repository GitHub**: [https://github.com/EkoSartika/sipeta-abumanshur](https://github.com/EkoSartika/sipeta-abumanshur)
-- **Aplikasi Produksi**: [https://sipeta-abumanshur.vercel.app](https://sipeta-abumanshur.vercel.app)
-- **Endpoint Pemeriksaan Kesehatan**: [https://sipeta-abumanshur.vercel.app/api/health](https://sipeta-abumanshur.vercel.app/api/health)
+- **Aplikasi Produksi**: [https://sipetaabumanshur.vercel.app](https://sipetaabumanshur.vercel.app)
+- **Endpoint Pemeriksaan Kesehatan**: [https://sipetaabumanshur.vercel.app/api/health](https://sipetaabumanshur.vercel.app/api/health)
 
 ---
 

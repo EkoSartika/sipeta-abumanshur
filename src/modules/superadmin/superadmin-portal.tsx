@@ -34,7 +34,7 @@ import {
 } from "@/lib/utils/auth-mapping";
 import type { UserProfile, UserRole } from "@/types/database";
 
-export type SuperadminTab = "users" | "rekening" | "audit_log";
+export type SuperadminTab = "dashboard" | "users" | "rekening" | "audit_log";
 
 export interface SuperadminPortalProps {
   activeTab?: SuperadminTab;
@@ -58,7 +58,7 @@ export function SuperadminPortal({
     updateRekeningResmi,
   } = useSipeta();
 
-  const [internalTab, setInternalTab] = useState<SuperadminTab>("users");
+  const [internalTab, setInternalTab] = useState<SuperadminTab>("dashboard");
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = (tab: SuperadminTab) => {
     if (onTabChange) {
@@ -364,6 +364,165 @@ export function SuperadminPortal({
               </button>
             </div>
           )}
+
+      {/* ===================================================================== */}
+      {/* TAB 0: DASHBOARD SUPERADMIN */}
+      {/* ===================================================================== */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-6">
+          {/* Welcome Card Superadmin */}
+          <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-emerald-900 to-emerald-950 p-6 sm:p-7 text-white shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <span className="inline-block rounded-full bg-emerald-800/80 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-200 border border-emerald-700">
+                  Pusat Komando &amp; Pengawasan Pimpinan
+                </span>
+                <h3 className="mt-2 text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                  Selamat Datang, {currentUser?.nama_lengkap}
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-emerald-100/90 max-w-2xl leading-relaxed">
+                  Pantau seluruh tata kelola pengguna internal, rekening resmi BSI pesantren, dan rekam jejak audit seluruh transaksi keuangan maupun akademik SIPETA.
+                </p>
+              </div>
+              <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-emerald-950 shadow-md hover:bg-emerald-50 transition"
+                >
+                  <UserPlus className="h-4 w-4 text-emerald-800" />
+                  <span>Buat Akun Petugas</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Statistics Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Total Akun Terdaftar
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-slate-900">{stats.total}</p>
+              <span className="text-[11px] text-slate-500">Seluruh pengguna</span>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                Akun Aktif
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-emerald-900">{stats.active}</p>
+              <span className="text-[11px] text-emerald-700">Dapat login &amp; bertransaksi</span>
+            </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                Wali Santri (1:1)
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-blue-900">{stats.wali}</p>
+              <span className="text-[11px] text-blue-700">Relasi santri terdaftar</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Petugas Internal
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-slate-900">{stats.internal}</p>
+              <span className="text-[11px] text-slate-500">Admin, Bendahara, Pengelola</span>
+            </div>
+          </div>
+
+          {/* Navigasi Cepat Antar Fitur */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab("users")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 group-hover:bg-emerald-800 group-hover:text-white transition shrink-0">
+                <Users className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-900 transition">
+                  Manajemen Akun &amp; Role
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Atur seluruh akun petugas internal (Admin, Bendahara, Pengelola), ubah role, dan kelola status.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("rekening")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-800 border border-blue-200 group-hover:bg-blue-800 group-hover:text-white transition shrink-0">
+                <Landmark className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-900 transition">
+                  Rekening Resmi Pesantren
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Konfigurasi rekening BSI resmi {rekeningResmi.nomor_rekening} a.n. {rekeningResmi.atas_nama}.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("audit_log")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-purple-800 border border-purple-200 group-hover:bg-purple-800 group-hover:text-white transition shrink-0">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-purple-900 transition">
+                  Jejak Audit / Audit Log
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Pantau catatan riwayat aktivitas mutasi dan perubahan akun ({auditLogs.length} entri terekam).
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {/* Ringkasan Jejak Audit Terkini */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-emerald-800" />
+                <h4 className="text-sm font-bold text-slate-900">
+                  Aktivitas Audit Terbaru
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab("audit_log")}
+                className="text-xs font-bold text-emerald-800 hover:text-emerald-950 transition flex items-center gap-1"
+              >
+                <span>Lihat Seluruh Log</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="divide-y divide-slate-100 text-xs">
+              {auditLogs.slice(0, 5).map((log) => (
+                <div key={log.id} className="py-2.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800 truncate">{log.aktivitas} - {log.user_nama}</p>
+                    <p className="text-[11px] text-slate-500">
+                      Objek: <span className="font-mono">{log.jenis_objek}</span> • Role:{" "}
+                      <span className="font-semibold text-slate-700">{log.user_role}</span>
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-slate-400 shrink-0 font-medium">
+                    {formatWaktuLengkap(log.waktu)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===================================================================== */}
       {/* TAB 1: MANAJEMEN AKUN PENGGUNA & ROLE */}

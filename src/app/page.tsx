@@ -1,16 +1,25 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowRight,
+  ArrowRightLeft,
   Award,
   BarChart3,
   Bell,
   BookOpen,
+  Building2,
   Calendar,
+  Camera,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
-  Database,
+  Clock,
+  CreditCard,
+  Download,
+  FileSpreadsheet,
   FileText,
   Info,
   KeyRound,
@@ -20,13 +29,21 @@ import {
   LogIn,
   LogOut,
   Mail,
+  Megaphone,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Receipt,
   RefreshCw,
   RotateCcw,
+  Shield,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
+  Trophy,
   User,
   UserCheck,
+  UserPlus,
   Users,
   Wallet,
   X,
@@ -40,7 +57,15 @@ import { AdminPortal } from "@/modules/admin/admin-portal";
 import { PengelolaPortal } from "@/modules/pengelola/pengelola-portal";
 import { SuperadminPortal, type SuperadminTab } from "@/modules/superadmin/superadmin-portal";
 import { LaporanPortal } from "@/modules/laporan/laporan-portal";
+import { UserProfileView } from "@/components/profile/user-profile-view";
 import { MustChangePasswordModal } from "@/components/ui/must-change-password-modal";
+
+interface NavMenuItem {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  badge?: number | string;
+}
 
 export default function SipetaHomePage() {
   const {
@@ -52,37 +77,47 @@ export default function SipetaHomePage() {
     auditLogs,
     switchActiveUser,
     resetDemoData,
-    connectionStatus,
     isLiveSupabase,
-    dataSource,
-    healthStatus,
     refreshFromSupabase,
     loginWithSupabase,
     logout,
     enterDemoMode,
     pengumumanList,
+    tagihanList,
+    transaksiPembayaranList,
+    mutasiUangSakuList,
+    santriList,
   } = useSipeta();
 
-  const [viewMode, setViewMode] = useState<"portal" | "laporan">("portal");
-  const [superadminTab, setSuperadminTab] = useState<SuperadminTab>("users");
+  // Navigation State
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("");
+
+  // Public Login State
+  const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Action State
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [selectedDemoRole, setSelectedDemoRole] = useState<UserRole>("wali");
 
-  const handleSupabaseLogin = async (e: React.FormEvent) => {
+  // Simulasi hanya boleh muncul jika di development DAN bukan Live Supabase
+  const isDemoAllowed = process.env.NODE_ENV !== "production" && !isLiveSupabase;
+
+  const handlePublicLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginLoading(true);
     setLoginError(null);
     try {
-      const res = await loginWithSupabase(loginEmail.trim(), loginPassword);
+      const res = await loginWithSupabase(loginIdentifier.trim(), loginPassword);
       if (res.ok) {
-        setLoginEmail("");
+        setLoginIdentifier("");
         setLoginPassword("");
+        setActiveTab("dashboard");
       } else {
         setLoginError(res.message);
       }
@@ -98,7 +133,7 @@ export default function SipetaHomePage() {
     setLogoutLoading(true);
     try {
       await logout();
-      setViewMode("portal");
+      setActiveTab("dashboard");
     } finally {
       setLogoutLoading(false);
     }
@@ -110,6 +145,90 @@ export default function SipetaHomePage() {
       await refreshFromSupabase();
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  // ==========================================================================
+  // DAFTAR MENU SIDEBAR BERDASARKAN ROLE
+  // Sesuai Bagian A Petunjuk Redesain Navigasi SIPETA
+  // ==========================================================================
+  const getRoleMenuItems = (role: UserRole): NavMenuItem[] => {
+    switch (role) {
+      case "superadmin":
+        return [
+          { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+          { id: "users", label: "Manajemen Akun & Role", icon: Users, badge: users.length },
+          { id: "rekening", label: "Rekening Resmi Pesantren", icon: Landmark },
+          { id: "audit_log", label: "Jejak Audit / Audit Log", icon: FileText, badge: auditLogs.length },
+          { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
+          { id: "profile", label: "Profil Saya", icon: UserCheck },
+        ];
+
+      case "admin":
+        return [
+          { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+          { id: "santri_wali", label: "Data Santri & Akun Wali", icon: Users, badge: santriList.length },
+          { id: "import_santri", label: "Import Data Santri", icon: FileSpreadsheet },
+          { id: "kelas_kamar", label: "Kelas, Kamar & Penempatan", icon: Building2 },
+          { id: "jenis_pembayaran", label: "Jenis Pembayaran", icon: CreditCard },
+          { id: "kebijakan_tagihan", label: "Kebijakan Cicilan & Tagihan", icon: Receipt },
+          { id: "rekening_pesantren", label: "Rekening Resmi Pesantren", icon: Landmark },
+          { id: "pengumuman", label: "Pengumuman Pesantren", icon: Megaphone },
+          { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
+          { id: "profile", label: "Profil Saya", icon: UserCheck },
+        ];
+
+      case "bendahara":
+        return [
+          { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+          {
+            id: "verifikasi_pembayaran",
+            label: "Verifikasi Pembayaran Tagihan",
+            icon: CheckCircle2,
+            badge: transaksiPembayaranList.filter((t) => t.status === "MENUNGGU_VERIFIKASI").length || undefined,
+          },
+          {
+            id: "verifikasi_saku",
+            label: "Verifikasi Top-Up Uang Saku",
+            icon: ArrowRightLeft,
+          },
+          { id: "penyerahan_saku", label: "Catat Penyerahan Uang Saku", icon: Camera },
+          { id: "saldo_santri", label: "Saldo Santri", icon: Wallet },
+          { id: "ledger_koreksi", label: "Ledger & Jurnal Koreksi", icon: FileText },
+          { id: "rekening_info", label: "Rekening Resmi Pesantren", icon: Landmark },
+          { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
+          { id: "profile", label: "Profil Saya", icon: UserCheck },
+        ];
+
+      case "pengelola":
+        return [
+          { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+          { id: "mengaji", label: "Perkembangan Mengaji", icon: BookOpen },
+          { id: "tahfidz", label: "Setoran Tahfidz Al-Qur'an", icon: Sparkles },
+          { id: "prestasi", label: "Prestasi Santri", icon: Trophy },
+          { id: "kedisiplinan", label: "Kedisiplinan & Pembinaan", icon: ShieldAlert },
+          { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
+          { id: "profile", label: "Profil Saya", icon: UserCheck },
+        ];
+
+      case "wali":
+      default:
+        return [
+          { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+          { id: "profil_santri", label: "Profil Santri", icon: UserCheck },
+          { id: "informasi_tagihan", label: "Informasi Tagihan", icon: Receipt },
+          { id: "pembayaran", label: "Pembayaran SPP & Cicilan", icon: CreditCard },
+          { id: "riwayat_pembayaran", label: "Riwayat Pembayaran", icon: Clock },
+          { id: "uang_saku", label: "Uang Saku Santri", icon: Wallet },
+          { id: "riwayat_mutasi", label: "Riwayat Mutasi & Foto", icon: ArrowRightLeft },
+          { id: "mengaji", label: "Perkembangan Mengaji", icon: BookOpen },
+          { id: "tahfidz", label: "Setoran Tahfidz", icon: Sparkles },
+          { id: "prestasi", label: "Prestasi Santri", icon: Trophy },
+          { id: "kedisiplinan", label: "Kedisiplinan", icon: ShieldCheck },
+          { id: "pengumuman", label: "Pengumuman Pesantren", icon: Megaphone },
+          { id: "dokumen", label: "Dokumen & Unduhan", icon: Download },
+          { id: "profile", label: "Profil Saya", icon: User },
+        ];
     }
   };
 
@@ -146,17 +265,26 @@ export default function SipetaHomePage() {
 
   // ==========================================================================
   // 2. PUBLIC PORTAL & LOGIN GATE (KETIKA BELUM LOGIN)
+  // Bersih, Profesional, Bebas Status Supabase Cloud
   // ==========================================================================
   if (!isAuthenticated || !currentUser) {
     const publishedAnnouncements = pengumumanList.filter((p) => p.is_published);
 
+    const portalsList = [
+      { role: "wali", title: "Orang Tua / Wali Santri", url: "/login", desc: "Akses tagihan, cicilan SPP, saldo uang saku, dan tahfidz" },
+      { role: "admin", title: "Admin Administrasi", url: "/admin/login", desc: "Kelola santri, import Excel, kelas, asrama, dan tagihan" },
+      { role: "bendahara", title: "Bendahara Pesantren", url: "/bendahara/login", desc: "Verifikasi pembayaran SPP, top-up uang saku, dan ledger" },
+      { role: "pengelola", title: "Pengelola Kepesantrenan", url: "/pengelola/login", desc: "Input mutaba'ah mengaji, setoran tahfidz, dan pembinaan" },
+      { role: "superadmin", title: "Superadmin (Pimpinan)", url: "/superadmin/login", desc: "Pusat tata kelola akun petugas, rekening, dan jejak audit" },
+    ];
+
     return (
       <div className="min-h-screen flex flex-col bg-slate-50">
         {/* Header Publik */}
-        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur shadow-sm">
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur shadow-xs">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-0.5 shadow-sm border border-emerald-100 shrink-0">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-0.5 shadow-xs border border-emerald-100 shrink-0">
                 <img
                   src="/images/logo-abu-manshur.png"
                   alt="Logo Pondok Pesantren Modern Abu Manshur"
@@ -179,20 +307,13 @@ export default function SipetaHomePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
-                  isLiveSupabase
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                    : "bg-amber-50 text-amber-800 border-amber-300"
-                }`}
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 transition"
               >
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    isLiveSupabase ? "bg-emerald-600 animate-pulse" : "bg-amber-500"
-                  }`}
-                />
-                {isLiveSupabase ? "Supabase Cloud Aktif" : "Mode Simulasi Demo"}
-              </span>
+                <LogIn className="h-4 w-4" />
+                <span>Pintu Masuk</span>
+              </Link>
             </div>
           </div>
         </header>
@@ -203,7 +324,7 @@ export default function SipetaHomePage() {
             {/* Kolom Kiri: Informasi Pesantren & Pengumuman */}
             <div className="lg:col-span-7 space-y-6">
               {/* Welcome Card */}
-              <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-900 to-emerald-950 p-6 sm:p-8 text-white shadow-lg">
+              <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-emerald-900 to-emerald-950 p-6 sm:p-8 text-white shadow-lg">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="rounded-full bg-emerald-800/80 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-200 border border-emerald-700">
                     Gerbang Pelayanan Resmi
@@ -213,22 +334,22 @@ export default function SipetaHomePage() {
                   Selamat Datang di Portal Terpadu SIPETA
                 </h2>
                 <p className="mt-3 text-sm text-emerald-100/90 leading-relaxed">
-                  Layanan terintegrasi bagi Orang Tua/Wali Santri, Asatidz, Bendahara, Pengelola Kepesantrenan, dan Pimpinan Pondok Pesantren Modern Abu Manshur Cirebon.
+                  Layanan terpadu bagi Orang Tua/Wali Santri, Asatidz, Bendahara, Pengelola Kepesantrenan, dan Pimpinan Pondok Pesantren Modern Abu Manshur Cirebon.
                 </p>
                 <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div className="rounded-xl bg-white/10 p-3 backdrop-blur border border-white/10">
                     <Wallet className="h-5 w-5 text-emerald-300 mb-1" />
-                    <p className="font-bold">Keuangan & SPP</p>
-                    <p className="text-[11px] text-emerald-200">Cicilan & 1 Rekening BSI</p>
+                    <p className="font-bold">Keuangan &amp; SPP</p>
+                    <p className="text-[11px] text-emerald-200">Cicilan &amp; 1 Rekening BSI</p>
                   </div>
                   <div className="rounded-xl bg-white/10 p-3 backdrop-blur border border-white/10">
                     <BookOpen className="h-5 w-5 text-emerald-300 mb-1" />
-                    <p className="font-bold">Tahfidz & Mengaji</p>
+                    <p className="font-bold">Tahfidz &amp; Mengaji</p>
                     <p className="text-[11px] text-emerald-200">Mutaba&apos;ah Harian</p>
                   </div>
                   <div className="rounded-xl bg-white/10 p-3 backdrop-blur border border-white/10">
                     <Award className="h-5 w-5 text-emerald-300 mb-1" />
-                    <p className="font-bold">Prestasi & Disiplin</p>
+                    <p className="font-bold">Prestasi &amp; Disiplin</p>
                     <p className="text-[11px] text-emerald-200">Catatan Pembinaan</p>
                   </div>
                   <div className="rounded-xl bg-white/10 p-3 backdrop-blur border border-white/10">
@@ -239,8 +360,37 @@ export default function SipetaHomePage() {
                 </div>
               </div>
 
+              {/* Pintu Masuk Mandiri Berdasarkan Role */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Pilih Pintu Masuk Sesuai Kewenangan
+                  </h3>
+                  <span className="text-xs font-semibold text-emerald-800">5 Pintu Masuk</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {portalsList.map((p) => (
+                    <Link
+                      key={p.role}
+                      href={p.url}
+                      className="flex flex-col justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 transition group"
+                    >
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-emerald-950 flex items-center justify-between">
+                          <span>{p.title}</span>
+                          <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-emerald-700 transition" />
+                        </span>
+                        <p className="mt-1 text-[11px] text-slate-500 leading-normal">
+                          {p.desc}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
               {/* Papan Pengumuman Resmi */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                   <div className="flex items-center gap-2">
                     <Info className="h-5 w-5 text-emerald-800" />
@@ -294,7 +444,7 @@ export default function SipetaHomePage() {
               </div>
             </div>
 
-            {/* Kolom Kanan: Card Login Masuk ke Sistem */}
+            {/* Kolom Kanan: Card Login Cepat Masuk ke Sistem */}
             <div className="lg:col-span-5 space-y-6">
               <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-md">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
@@ -306,7 +456,7 @@ export default function SipetaHomePage() {
                       Masuk ke Sistem
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Gunakan akun terdaftar Anda untuk mengakses ruang kerja
+                      Gunakan username atau akun resmi untuk mengakses ruang kerja
                     </p>
                   </div>
                 </div>
@@ -321,19 +471,14 @@ export default function SipetaHomePage() {
                   </div>
                 )}
 
-                <form onSubmit={handleSupabaseLogin} className="mt-5 space-y-4">
+                <form onSubmit={handlePublicLogin} className="mt-5 space-y-4">
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label
-                        htmlFor="input-identifier-login"
-                        className="block text-xs font-bold text-slate-700"
-                      >
-                        Username atau Email Superadmin
-                      </label>
-                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        Akun Internal
-                      </span>
-                    </div>
+                    <label
+                      htmlFor="input-identifier-login"
+                      className="block text-xs font-bold text-slate-700 mb-1.5"
+                    >
+                      Username / NIS / Email Superadmin
+                    </label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                       <input
@@ -343,14 +488,14 @@ export default function SipetaHomePage() {
                         autoCorrect="off"
                         spellCheck={false}
                         required
-                        placeholder="contoh: bendahara01 atau email Superadmin"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
+                        placeholder="contoh: 202401001 atau username petugas"
+                        value={loginIdentifier}
+                        onChange={(e) => setLoginIdentifier(e.target.value)}
                         className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none min-h-[44px]"
                       />
                     </div>
                     <p className="mt-1 text-[11px] text-slate-500 leading-normal">
-                      Petugas internal &amp; Wali masuk dengan <strong>username</strong>. Tidak menggunakan Gmail / email pribadi.
+                      Wali Santri masuk menggunakan <strong>NIS</strong>. Petugas internal masuk menggunakan <strong>username</strong>.
                     </p>
                   </div>
 
@@ -378,7 +523,7 @@ export default function SipetaHomePage() {
                   <button
                     type="submit"
                     disabled={loginLoading}
-                    className="w-full rounded-xl bg-emerald-800 py-3 px-4 text-xs font-bold text-white shadow hover:bg-emerald-900 transition flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px] touch-manipulation cursor-pointer"
+                    className="w-full rounded-xl bg-emerald-800 py-3 px-4 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 transition flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px] cursor-pointer"
                   >
                     {loginLoading ? (
                       <>
@@ -394,39 +539,42 @@ export default function SipetaHomePage() {
                   </button>
                 </form>
 
-                <div className="mt-6 pt-5 border-t border-slate-100">
-                  <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200">
-                    <p className="text-[11px] font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-                      <KeyRound className="h-3.5 w-3.5 text-slate-500" />
-                      Atau Coba Mode Simulasi (Demo):
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <select
-                        aria-label="Pilih Role Demo"
-                        value={selectedDemoRole}
-                        onChange={(e) => setSelectedDemoRole(e.target.value as UserRole)}
-                        className="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-bold text-slate-800 focus:outline-none"
-                      >
-                        <option value="wali">Wali Santri (Hafidz)</option>
-                        <option value="bendahara">Bendahara (Hj. Siti Aminah)</option>
-                        <option value="admin">Admin (H. Ahmad Dahlan)</option>
-                        <option value="pengelola">Pengelola (Ust. Abdullah)</option>
-                        <option value="superadmin">Superadmin (Kyai Abu Manshur)</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => enterDemoMode(selectedDemoRole)}
-                        className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 transition shrink-0"
-                      >
-                        Buka Demo
-                      </button>
+                {/* Demo Switcher HANYA di lingkungan development tanpa Supabase */}
+                {isDemoAllowed && (
+                  <div className="mt-6 pt-5 border-t border-slate-100">
+                    <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200">
+                      <p className="text-[11px] font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                        <KeyRound className="h-3.5 w-3.5 text-slate-500" />
+                        Mode Simulasi Pengujian (Dev Only):
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <select
+                          aria-label="Pilih Role Demo"
+                          value={selectedDemoRole}
+                          onChange={(e) => setSelectedDemoRole(e.target.value as UserRole)}
+                          className="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-bold text-slate-800 focus:outline-none"
+                        >
+                          <option value="wali">Wali Santri (Hafidz)</option>
+                          <option value="bendahara">Bendahara (Hj. Siti Aminah)</option>
+                          <option value="admin">Admin (H. Ahmad Dahlan)</option>
+                          <option value="pengelola">Pengelola (Ust. Abdullah)</option>
+                          <option value="superadmin">Superadmin (Kyai Abu Manshur)</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => enterDemoMode(selectedDemoRole)}
+                          className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 transition shrink-0"
+                        >
+                          Buka Demo
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500 justify-center">
                   <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0" />
-                  <span>Sesi terenkripsi &amp; dilindungi Row-Level Security Supabase</span>
+                  <span>Sesi terenkripsi &amp; dilindungi hak akses role resmi</span>
                 </div>
               </div>
             </div>
@@ -457,8 +605,12 @@ export default function SipetaHomePage() {
   }
 
   // ==========================================================================
-  // 3. AUTHENTICATED WORKSPACE (PENGGUNA SUDAH TERVERIFIKASI LOGIN)
+  // 3. AUTHENTICATED WORKSPACE (SINGLE UNIFIED LEFT SIDEBAR)
+  // Menyatukan seluruh navigasi ke panel kiri
   // ==========================================================================
+  const menuItems = getRoleMenuItems(currentUser.role);
+  const activeMenuItem = menuItems.find((m) => m.id === activeTab) ?? menuItems[0];
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       {/* Modal Wajib Ganti Password (Khusus Wali Pertama Kali Login) */}
@@ -489,11 +641,11 @@ export default function SipetaHomePage() {
           mobileNavOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="space-y-6">
+        <div className="space-y-5 overflow-y-auto max-h-[calc(100vh-140px)] no-scrollbar">
           {/* Header Mobile Drawer */}
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1 shadow-sm shrink-0">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1 shadow-xs shrink-0">
                 <img
                   src="/images/logo-abu-manshur.png"
                   alt="Logo Abu Manshur"
@@ -509,15 +661,16 @@ export default function SipetaHomePage() {
               type="button"
               onClick={() => setMobileNavOpen(false)}
               className="rounded-lg p-1.5 text-emerald-300 hover:bg-white/10 hover:text-white"
+              aria-label="Tutup Menu"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          {/* User Profile Card Mobile */}
+          {/* User Profile Card Mobile (Bersih dari status Supabase) */}
           <div className="rounded-xl bg-white/10 p-3.5 border border-white/10">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-700 text-white font-bold text-sm shadow-inner shrink-0">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-white font-bold text-sm shadow-inner shrink-0">
                 {currentUser.nama_lengkap.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
@@ -526,173 +679,64 @@ export default function SipetaHomePage() {
                   <span className="rounded bg-emerald-800 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-200">
                     {getRoleLabel(currentUser.role)}
                   </span>
-                  <span className="text-[10px] text-emerald-300/80">
-                    {authMode === "supabase" ? "Supabase" : "Demo"}
-                  </span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Navigation Items Mobile */}
-          <nav className="space-y-1.5">
-            {currentUser.role === "superadmin" ? (
-              <>
-                {/* 1. Manajemen Akun & Role */}
+          <nav className="space-y-1">
+            <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80 mb-2">
+              Menu Navigasi
+            </p>
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
                 <button
+                  key={item.id}
                   type="button"
                   onClick={() => {
-                    setViewMode("portal");
-                    setSuperadminTab("users");
+                    setActiveTab(item.id);
                     setMobileNavOpen(false);
                   }}
                   className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[44px] ${
-                    viewMode === "portal" && superadminTab === "users"
+                    isActive
                       ? "bg-white text-emerald-950 shadow-md font-extrabold"
                       : "text-emerald-100 hover:bg-white/10"
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Users className="h-4 w-4 shrink-0" />
-                    <span>Manajemen Akun &amp; Role</span>
+                    <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-emerald-900" : "text-emerald-300"}`} />
+                    <span>{item.label}</span>
                   </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      viewMode === "portal" && superadminTab === "users"
-                        ? "bg-emerald-100 text-emerald-950"
-                        : "bg-white/15 text-white"
-                    }`}
-                  >
-                    {users.length}
-                  </span>
+                  {item.badge !== undefined && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        isActive ? "bg-emerald-100 text-emerald-950" : "bg-white/15 text-white"
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
-
-                {/* 2. Rekening Resmi Pesantren */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("portal");
-                    setSuperadminTab("rekening");
-                    setMobileNavOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[44px] ${
-                    viewMode === "portal" && superadminTab === "rekening"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Landmark className="h-4 w-4 shrink-0" />
-                    <span>Rekening Resmi Pesantren</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-70" />
-                </button>
-
-                {/* 3. Jejak Audit / Audit Log */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("portal");
-                    setSuperadminTab("audit_log");
-                    setMobileNavOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[44px] ${
-                    viewMode === "portal" && superadminTab === "audit_log"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-4 w-4 shrink-0" />
-                    <span>Jejak Audit / Audit Log</span>
-                  </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      viewMode === "portal" && superadminTab === "audit_log"
-                        ? "bg-emerald-100 text-emerald-950"
-                        : "bg-white/15 text-white"
-                    }`}
-                  >
-                    {auditLogs.length}
-                  </span>
-                </button>
-
-                {/* 4. Pusat Laporan & Analitik */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("laporan");
-                    setMobileNavOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[44px] ${
-                    viewMode === "laporan"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <BarChart3 className="h-4 w-4 shrink-0" />
-                    <span>Pusat Laporan &amp; Analitik</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-70" />
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("portal");
-                    setMobileNavOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-3 text-xs font-bold transition min-h-[44px] ${
-                    viewMode === "portal"
-                      ? "bg-white text-emerald-950 shadow-md"
-                      : "text-emerald-100 hover:bg-white/10"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <LayoutGrid className="h-4 w-4 shrink-0" />
-                    <span>Ruang Kerja ({getRoleLabel(currentUser.role)})</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-70" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("laporan");
-                    setMobileNavOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-3 text-xs font-bold transition min-h-[44px] ${
-                    viewMode === "laporan"
-                      ? "bg-white text-emerald-950 shadow-md"
-                      : "text-emerald-100 hover:bg-white/10"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <BarChart3 className="h-4 w-4 shrink-0" />
-                    <span>Pusat Laporan &amp; Analitik</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-70" />
-                </button>
-              </>
-            )}
+              );
+            })}
           </nav>
 
-          {/* Role Switcher Demo Mobile */}
-          {authMode === "demo" && (
+          {/* Role Switcher Demo Mobile (Hanya muncul jika mode demo diizinkan) */}
+          {isDemoAllowed && authMode === "demo" && (
             <div className="rounded-xl bg-amber-500/15 p-3 border border-amber-400/20 text-xs">
               <p className="font-bold text-amber-200 mb-1.5 flex items-center gap-1.5">
                 <KeyRound className="h-3.5 w-3.5" />
-                Simulasi Ganti Role (Demo):
+                Simulasi Ganti Role (Dev):
               </p>
               <select
                 aria-label="Pilih Role Demo Mobile"
                 value={currentUser.id}
                 onChange={(e) => {
                   switchActiveUser(e.target.value);
-                  setViewMode("portal");
+                  setActiveTab("dashboard");
                   setMobileNavOpen(false);
                 }}
                 className="w-full rounded-lg border border-amber-300/40 bg-emerald-950 px-2.5 py-2 text-xs font-semibold text-white focus:outline-none"
@@ -707,249 +751,153 @@ export default function SipetaHomePage() {
           )}
         </div>
 
-        {/* Footer Mobile Drawer (Hanya aksi Reset jika mode demo, Refresh dan Logout sudah ada di header) */}
-        {authMode === "demo" && (
-          <div className="pt-4 border-t border-white/10">
-            <button
-              type="button"
-              onClick={() => {
-                resetDemoData();
-                setMobileNavOpen(false);
-              }}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 transition min-h-[44px]"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>Reset Data Simulasi</span>
-            </button>
-          </div>
-        )}
+        {/* Footer Mobile Drawer */}
+        <div className="pt-3 border-t border-white/10 space-y-2">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("profile");
+              setMobileNavOpen(false);
+            }}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-800/80 hover:bg-emerald-800 py-2.5 text-xs font-bold text-white transition min-h-[42px]"
+          >
+            <UserCheck className="h-4 w-4" />
+            <span>Profil Saya</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={logoutLoading}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 py-2.5 text-xs font-bold text-white transition min-h-[42px]"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Keluar</span>
+          </button>
+        </div>
       </div>
 
-      {/* Modern Desktop Permanent Sidebar */}
-      <aside className="hidden lg:flex lg:w-72 lg:flex-col lg:fixed lg:inset-y-0 z-40 bg-emerald-950 text-white border-r border-emerald-900/60 shadow-xl justify-between p-5">
-        <div className="space-y-6">
+      {/* ======================================================================
+          MODERN DESKTOP PERMANENT & COLLAPSIBLE SIDEBAR
+         ====================================================================== */}
+      <aside
+        className={`hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 z-40 bg-emerald-950 text-white border-r border-emerald-900/60 shadow-xl justify-between p-4 transition-all duration-300 ease-in-out ${
+          sidebarCollapsed ? "lg:w-20" : "lg:w-72"
+        }`}
+      >
+        <div className="space-y-5 overflow-y-auto no-scrollbar">
           {/* Brand Header */}
-          <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white p-1 shadow-md shrink-0">
-              <img
-                src="/images/logo-abu-manshur.png"
-                alt="Logo Abu Manshur"
-                className="h-full w-full object-contain"
-              />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-xl font-extrabold tracking-tight text-white">SIPETA</h1>
-                <span className="rounded bg-emerald-800 px-1.5 py-0.2 text-[9px] font-bold text-emerald-200">
-                  v1.0
-                </span>
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div className={`flex items-center gap-3 overflow-hidden ${sidebarCollapsed ? "justify-center w-full" : ""}`}>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1 shadow-md shrink-0">
+                <img
+                  src="/images/logo-abu-manshur.png"
+                  alt="Logo Abu Manshur"
+                  className="h-full w-full object-contain"
+                />
               </div>
-              <p className="text-[11px] font-medium text-emerald-300 leading-tight">
-                Pondok Pesantren Modern Abu Manshur
-              </p>
+              {!sidebarCollapsed && (
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h1 className="text-lg font-extrabold tracking-tight text-white">SIPETA</h1>
+                    <span className="rounded bg-emerald-800 px-1.5 py-0.2 text-[9px] font-bold text-emerald-200">
+                      v1.0
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-medium text-emerald-300 leading-tight truncate">
+                    PP Modern Abu Manshur
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* User Profile Card */}
-          <div className="rounded-2xl bg-gradient-to-br from-white/10 to-white/5 p-4 border border-white/10 shadow-inner">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-700 text-white font-extrabold text-base shadow-md shrink-0">
+          {/* User Profile Card Desktop (Bersih dari status Supabase Cloud) */}
+          <div
+            onClick={() => setActiveTab("profile")}
+            className={`rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 p-3 shadow-inner cursor-pointer hover:bg-white/15 transition ${
+              sidebarCollapsed ? "flex justify-center" : ""
+            }`}
+            title="Klik untuk membuka Profil Saya"
+          >
+            <div className={`flex items-center gap-3 ${sidebarCollapsed ? "justify-center" : ""}`}>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-white font-extrabold text-sm shadow-md shrink-0">
                 {currentUser.nama_lengkap.charAt(0)}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-white truncate" title={currentUser.nama_lengkap}>
-                  {currentUser.nama_lengkap}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className="rounded-md bg-emerald-800 px-2 py-0.5 text-[10px] font-bold text-emerald-200 border border-emerald-700">
-                    {getRoleLabel(currentUser.role)}
-                  </span>
+              {!sidebarCollapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-white truncate" title={currentUser.nama_lengkap}>
+                    {currentUser.nama_lengkap}
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <span className="rounded bg-emerald-800 px-1.5 py-0.5 text-[9px] font-bold text-emerald-200 border border-emerald-700 truncate">
+                      {getRoleLabel(currentUser.role)}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-300/90">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      isLiveSupabase ? "bg-emerald-400 animate-pulse" : "bg-amber-400"
-                    }`}
-                  />
-                  <span>{isLiveSupabase ? "Supabase Cloud" : "Mode Simulasi Demo"}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
           {/* Main Navigation Menu */}
           <div className="space-y-1">
-            <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80">
-              {currentUser.role === "superadmin" ? "Navigasi Superadmin" : "Navigasi Utama"}
-            </p>
-
-            {currentUser.role === "superadmin" ? (
-              <>
-                {/* 1. Manajemen Akun & Role */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("portal");
-                    setSuperadminTab("users");
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
-                    viewMode === "portal" && superadminTab === "users"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Users
-                      className={`h-4 w-4 shrink-0 ${
-                        viewMode === "portal" && superadminTab === "users"
-                          ? "text-emerald-800"
-                          : "text-emerald-300"
-                      }`}
-                    />
-                    <span>Manajemen Akun &amp; Role</span>
-                  </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      viewMode === "portal" && superadminTab === "users"
-                        ? "bg-emerald-100 text-emerald-950"
-                        : "bg-white/15 text-white"
-                    }`}
-                  >
-                    {users.length}
-                  </span>
-                </button>
-
-                {/* 2. Rekening Resmi Pesantren */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("portal");
-                    setSuperadminTab("rekening");
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
-                    viewMode === "portal" && superadminTab === "rekening"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Landmark
-                      className={`h-4 w-4 shrink-0 ${
-                        viewMode === "portal" && superadminTab === "rekening"
-                          ? "text-emerald-800"
-                          : "text-emerald-300"
-                      }`}
-                    />
-                    <span>Rekening Resmi Pesantren</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                </button>
-
-                {/* 3. Jejak Audit / Audit Log */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode("portal");
-                    setSuperadminTab("audit_log");
-                  }}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
-                    viewMode === "portal" && superadminTab === "audit_log"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <FileText
-                      className={`h-4 w-4 shrink-0 ${
-                        viewMode === "portal" && superadminTab === "audit_log"
-                          ? "text-emerald-800"
-                          : "text-emerald-300"
-                      }`}
-                    />
-                    <span>Jejak Audit / Audit Log</span>
-                  </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      viewMode === "portal" && superadminTab === "audit_log"
-                        ? "bg-emerald-100 text-emerald-950"
-                        : "bg-white/15 text-white"
-                    }`}
-                  >
-                    {auditLogs.length}
-                  </span>
-                </button>
-
-                {/* 4. Pusat Laporan & Analitik */}
-                <button
-                  type="button"
-                  onClick={() => setViewMode("laporan")}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
-                    viewMode === "laporan"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <BarChart3
-                      className={`h-4 w-4 shrink-0 ${
-                        viewMode === "laporan" ? "text-emerald-800" : "text-emerald-300"
-                      }`}
-                    />
-                    <span>Pusat Laporan &amp; Analitik</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("portal")}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
-                    viewMode === "portal"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <LayoutGrid className="h-4 w-4 shrink-0 text-emerald-700" />
-                    <span>Ruang Kerja {getRoleLabel(currentUser.role)}</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewMode("laporan")}
-                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
-                    viewMode === "laporan"
-                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <BarChart3 className="h-4 w-4 shrink-0 text-emerald-700" />
-                    <span>Pusat Laporan &amp; Analitik</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                </button>
-              </>
+            {!sidebarCollapsed && (
+              <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80 mb-2">
+                Navigasi {getRoleLabel(currentUser.role)}
+              </p>
             )}
+
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  title={sidebarCollapsed ? item.label : undefined}
+                  className={`w-full flex items-center rounded-xl px-3 py-2.5 text-xs font-bold transition min-h-[42px] ${
+                    sidebarCollapsed ? "justify-center" : "justify-between"
+                  } ${
+                    isActive
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className={`flex items-center gap-3 ${sidebarCollapsed ? "justify-center" : ""}`}>
+                    <Icon
+                      className={`h-4 w-4 shrink-0 ${
+                        isActive ? "text-emerald-950" : "text-emerald-300"
+                      }`}
+                    />
+                    {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                  </div>
+                  {!sidebarCollapsed && item.badge !== undefined && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        isActive ? "bg-emerald-100 text-emerald-950" : "bg-white/15 text-white"
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Demo Role Switcher (Desktop) */}
-          {authMode === "demo" && (
+          {/* Demo Role Switcher Desktop (Dev Only) */}
+          {isDemoAllowed && authMode === "demo" && !sidebarCollapsed && (
             <div className="rounded-xl bg-amber-500/15 p-3 border border-amber-400/20 text-xs space-y-1.5">
               <p className="font-bold text-amber-200 flex items-center gap-1.5 text-[11px]">
                 <KeyRound className="h-3.5 w-3.5" />
-                Simulasi Ganti Role (Demo):
+                Simulasi Ganti Role (Dev):
               </p>
               <select
                 aria-label="Pilih Role Demo Desktop"
                 value={currentUser.id}
                 onChange={(e) => {
                   switchActiveUser(e.target.value);
-                  setViewMode("portal");
+                  setActiveTab("dashboard");
                 }}
                 className="w-full rounded-lg border border-amber-300/40 bg-emerald-950 px-2 py-1.5 text-xs font-semibold text-white focus:outline-none"
               >
@@ -963,24 +911,84 @@ export default function SipetaHomePage() {
           )}
         </div>
 
-        {/* Action Buttons Desktop (Hanya tombol Reset jika mode simulasi demo, Refresh dan Logout ada di header) */}
-        {authMode === "demo" && (
-          <div className="pt-4 border-t border-white/10">
-            <button
-              type="button"
-              onClick={resetDemoData}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 transition"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>Reset Data Simulasi</span>
-            </button>
-          </div>
-        )}
+        {/* Action Buttons Desktop Sidebar Footer */}
+        <div className="pt-3 border-t border-white/10 space-y-2">
+          {!sidebarCollapsed ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab("profile")}
+                className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${
+                  activeTab === "profile"
+                    ? "bg-white text-emerald-950 border-white"
+                    : "border-white/15 bg-white/5 text-emerald-200 hover:bg-white/10 hover:text-white"
+                }`}
+                title="Buka Profil Saya"
+              >
+                <UserCheck className="h-3.5 w-3.5" />
+                <span>Profil</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={logoutLoading}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-500/20 py-2 text-xs font-bold text-rose-200 hover:bg-rose-500/30 hover:text-white transition"
+                title="Keluar dari akun"
+              >
+                {logoutLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
+                <span>Keluar</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab("profile")}
+                className="p-2.5 rounded-xl border border-white/15 bg-white/5 text-emerald-200 hover:bg-white/10 hover:text-white transition"
+                title="Profil Saya"
+              >
+                <UserCheck className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={logoutLoading}
+                className="p-2.5 rounded-xl border border-rose-400/20 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition"
+                title="Keluar"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Toggle Expand/Collapse Sidebar Desktop Button */}
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-white/10 transition"
+            title={sidebarCollapsed ? "Perluas Sidebar" : "Ciutkan Sidebar"}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4" />
+                <span>Ciutkan Panel</span>
+              </>
+            )}
+          </button>
+        </div>
       </aside>
 
-      {/* Main Content Area (With lg:pl-72 Desktop Offset) */}
-      <div className="lg:pl-72 flex flex-col flex-1 min-w-0">
-        {/* Modern Top Header */}
+      {/* ======================================================================
+          MAIN CONTENT AREA (RESPONSIVE OFFSET BERDASARKAN STATUS COLLAPSE)
+         ====================================================================== */}
+      <div
+        className={`flex flex-col flex-1 min-w-0 transition-all duration-300 ease-in-out ${
+          sidebarCollapsed ? "lg:pl-20" : "lg:pl-72"
+        }`}
+      >
+        {/* Modern Top Header (Bersih dari status Supabase Cloud) */}
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur shadow-xs">
           <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
@@ -996,16 +1004,8 @@ export default function SipetaHomePage() {
 
               {/* Breadcrumb Title */}
               <div>
-                <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
-                  {viewMode === "laporan"
-                    ? "Pusat Laporan & Analitik"
-                    : currentUser.role === "superadmin"
-                    ? superadminTab === "users"
-                      ? "Manajemen Akun & Role"
-                      : superadminTab === "rekening"
-                      ? "Rekening Resmi Pesantren"
-                      : "Jejak Audit / Audit Log"
-                    : `Ruang Kerja ${getRoleLabel(currentUser.role)}`}
+                <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>{activeMenuItem?.label ?? "Ruang Kerja"}</span>
                 </h2>
                 <p className="text-[11px] text-slate-500 hidden sm:block">
                   Pondok Pesantren Modern Abu Manshur • SIPETA v1.0
@@ -1013,58 +1013,31 @@ export default function SipetaHomePage() {
               </div>
             </div>
 
-            {/* Right Header Badges & Actions */}
+            {/* Right Header Actions */}
             <div className="flex items-center gap-2 sm:gap-2.5">
-              {/* Refresh Data Supabase Button */}
+              {/* Refresh Data Button */}
               {isLiveSupabase && (
                 <button
                   type="button"
                   onClick={handleManualRefresh}
                   disabled={isRefreshing}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs disabled:opacity-50"
-                  title="Refresh data dari Supabase"
+                  title="Muat ulang data terbaru"
                 >
                   <RefreshCw
                     className={`h-3.5 w-3.5 text-emerald-700 ${isRefreshing ? "animate-spin" : ""}`}
                   />
-                  <span className="hidden sm:inline">Refresh Data</span>
+                  <span className="hidden sm:inline">Perbarui Data</span>
                 </button>
               )}
 
-              {/* Supabase Connection Pill */}
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
-                  connectionStatus === "checking"
-                    ? "bg-slate-50 text-slate-700 border-slate-300"
-                    : healthStatus?.connectionState === "CONNECTED_EMPTY_SCHEMA" || healthStatus?.connectionState === "CONNECTED_EMPTY_DATA"
-                    ? "bg-blue-50 text-blue-800 border-blue-300"
-                    : isLiveSupabase
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                    : "bg-amber-50 text-amber-800 border-amber-300"
-                }`}
-              >
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    connectionStatus === "checking"
-                      ? "bg-slate-400 animate-pulse"
-                      : healthStatus?.connectionState === "CONNECTED_EMPTY_SCHEMA" || healthStatus?.connectionState === "CONNECTED_EMPTY_DATA"
-                      ? "bg-blue-500 animate-pulse"
-                      : isLiveSupabase
-                      ? "bg-emerald-600 animate-pulse"
-                      : "bg-amber-500"
-                  }`}
-                />
-                <span className="hidden md:inline">
-                  {connectionStatus === "checking"
-                    ? "Memeriksa..."
-                    : isLiveSupabase
-                    ? "Supabase Cloud Aktif"
-                    : "Simulasi Demo"}
-                </span>
-              </span>
-
               {/* User Avatar Pill */}
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-1 pr-3">
+              <button
+                type="button"
+                onClick={() => setActiveTab("profile")}
+                className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-1 pr-3 hover:bg-slate-100 transition"
+                title="Buka Profil Saya"
+              >
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-800 text-white font-bold text-xs">
                   {currentUser.nama_lengkap.charAt(0)}
                 </div>
@@ -1076,7 +1049,7 @@ export default function SipetaHomePage() {
                     {getRoleLabel(currentUser.role)}
                   </p>
                 </div>
-              </div>
+              </button>
 
               {/* Logout Button Header */}
               <button
@@ -1099,18 +1072,40 @@ export default function SipetaHomePage() {
 
         {/* Main Body Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-          {viewMode === "laporan" ? (
+          {activeTab === "profile" ? (
+            <UserProfileView />
+          ) : activeTab === "laporan" ? (
             <LaporanPortal />
           ) : (
             <>
-              {currentUser.role === "wali" && <WaliPortal />}
-              {currentUser.role === "bendahara" && <BendaharaPortal />}
-              {currentUser.role === "admin" && <AdminPortal />}
-              {currentUser.role === "pengelola" && <PengelolaPortal />}
+              {currentUser.role === "wali" && (
+                <WaliPortal
+                  activeTab={activeTab}
+                  onTabChange={(tab) => setActiveTab(tab)}
+                />
+              )}
+              {currentUser.role === "bendahara" && (
+                <BendaharaPortal
+                  activeTab={activeTab}
+                  onTabChange={(tab) => setActiveTab(tab)}
+                />
+              )}
+              {currentUser.role === "admin" && (
+                <AdminPortal
+                  activeTab={activeTab}
+                  onTabChange={(tab) => setActiveTab(tab)}
+                />
+              )}
+              {currentUser.role === "pengelola" && (
+                <PengelolaPortal
+                  activeTab={activeTab}
+                  onTabChange={(tab) => setActiveTab(tab)}
+                />
+              )}
               {currentUser.role === "superadmin" && (
                 <SuperadminPortal
-                  activeTab={superadminTab}
-                  onTabChange={setSuperadminTab}
+                  activeTab={activeTab as SuperadminTab}
+                  onTabChange={(tab) => setActiveTab(tab)}
                 />
               )}
             </>

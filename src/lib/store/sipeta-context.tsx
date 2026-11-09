@@ -135,7 +135,11 @@ interface SipetaContextValue {
   dataSource: "supabase" | "demo";
   healthStatus: DatabaseHealthStatus | null;
   refreshFromSupabase: () => Promise<void>;
-  loginWithSupabase: (email: string, kataSandi: string) => Promise<ActionResponse>;
+  loginWithSupabase: (
+    email: string,
+    kataSandi: string,
+    expectedRole?: UserRole
+  ) => Promise<ActionResponse>;
   logout: () => Promise<ActionResponse>;
   logoutSupabase: () => Promise<ActionResponse>;
   enterDemoMode: (demoRole?: UserRole) => void;
@@ -146,6 +150,12 @@ interface SipetaContextValue {
   getSaldoSantri: (santriId: string) => SaldoUangSaku;
   resetDemoData: () => void;
   changePassword: (newPassword: string) => Promise<ActionResponse>;
+  updateMyProfile: (payload: {
+    nama_lengkap: string;
+    no_telepon?: string;
+    old_password?: string;
+    new_password?: string;
+  }) => Promise<ActionResponse>;
 
   // Superadmin Actions
   createUserAccount: (payload: {
@@ -535,9 +545,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithSupabase = async (
     email: string,
-    kataSandi: string
+    kataSandi: string,
+    expectedRole?: UserRole
   ): Promise<ActionResponse> => {
-    const res = await authService.login(email, kataSandi);
+    const res = await authService.login(email, kataSandi, expectedRole);
     if (res.ok && res.user) {
       if (!res.user.is_active) {
         return {
@@ -1253,6 +1264,80 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     );
 
     return { ok: true, message: "Kata sandi Anda berhasil diperbarui. Selamat datang di portal SIPETA!" };
+  };
+
+  const updateMyProfile: SipetaContextValue["updateMyProfile"] = async (payload) => {
+    if (!currentUser) {
+      return { ok: false, message: "Sesi tidak valid. Silakan login kembali." };
+    }
+
+    if (payload.nama_lengkap.trim().length < 2) {
+      return { ok: false, message: "Nama lengkap minimal 2 karakter." };
+    }
+
+    if (payload.new_password && payload.new_password.trim() !== "") {
+      if (!payload.old_password || payload.old_password.trim() === "") {
+        return { ok: false, message: "Kata sandi lama wajib diisi untuk mengubah kata sandi." };
+      }
+      const pwdCheck = validatePasswordStrength(payload.new_password);
+      if (!pwdCheck.valid) {
+        return {
+          ok: false,
+          message: pwdCheck.message || "Kata sandi baru tidak memenuhi syarat keamanan.",
+        };
+      }
+      if (
+        currentUser.username &&
+        payload.new_password.trim().toLowerCase() === currentUser.username.trim().toLowerCase()
+      ) {
+        return {
+          ok: false,
+          message: "Kata sandi baru tidak boleh sama dengan username/NIS Anda.",
+        };
+      }
+    }
+
+    if (authMode === "supabase") {
+      const res = await authService.updateMyProfile(payload);
+      if (res.ok) {
+        const cleanNama = payload.nama_lengkap.trim();
+        const cleanTelepon = payload.no_telepon ? payload.no_telepon.trim() : currentUser.no_telepon;
+        setCurrentUser((prev) => (prev ? { ...prev, nama_lengkap: cleanNama, no_telepon: cleanTelepon } : null));
+        setUsers((prev) =>
+          prev.map((u) => (u.id === currentUser.id ? { ...u, nama_lengkap: cleanNama, no_telepon: cleanTelepon } : u))
+        );
+        appendAuditLog(
+          "UPDATE_PROFIL_MANDIRI",
+          "profiles",
+          currentUser.id,
+          { nama_lengkap: cleanNama, no_telepon: cleanTelepon },
+          `Pengguna ${cleanNama} memperbarui data Profil Saya${payload.new_password ? " beserta kata sandi" : ""}`
+        );
+      }
+      return res;
+    }
+
+    // Demo Mode
+    const cleanNama = payload.nama_lengkap.trim();
+    const cleanTelepon = payload.no_telepon ? payload.no_telepon.trim() : currentUser.no_telepon;
+    setCurrentUser((prev) => (prev ? { ...prev, nama_lengkap: cleanNama, no_telepon: cleanTelepon } : null));
+    setUsers((prev) =>
+      prev.map((u) => (u.id === currentUser.id ? { ...u, nama_lengkap: cleanNama, no_telepon: cleanTelepon } : u))
+    );
+    appendAuditLog(
+      "UPDATE_PROFIL_MANDIRI",
+      "profiles",
+      currentUser.id,
+      { nama_lengkap: cleanNama, no_telepon: cleanTelepon },
+      `Pengguna ${cleanNama} memperbarui profil (Mode Demo)`
+    );
+
+    return {
+      ok: true,
+      message: payload.new_password
+        ? "Profil dan kata sandi Anda berhasil diperbarui (Mode Demo)."
+        : "Profil Anda berhasil diperbarui (Mode Demo).",
+    };
   };
 
   // ============================================================================
@@ -2894,6 +2979,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         getSaldoSantri,
         resetDemoData,
         changePassword,
+        updateMyProfile,
         createUserAccount,
         manageUserAccount,
         toggleUserActive,

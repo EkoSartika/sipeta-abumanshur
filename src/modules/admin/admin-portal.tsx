@@ -59,15 +59,26 @@ import type {
   Tagihan,
 } from "@/types/database";
 
-type AdminTab =
+export type AdminTab =
+  | "dashboard"
   | "santri_wali"
   | "import_santri"
   | "kelas_kamar"
-  | "rekening_pesantren"
+  | "jenis_pembayaran"
+  | "kebijakan_tagihan"
   | "jenis_dan_tagihan"
+  | "rekening_pesantren"
   | "pengumuman";
 
-export function AdminPortal() {
+export interface AdminPortalProps {
+  activeTab?: AdminTab | string;
+  onTabChange?: (tab: string) => void;
+}
+
+export function AdminPortal({
+  activeTab: controlledTab,
+  onTabChange,
+}: AdminPortalProps = {}) {
   const {
     currentUser,
     users,
@@ -99,7 +110,15 @@ export function AdminPortal() {
     updateRekeningResmi,
   } = useSipeta();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>("santri_wali");
+  const [internalTab, setInternalTab] = useState<AdminTab>("dashboard");
+  const activeTab = ((controlledTab as AdminTab) || internalTab);
+  const setActiveTab = (tab: AdminTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
   // State Form Rekening Resmi Pesantren (Kewenangan Admin Administrasi Sesuai Bagian D)
@@ -596,12 +615,11 @@ export function AdminPortal() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold">
-              Portal Administrasi Pesantren (Data Santri, Kelas/Kamar, & Tagihan)
+              Portal Administrasi Pesantren (Data Santri, Kelas/Kamar, &amp; Tagihan)
             </h2>
             <p className="mt-0.5 text-xs text-slate-300">
               Sesuai Bab 3.2 PRD: Admin mengelola data santri, wali (1:1), kelas/kamar, jenis pembayaran,
-              kebijakan cicilan, dan tagihan. Admin tidak berwenang mengesahkan pembayaran atau uang
-              saku.
+              kebijakan cicilan, dan tagihan.
             </p>
           </div>
           <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
@@ -611,42 +629,6 @@ export function AdminPortal() {
               className="h-full w-full object-contain drop-shadow"
             />
           </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-white/15 pt-4">
-          {[
-            { id: "santri_wali", label: "Data Santri & Akun Wali (1:1)", icon: Users },
-            { id: "import_santri", label: "Import Data Santri (Excel)", icon: FileSpreadsheet },
-            { id: "kelas_kamar", label: "Kelas, Kamar & Riwayat Penempatan", icon: Building2 },
-            { id: "rekening_pesantren", label: "Rekening Resmi Pesantren", icon: Landmark },
-            {
-              id: "jenis_dan_tagihan",
-              label: "Jenis Pembayaran, Kebijakan Cicilan & Tagihan",
-              icon: Receipt,
-            },
-            { id: "pengumuman", label: "Pengumuman Pesantren", icon: Megaphone },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab.id as AdminTab);
-                  setFeedback(null);
-                }}
-                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
-                  active
-                    ? "bg-white text-slate-950 shadow-sm"
-                    : "bg-white/10 text-slate-200 hover:bg-white/20"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -669,6 +651,148 @@ export function AdminPortal() {
           >
             Tutup
           </button>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 0: DASHBOARD ADMINISTRASI
+         ===================================================================== */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-6">
+          {/* Quick Metrics Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Total Santri
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-slate-900">{santriList.length}</p>
+              <span className="text-[11px] text-slate-500">
+                {santriList.filter((s) => s.status === "AKTIF").length} aktif
+              </span>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                Akun Wali (1:1)
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-emerald-900">{waliList.length}</p>
+              <span className="text-[11px] text-emerald-700">Tersinkronisasi</span>
+            </div>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                Kelas &amp; Kamar
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-blue-900">
+                {kelasList.length} / {kamarList.length}
+              </p>
+              <span className="text-[11px] text-blue-700">Ruang &amp; Asrama</span>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                Tagihan Aktif
+              </span>
+              <p className="mt-1 text-2xl font-extrabold text-amber-900">
+                {tagihanList.filter((t) => t.status !== "LUNAS").length}
+              </p>
+              <span className="text-[11px] text-amber-700">Belum lunas</span>
+            </div>
+          </div>
+
+          {/* Quick Shortcuts */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab("santri_wali")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 group-hover:bg-emerald-800 group-hover:text-white transition shrink-0">
+                <Users className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-900 transition">
+                  Data Santri &amp; Akun Wali
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Daftar santri, relasi 1:1 akun wali, penempatan kelas &amp; kamar asrama.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("import_santri")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-800 border border-blue-200 group-hover:bg-blue-800 group-hover:text-white transition shrink-0">
+                <FileSpreadsheet className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-900 transition">
+                  Import Data Santri (Excel)
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Unduh template Excel resmi dan import massal data santri beserta pembuatan akun wali.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("kebijakan_tagihan")}
+              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-purple-800 border border-purple-200 group-hover:bg-purple-800 group-hover:text-white transition shrink-0">
+                <Receipt className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-purple-900 transition">
+                  Kebijakan Cicilan &amp; Tagihan
+                </h4>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                  Atur jenis pembayaran, kebijakan cicilan (bebas/sama rata), dan generate tagihan santri.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {/* Tabel Santri Terbaru */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h4 className="text-sm font-bold text-slate-900">Santri Terbaru Terdaftar</h4>
+              <button
+                type="button"
+                onClick={() => setActiveTab("santri_wali")}
+                className="text-xs font-bold text-emerald-800 hover:underline"
+              >
+                Lihat Seluruh Data Santri
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500">
+                    <th className="py-2">NIS</th>
+                    <th className="py-2">Nama Santri</th>
+                    <th className="py-2">JK</th>
+                    <th className="py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {santriList.slice(0, 5).map((s) => (
+                    <tr key={s.id}>
+                      <td className="py-2 font-mono font-semibold">{s.nis}</td>
+                      <td className="py-2 font-bold text-slate-900">{s.nama_lengkap}</td>
+                      <td className="py-2">{s.jenis_kelamin === "L" ? "Putra" : "Putri"}</td>
+                      <td className="py-2">
+                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                          {s.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2095,7 +2219,9 @@ export function AdminPortal() {
       {/* =====================================================================
           TAB 3: JENIS PEMBAYARAN, KEBIJAKAN CICILAN, & GENERATOR TAGIHAN
          ===================================================================== */}
-      {activeTab === "jenis_dan_tagihan" && (
+      {(activeTab === "jenis_dan_tagihan" ||
+        activeTab === "jenis_pembayaran" ||
+        activeTab === "kebijakan_tagihan") && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Buat Jenis Pembayaran & Kebijakan Cicilan */}
