@@ -239,3 +239,4 @@ Prasyarat: Terdapat minimal 1 data santri dan akun wali hasil import:
 | 8 | Buat Akun Petugas Internal (Admin, Bendahara, Pengelola) | Superadmin | Web App (`/superadmin/accounts`) | Siap Dibuat |
 | 9 | Input Master Data (Tahun Ajaran, Kelas, Kamar) | Admin Administrasi | Web App (`/admin`) | Siap Diinput |
 | 10| Import Excel Data Santri & Otomatisasi Akun Wali | Admin Administrasi | Web App (`/admin/santri/import`) | Siap Diimport |
+

@@ -922,12 +922,12 @@ export async function DELETE(request: NextRequest) {
 
     // 6. Periksa relasi historis (Pembayaran, Uang Saku, Wali dengan riwayat keuangan)
     const { count: countPembayaran } = await adminClient
-      .from("pembayaran")
+      .from("transaksi_pembayaran")
       .select("id", { count: "exact", head: true })
-      .or(`created_by.eq.${userId},diverifikasi_oleh.eq.${userId}`);
+      .or(`wali_user_id.eq.${userId},verified_by.eq.${userId}`);
 
     const { count: countUangSaku } = await adminClient
-      .from("transaksi_uang_saku")
+      .from("mutasi_uang_saku")
       .select("id", { count: "exact", head: true })
       .eq("petugas_id", userId);
 

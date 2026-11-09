@@ -390,22 +390,22 @@ export async function DELETE(request: NextRequest) {
 
       // Periksa apakah santri memiliki riwayat keuangan atau catatan penting
       const { count: countBayar } = await adminClient
-        .from("pembayaran")
+        .from("transaksi_pembayaran")
         .select("id", { count: "exact", head: true })
         .eq("santri_id", santriId);
 
       const { count: countTagihan } = await adminClient
-        .from("tagihan_santri")
+        .from("tagihan")
         .select("id", { count: "exact", head: true })
         .eq("santri_id", santriId);
 
       const { count: countUangSaku } = await adminClient
-        .from("transaksi_uang_saku")
+        .from("mutasi_uang_saku")
         .select("id", { count: "exact", head: true })
         .eq("santri_id", santriId);
 
       const { count: countTahfidz } = await adminClient
-        .from("riwayat_hafalan_quran")
+        .from("setoran_tahfidz")
         .select("id", { count: "exact", head: true })
         .eq("santri_id", santriId);
 
