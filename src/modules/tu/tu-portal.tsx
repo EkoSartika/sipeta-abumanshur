@@ -21,7 +21,6 @@ import {
   RotateCcw,
   Search,
   Square,
-  Trash2,
   UploadCloud,
   UserCheck,
   UserPlus,
@@ -84,15 +83,12 @@ export function TuPortal({
     pengumumanList,
     createSantriWithWali,
     importSantriBatch,
-    deleteSantriBatch,
     moveSantriPlacement,
     updateStatusSantri,
     createKelas,
     updateKelas,
-    deleteKelas,
     createKamar,
     updateKamar,
-    deleteKamar,
     createPengumuman,
   } = useSipeta();
 
@@ -129,11 +125,6 @@ export function TuPortal({
   const [filterKelas, setFilterKelas] = useState("all");
   const [filterKamar, setFilterKamar] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-
-  // Selection Santri untuk Bulk Delete
-  const [selectedSantriIds, setSelectedSantriIds] = useState<string[]>([]);
-  const [isDeleteSantriModalOpen, setIsDeleteSantriModalOpen] = useState(false);
-  const [deleteSantriSubmitting, setDeleteSantriSubmitting] = useState(false);
 
   // Form Registrasi Santri Baru + Akun Wali
   const [nis, setNis] = useState("202607101");
@@ -262,22 +253,6 @@ export function TuPortal({
       }
     } finally {
       setRegisterSubmitting(false);
-    }
-  };
-
-  // Handle Bulk Delete Santri
-  const handleBulkDeleteSantri = async () => {
-    if (selectedSantriIds.length === 0) return;
-    setDeleteSantriSubmitting(true);
-    try {
-      const res = await deleteSantriBatch(selectedSantriIds);
-      setFeedback({ ok: res.ok, text: res.message });
-      if (res.ok) {
-        setSelectedSantriIds([]);
-        setIsDeleteSantriModalOpen(false);
-      }
-    } finally {
-      setDeleteSantriSubmitting(false);
     }
   };
 
@@ -856,16 +831,6 @@ export function TuPortal({
             </div>
 
             <div className="flex items-center gap-2">
-              {selectedSantriIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setIsDeleteSantriModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 min-h-[40px] cursor-pointer"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>Hapus Terpilih ({selectedSantriIds.length})</span>
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => exportSantriToExcel(filteredSantri, kelasList, kamarList, waliList)}
@@ -883,23 +848,6 @@ export function TuPortal({
               <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
-                    <th className="py-3 px-3 w-10 text-center">
-                      <input
-                        type="checkbox"
-                        checked={
-                          filteredSantri.length > 0 &&
-                          filteredSantri.every((s) => selectedSantriIds.includes(s.id))
-                        }
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSantriIds(filteredSantri.map((s) => s.id));
-                          } else {
-                            setSelectedSantriIds([]);
-                          }
-                        }}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-700 cursor-pointer"
-                      />
-                    </th>
                     <th className="py-3 px-3">NIS</th>
                     <th className="py-3 px-3">Nama Santri</th>
                     <th className="py-3 px-3">Kelas &amp; Kamar</th>
@@ -912,7 +860,7 @@ export function TuPortal({
                 <tbody className="divide-y divide-slate-100">
                   {filteredSantri.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
                         Tidak ada data santri yang cocok dengan filter.
                       </td>
                     </tr>
@@ -921,24 +869,9 @@ export function TuPortal({
                       const k = kelasList.find((x) => x.id === s.kelas_id);
                       const km = kamarList.find((x) => x.id === s.kamar_id);
                       const w = waliList.find((x) => x.santri_id === s.id);
-                      const isSelected = selectedSantriIds.includes(s.id);
 
                       return (
-                        <tr key={s.id} className={isSelected ? "bg-blue-50/50" : "hover:bg-slate-50"}>
-                          <td className="py-3 px-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {
-                                setSelectedSantriIds((prev) =>
-                                  prev.includes(s.id)
-                                    ? prev.filter((id) => id !== s.id)
-                                    : [...prev, s.id]
-                                );
-                              }}
-                              className="h-4 w-4 rounded border-slate-300 text-blue-700 cursor-pointer"
-                            />
-                          </td>
+                        <tr key={s.id} className="hover:bg-slate-50">
                           <td className="py-3 px-3 font-mono font-bold text-slate-900">{s.nis}</td>
                           <td className="py-3 px-3 font-bold text-slate-900">{s.nama_lengkap}</td>
                           <td className="py-3 px-3 text-slate-600">
@@ -1352,47 +1285,7 @@ export function TuPortal({
         </div>
       )}
 
-      {/* Modal Konfirmasi Bulk Delete Santri */}
-      {isDeleteSantriModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-700">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-slate-900">Konfirmasi Hapus Santri</h3>
-                <p className="text-xs text-slate-500">
-                  {selectedSantriIds.length} data santri terpilih
-                </p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Santri yang memiliki riwayat transaksi keuangan atau akademik akan secara otomatis
-              dialihkan ke status <strong>TIDAK_AKTIF (Soft Delete)</strong> demi menjaga integritas data historis pesantren.
-            </p>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsDeleteSantriModalOpen(false)}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 min-h-[40px] cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={deleteSantriSubmitting}
-                onClick={handleBulkDeleteSantri}
-                className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-50 min-h-[40px] cursor-pointer"
-              >
-                {deleteSantriSubmitting ? "Memproses..." : "Ya, Proses Penghapusan"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Detail Modal Santri */}
     </div>
   );
 }

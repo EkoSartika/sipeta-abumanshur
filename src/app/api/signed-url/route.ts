@@ -128,15 +128,15 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Otorisasi Spesifik Berdasarkan Role & Relasi Santri (Least Privilege)
-    // a. Pengelola Kepesantrenan DIBLOKIR MUTLAK dari seluruh bucket keuangan
+    // a. Pengelola Kepesantrenan & Tata Usaha (TU) DIBLOKIR MUTLAK dari seluruh bucket keuangan
     if (
-      profile.role === "pengelola" &&
+      (profile.role === "pengelola" || profile.role === "tu") &&
       (body.bucket === "bukti-pembayaran" ||
         body.bucket === "bukti-uang-saku" ||
         body.bucket === "foto-penyerahan-saku")
     ) {
       return NextResponse.json(
-        { error: "Akses ditolak: Pengelola Kepesantrenan tidak memiliki hak akses terhadap arsip keuangan." },
+        { error: "Akses ditolak: Staf Pengelola / Tata Usaha (TU) tidak memiliki hak akses terhadap arsip keuangan." },
         { status: 403 }
       );
     }

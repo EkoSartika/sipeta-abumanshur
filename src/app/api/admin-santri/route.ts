@@ -349,7 +349,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 2. Verifikasi Hak Akses: Superadmin, Admin (Pengasuh), atau TU
+    // 2. Verifikasi Hak Akses: Hanya Superadmin dan Admin (Pengasuh Pondok)
+    // Sesuai prinsip Anti-Hard-Delete least privilege, role Tata Usaha (TU) DILARANG keras menghapus data santri.
     const { data: callerProfile } = await supabase
       .from("profiles")
       .select("role, is_active")
@@ -359,10 +360,14 @@ export async function DELETE(request: NextRequest) {
     if (
       !callerProfile ||
       !callerProfile.is_active ||
-      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin" && callerProfile.role !== "tu")
+      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin")
     ) {
       return NextResponse.json(
-        { ok: false, message: "Akses ditolak: Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menghapus data santri." },
+        {
+          ok: false,
+          message:
+            "Akses ditolak: Hanya Pengasuh Pondok (Admin) atau Superadmin yang berwenang menghapus data santri. Role Tata Usaha (TU) tidak memiliki hak penghapusan data.",
+        },
         { status: 403 }
       );
     }
