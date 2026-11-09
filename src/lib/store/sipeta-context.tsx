@@ -11,7 +11,7 @@
 // - Jejak Audit (Audit Log) & Notifikasi Real-Time
 // ============================================================================
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type {
   AuditLogItem,
   CatatanKedisiplinan,
@@ -406,28 +406,28 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   const [healthStatus, setHealthStatus] = useState<DatabaseHealthStatus | null>(null);
 
   // Sinkronisasi data real-time dari Supabase
-  const refreshFromSupabase = async () => {
+  const refreshFromSupabase = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
     try {
       const [
-        rekening,
-        kelas,
-        kamar,
-        santri,
-        wali,
-        jenis,
-        tagihan,
-        transaksi,
-        topup,
-        mengaji,
-        tahfidz,
-        prestasi,
-        kedisiplinan,
-        kategoriPelanggaran,
-        pengumuman,
-        notifikasi,
-        fetchedUsers,
-      ] = await Promise.all([
+        rekeningRes,
+        kelasRes,
+        kamarRes,
+        santriRes,
+        waliRes,
+        jenisRes,
+        tagihanRes,
+        transaksiRes,
+        topupRes,
+        mengajiRes,
+        tahfidzRes,
+        prestasiRes,
+        kedisiplinanRes,
+        kategoriPelanggaranRes,
+        pengumumanRes,
+        notifikasiRes,
+        fetchedUsersRes,
+      ] = await Promise.allSettled([
         administrasiService.getRekeningResmi(),
         administrasiService.getKelasList(),
         administrasiService.getKamarList(),
@@ -447,31 +447,31 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         authService.getAllProfiles(),
       ]);
 
-      if (rekening) setRekeningResmi(rekening);
-      setKelasList(kelas ?? []);
-      setKamarList(kamar ?? []);
-      setSantriList(santri ?? []);
-      setWaliList(wali ?? []);
-      setJenisPembayaranList(jenis ?? []);
-      setTagihanList(tagihan ?? []);
-      setTransaksiPembayaranList(transaksi ?? []);
-      setPengajuanUangSakuList(topup ?? []);
-      setMengajiList(mengaji ?? []);
-      setTahfidzList(tahfidz ?? []);
-      setPrestasiList(prestasi ?? []);
-      setKedisiplinanList(kedisiplinan ?? []);
-      if (kategoriPelanggaran && kategoriPelanggaran.length > 0) {
-        setMasterPelanggaranList(kategoriPelanggaran);
+      if (rekeningRes.status === "fulfilled" && rekeningRes.value) setRekeningResmi(rekeningRes.value);
+      if (kelasRes.status === "fulfilled" && kelasRes.value) setKelasList(kelasRes.value);
+      if (kamarRes.status === "fulfilled" && kamarRes.value) setKamarList(kamarRes.value);
+      if (santriRes.status === "fulfilled" && santriRes.value) setSantriList(santriRes.value);
+      if (waliRes.status === "fulfilled" && waliRes.value) setWaliList(waliRes.value);
+      if (jenisRes.status === "fulfilled" && jenisRes.value) setJenisPembayaranList(jenisRes.value);
+      if (tagihanRes.status === "fulfilled" && tagihanRes.value) setTagihanList(tagihanRes.value);
+      if (transaksiRes.status === "fulfilled" && transaksiRes.value) setTransaksiPembayaranList(transaksiRes.value);
+      if (topupRes.status === "fulfilled" && topupRes.value) setPengajuanUangSakuList(topupRes.value);
+      if (mengajiRes.status === "fulfilled" && mengajiRes.value) setMengajiList(mengajiRes.value);
+      if (tahfidzRes.status === "fulfilled" && tahfidzRes.value) setTahfidzList(tahfidzRes.value);
+      if (prestasiRes.status === "fulfilled" && prestasiRes.value) setPrestasiList(prestasiRes.value);
+      if (kedisiplinanRes.status === "fulfilled" && kedisiplinanRes.value) setKedisiplinanList(kedisiplinanRes.value);
+      if (kategoriPelanggaranRes.status === "fulfilled" && kategoriPelanggaranRes.value && kategoriPelanggaranRes.value.length > 0) {
+        setMasterPelanggaranList(kategoriPelanggaranRes.value);
       }
-      setPengumumanList(pengumuman ?? []);
-      setNotifikasiList(notifikasi ?? []);
-      if (fetchedUsers && fetchedUsers.length > 0) {
-        setUsers(fetchedUsers.filter((u) => !u.id.startsWith("usr-")));
+      if (pengumumanRes.status === "fulfilled" && pengumumanRes.value) setPengumumanList(pengumumanRes.value);
+      if (notifikasiRes.status === "fulfilled" && notifikasiRes.value) setNotifikasiList(notifikasiRes.value);
+      if (fetchedUsersRes.status === "fulfilled" && fetchedUsersRes.value && fetchedUsersRes.value.length > 0) {
+        setUsers(fetchedUsersRes.value.filter((u) => !u.id.startsWith("usr-")));
       }
     } catch (e) {
       console.warn("Sinkronisasi Supabase ditunda/offline:", e);
     }
-  };
+  }, []);
 
   // Inisialisasi Backend Health Check & Sesi Autentikasi
   useEffect(() => {

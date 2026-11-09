@@ -55,14 +55,17 @@ export class KeuanganService {
     let query = this.client
       .from("tagihan")
       .select("*, jenis_pembayaran:jenis_pembayaran_id(*), santri:santri_id(*)")
-      .order("jatuh_tempo", { ascending: true });
+      .order("tanggal_jatuh_tempo", { ascending: true });
 
     if (santriId) {
       query = query.eq("santri_id", santriId);
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`Gagal memuat tagihan: ${error.message}`);
+    if (error) {
+      console.warn(`Gagal memuat tagihan: ${error.message}`);
+      return [];
+    }
     return (data as Tagihan[]) ?? [];
   }
 
@@ -243,7 +246,10 @@ export class KeuanganService {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`Gagal memuat riwayat transaksi: ${error.message}`);
+    if (error) {
+      console.warn(`Gagal memuat riwayat transaksi: ${error.message}`);
+      return [];
+    }
     return ((data as any[]) ?? []).map((row) => ({
       ...row,
       bukti_transfer_url: row.bukti_transfer_url || row.bukti_transfer_path || "",
@@ -292,7 +298,10 @@ export class KeuanganService {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`Gagal memuat pengajuan top-up: ${error.message}`);
+    if (error) {
+      console.warn(`Gagal memuat pengajuan top-up: ${error.message}`);
+      return [];
+    }
     return ((data as any[]) ?? []).map((row) => ({
       ...row,
       bukti_transfer_url: row.bukti_transfer_url || row.bukti_transfer_path || "",
