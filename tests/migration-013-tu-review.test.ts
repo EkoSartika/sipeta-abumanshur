@@ -73,8 +73,8 @@ describe("SIPETA Migration 013 (TU Role & Least Privilege RLS) Final Review Test
   // ==========================================================================
   describe("3. Audit Hak Akses Profil Terbatas untuk TU", () => {
     it("3.1. TU hanya diizinkan membaca profil dirinya sendiri atau profil role wali", () => {
-      expect(sqlContent).toContain("public.get_my_role() = 'tu'");
-      expect(sqlContent).toContain("(id = auth.uid() OR role = 'wali')");
+      expect(sqlContent).toContain("public.get_my_role()::text = 'tu'");
+      expect(sqlContent).toContain("(id = auth.uid() OR role::text = 'wali')");
     });
 
     it("3.2. TU DILARANG membaca profil Superadmin, Admin, Bendahara, atau Pengelola secara bebas", () => {
@@ -150,12 +150,12 @@ describe("SIPETA Migration 013 (TU Role & Least Privilege RLS) Final Review Test
   describe("5. Audit Mutasi Penempatan & Integritas Histori", () => {
     it("5.1. TU diberikan hak INSERT pada riwayat_penempatan_santri untuk pencatatan resmi", () => {
       expect(sqlContent).toContain("ON public.riwayat_penempatan_santri FOR INSERT");
-      expect(sqlContent).toContain("WITH CHECK (public.get_my_role() = 'tu')");
+      expect(sqlContent).toContain("WITH CHECK (public.get_my_role()::text = 'tu')");
     });
 
     it("5.2. TU diberikan hak SELECT pada riwayat_penempatan_santri untuk pemantauan histori", () => {
       expect(sqlContent).toContain("ON public.riwayat_penempatan_santri FOR SELECT");
-      expect(sqlContent).toContain("USING (public.get_my_role() = 'tu')");
+      expect(sqlContent).toContain("USING (public.get_my_role()::text = 'tu')");
     });
 
     it("5.3. Pemindahan santri tidak boleh mengeksekusi duplikasi mutasi jika kelas dan kamar tidak berubah", () => {
@@ -198,3 +198,4 @@ describe("SIPETA Migration 013 (TU Role & Least Privilege RLS) Final Review Test
     });
   });
 });
+

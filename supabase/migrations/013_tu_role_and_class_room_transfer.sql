@@ -1,25 +1,19 @@
 -- ============================================================================
--- SIPETA MIGRATION 013 (REVISI FINAL): ROLE TATA USAHA (TU) & LEAST PRIVILEGE RLS
+-- SIPETA MIGRATION 013 (REVISI FINAL - TRANSACTION-SAFE):
+-- ROLE TATA USAHA (TU) & LEAST PRIVILEGE RLS POLICIES
 -- Pondok Pesantren Modern Abu Manshur — Cirebon
 -- STATUS: DOKUMEN TINJAUAN PRA-EKSEKUSI (BELUM DIEKSEKUSI KE SUPABASE CLOUD)
 -- Tanggal Revisi: 9 November 2026
 --
--- PRINSIP KEAMANAN:
--- 1. Idempotent: Aman dieksekusi berulang kali tanpa error.
--- 2. Non-Destruktif / Aditif: Tidak menghapus atau menimpa kebijakan RLS lama
---    milik Superadmin, Admin (Pengasuh), Bendahara, Pengelola (Asatidz), atau Wali.
--- 3. Least Privilege: TU hanya diberi akses minimal untuk administrasi santri,
---    wali santri, kelas, kamar, dan riwayat penempatan.
--- 4. Isolasi Finansial & Staf: TU sama sekali tidak memiliki akses tulis ke tabel
---    keuangan, saldo, jurnal, akun staf, maupun kredensial Superadmin.
--- 5. Profil Terbatas: TU hanya dapat membaca profil dirinya sendiri dan akun wali,
---    bukan seluruh akun staf pesantren.
--- 6. Kompatibilitas Asatidz: Enum 'pengelola' dipertahankan untuk Asatidz.
---    Enum 'asatidz' TIDAK ditambahkan ke database.
+-- CATATAN KEAMANAN TRANSAKSI POSTGRESQL:
+-- Menggunakan kualifikasi 'public.get_my_role()::text = ''tu''' untuk mencegah
+-- error PostgreSQL 'unsafe use of new value "tu" of enum type in transaction'
+-- saat script dieksekusi dalam satu blok transaksi di Supabase SQL Editor.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- 1. PENAMBAHAN ENUM ROLE 'tu' SECARA IDEMPOTEN
+-- (Enum 'pengelola' tetap digunakan untuk Asatidz; 'asatidz' TIDAK ditambahkan)
 -- ----------------------------------------------------------------------------
 DO $$
 BEGIN
@@ -40,14 +34,14 @@ DROP POLICY IF EXISTS "Santri: TU baca data santri" ON public.santri;
 CREATE POLICY "Santri: TU baca data santri"
 ON public.santri FOR SELECT
 TO authenticated
-USING (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu');
 
 DROP POLICY IF EXISTS "Santri: TU kelola data santri" ON public.santri;
 CREATE POLICY "Santri: TU kelola data santri"
 ON public.santri FOR ALL
 TO authenticated
-USING (public.get_my_role() = 'tu')
-WITH CHECK (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu')
+WITH CHECK (public.get_my_role()::text = 'tu');
 
 -- ----------------------------------------------------------------------------
 -- 3. KEBIJAKAN RLS TATA USAHA (TU) PADA TABEL WALI SANTRI
@@ -57,14 +51,14 @@ DROP POLICY IF EXISTS "Wali Santri: TU baca relasi wali" ON public.wali_santri;
 CREATE POLICY "Wali Santri: TU baca relasi wali"
 ON public.wali_santri FOR SELECT
 TO authenticated
-USING (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu');
 
 DROP POLICY IF EXISTS "Wali Santri: TU kelola relasi wali" ON public.wali_santri;
 CREATE POLICY "Wali Santri: TU kelola relasi wali"
 ON public.wali_santri FOR ALL
 TO authenticated
-USING (public.get_my_role() = 'tu')
-WITH CHECK (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu')
+WITH CHECK (public.get_my_role()::text = 'tu');
 
 -- ----------------------------------------------------------------------------
 -- 4. KEBIJAKAN RLS TATA USAHA (TU) PADA TABEL MASTER KELAS
@@ -74,14 +68,14 @@ DROP POLICY IF EXISTS "Master Kelas: TU baca ruang kelas" ON public.kelas;
 CREATE POLICY "Master Kelas: TU baca ruang kelas"
 ON public.kelas FOR SELECT
 TO authenticated
-USING (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu');
 
 DROP POLICY IF EXISTS "Master Kelas: TU kelola ruang kelas" ON public.kelas;
 CREATE POLICY "Master Kelas: TU kelola ruang kelas"
 ON public.kelas FOR ALL
 TO authenticated
-USING (public.get_my_role() = 'tu')
-WITH CHECK (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu')
+WITH CHECK (public.get_my_role()::text = 'tu');
 
 -- ----------------------------------------------------------------------------
 -- 5. KEBIJAKAN RLS TATA USAHA (TU) PADA TABEL MASTER KAMAR ASRAMA
@@ -91,14 +85,14 @@ DROP POLICY IF EXISTS "Master Kamar: TU baca kamar asrama" ON public.kamar;
 CREATE POLICY "Master Kamar: TU baca kamar asrama"
 ON public.kamar FOR SELECT
 TO authenticated
-USING (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu');
 
 DROP POLICY IF EXISTS "Master Kamar: TU kelola kamar asrama" ON public.kamar;
 CREATE POLICY "Master Kamar: TU kelola kamar asrama"
 ON public.kamar FOR ALL
 TO authenticated
-USING (public.get_my_role() = 'tu')
-WITH CHECK (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu')
+WITH CHECK (public.get_my_role()::text = 'tu');
 
 -- ----------------------------------------------------------------------------
 -- 6. KEBIJAKAN RLS TATA USAHA (TU) PADA RIWAYAT PENEMPATAN SANTRI
@@ -108,13 +102,13 @@ DROP POLICY IF EXISTS "Riwayat Penempatan: TU baca histori mutasi" ON public.riw
 CREATE POLICY "Riwayat Penempatan: TU baca histori mutasi"
 ON public.riwayat_penempatan_santri FOR SELECT
 TO authenticated
-USING (public.get_my_role() = 'tu');
+USING (public.get_my_role()::text = 'tu');
 
 DROP POLICY IF EXISTS "Riwayat Penempatan: TU catat mutasi kelas dan kamar" ON public.riwayat_penempatan_santri;
 CREATE POLICY "Riwayat Penempatan: TU catat mutasi kelas dan kamar"
 ON public.riwayat_penempatan_santri FOR INSERT
 TO authenticated
-WITH CHECK (public.get_my_role() = 'tu');
+WITH CHECK (public.get_my_role()::text = 'tu');
 
 -- ----------------------------------------------------------------------------
 -- 7. KEBIJAKAN RLS TATA USAHA (TU) PADA TABEL PROFILES (HAK MINIMAL)
@@ -126,10 +120,10 @@ CREATE POLICY "Profiles: TU baca profil wali santri untuk administrasi"
 ON public.profiles FOR SELECT
 TO authenticated
 USING (
-    public.get_my_role() = 'tu' 
-    AND (id = auth.uid() OR role = 'wali')
+    public.get_my_role()::text = 'tu' 
+    AND (id = auth.uid() OR role::text = 'wali')
 );
 
 -- ============================================================================
--- AKHIR MIGRATION 013 (REVISI FINAL)
+-- AKHIR MIGRATION 013 (REVISI FINAL - TRANSACTION-SAFE)
 -- ============================================================================
