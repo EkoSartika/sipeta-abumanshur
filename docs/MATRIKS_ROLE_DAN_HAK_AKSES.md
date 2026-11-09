@@ -101,3 +101,4 @@ SIPETA menerapkan prinsip *Least Privilege* dan pemisahan kewenangan (*Separatio
 - **Batasan**:
   - Wali Santri **hanya dapat melihat data santri asuhannya sendiri**. Kebijakan RLS database memblokir akses ke santri lain maupun wali lain.
   - Wali Santri **tidak dapat mengedit** data capaian akademik, tagihan, atau status verifikasi.
+

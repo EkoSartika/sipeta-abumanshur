@@ -281,3 +281,4 @@ Menyimpan profil seluruh pengguna yang terhubung dengan `auth.users(id)`.
 #### 27. `public.template_import_santri` (Metadata Template Excel)
 - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
 - `versi TEXT NOT NULL`, `kolom_wajib TEXT[] NOT NULL`
+

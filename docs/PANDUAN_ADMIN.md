@@ -126,3 +126,4 @@ Berdasarkan *Migrasi 012*, Admin Administrasi berwenang mengelola rekening bank 
 4. Pastikan status **Publikasikan Sekarang** aktif.
 5. Klik **Simpan & Publikasikan**.
 6. Pengumuman langsung tampil di gerbang publik dan portal wali santri.
+

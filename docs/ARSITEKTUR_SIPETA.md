@@ -130,3 +130,4 @@ graph TD
    - Password pengguna tidak pernah disimpan dalam audit log.
 4. **Proteksi Rekening Resmi Tunggal**:
    - Indeks parsial unik `idx_single_active_rekening_pesantren` menjamin hanya satu rekening bank resmi (BSI) yang aktif di pesantren pada satu waktu.
+

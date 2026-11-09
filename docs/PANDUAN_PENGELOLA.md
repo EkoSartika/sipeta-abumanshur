@@ -88,3 +88,4 @@ Sebagai **Pengelola Kepesantrenan / Musyrif Asrama / Asatidz Tahfidz**, Anda ber
 4. Pilih **Tingkat Prestasi**: *Internal Pesantren*, *Kecamatan*, *Kabupaten/Kota*, *Provinsi*, atau *Nasional*.
 5. Masukkan nama lembaga penyelenggara dan tanggal perolehan.
 6. Klik **Simpan Prestasi**. Catatan ini akan menjadi portofolio kebanggaan santri dan orang tua.
+

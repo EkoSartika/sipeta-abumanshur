@@ -109,3 +109,4 @@ Untuk mencegah uang saku hilang di asrama dan mengajarkan santri berhemat, selur
 Jika Bapak/Ibu mengalami kendala teknis (lupa kata sandi, salah kirim bukti transfer, atau NIS tidak ditemukan):
 - Silakan hubungi Sekretariat Administrasi Pondok Pesantren Modern Abu Manshur via WhatsApp resmi pesantren di nomor yang tertera pada bagian bawah aplikasi.
 - Admin Administrasi dapat membantu mereset kata sandi akun Bapak/Ibu kembali ke NIS.
+

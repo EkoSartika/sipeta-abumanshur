@@ -168,3 +168,4 @@ SIPETA mematuhi standar keamanan zero-secret pada kode sumber:
    - Seluruh kata sandi dienkripsi menggunakan algoritma bcrypt standar Supabase Auth.
    - Tidak ada kolom password plaintext di tabel database mana pun.
    - Seluruh audit log mensterilkan kata sandi sebelum dicatat ke database.
+

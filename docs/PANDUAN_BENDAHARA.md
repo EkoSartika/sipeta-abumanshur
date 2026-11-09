@@ -95,3 +95,4 @@ Saat santri mengambil uang saku di kantor bendahara:
    - Rekapitulasi Mutasi Uang Saku Santri.
    - Daftar Santri dengan Tunggakan Tagihan.
 4. Klik **Ekspor ke Excel** untuk mengunduh rekapitulasi pembukuan dalam format spreadsheet resmi.
+

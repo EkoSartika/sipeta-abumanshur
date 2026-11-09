@@ -221,3 +221,4 @@ ON CONFLICT (id) DO UPDATE SET
 3. Buat akun staf Admin Administrasi, Bendahara, dan Pengelola melalui menu *Manajemen Akun*.
 4. Admin Administrasi login menggunakan username untuk mengimpor santri via Excel atau memasukkan data kelas dan kamar.
 5. Wali santri dapat langsung login menggunakan NIS putra/putri mereka.
+

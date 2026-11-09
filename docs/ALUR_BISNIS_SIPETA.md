@@ -203,3 +203,4 @@ Dokumen ini menguraikan 16 alur kerja bisnis (*Business Process Workflows*) end-
    - Mencakup: `user_id`, `user_role`, `aktivitas`, `jenis_objek`, `objek_id`, snapshot `data_sesudah`, dan `alasan_perubahan`.
    - **Keamanan Ketat**: Password pengguna **tidak pernah dicatat**.
    - **Trigger Immutability**: Menolak mutasi `UPDATE` atau `DELETE` pada tabel audit logs untuk menjamin transparansi data audit pimpinan.
+

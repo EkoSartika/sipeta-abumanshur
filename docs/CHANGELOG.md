@@ -48,3 +48,4 @@
 - Penegakan larangan pencatatan kata sandi pada audit log.
 - Penegakan isolasi hak akses data antar-wali santri (relasi 1:1 tanpa kebocoran data santri lain).
 - Penutupan total hak akses anonim terhadap seluruh tabel keuangan pesantren.
+
