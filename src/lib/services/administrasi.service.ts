@@ -389,6 +389,25 @@ export class AdministrasiService {
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: "Pengumuman berhasil dipublikasikan." };
   }
+
+  async importSantriBatch(rows: any[]): Promise<{
+    ok: boolean;
+    message: string;
+    report?: any;
+  }> {
+    try {
+      const response = await fetch("/api/admin-santri/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const data = await response.json();
+      return data;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal memproses import santri.";
+      return { ok: false, message: msg };
+    }
+  }
 }
 
 export const administrasiService = new AdministrasiService();

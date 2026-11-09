@@ -15,6 +15,8 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import type {
   AuditLogItem,
   CatatanKedisiplinan,
+  ImportBatchReport,
+  ImportSantriRow,
   JenisPembayaran,
   Kamar,
   KebijakanCicilan,
@@ -142,6 +144,7 @@ interface SipetaContextValue {
   switchActiveUser: (userId: string) => void;
   getSaldoSantri: (santriId: string) => SaldoUangSaku;
   resetDemoData: () => void;
+  changePassword: (newPassword: string) => Promise<ActionResponse>;
 
   // Superadmin Actions
   createUserAccount: (payload: {
@@ -181,6 +184,11 @@ interface SipetaContextValue {
     email_kontak_wali?: string;
     email_wali?: string;
   }) => Promise<ActionResponse> | ActionResponse;
+  importSantriBatch: (rows: ImportSantriRow[]) => Promise<{
+    ok: boolean;
+    message: string;
+    report?: ImportBatchReport;
+  }>;
   deleteSantriBatch: (santriIds: string[]) => Promise<ActionResponse>;
   moveSantriPlacement: (payload: {
     santri_id: string;
@@ -1038,6 +1046,53 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, message: "Rekening resmi pesantren berhasil diperbarui." };
   };
 
+  const changePassword: SipetaContextValue["changePassword"] = async (newPassword) => {
+    if (!currentUser) {
+      return { ok: false, message: "Sesi tidak valid. Silakan login kembali." };
+    }
+
+    if (currentUser.username && newPassword.trim() === currentUser.username.trim()) {
+      return {
+        ok: false,
+        message: "Kata sandi baru tidak boleh sama dengan NIS Anda. Gunakan kata sandi pribadi yang unik.",
+      };
+    }
+
+    const pwdCheck = validatePasswordStrength(newPassword);
+    if (!pwdCheck.valid) {
+      return {
+        ok: false,
+        message: pwdCheck.message || "Kata sandi baru tidak memenuhi syarat keamanan (minimal 8 karakter alfanumerik).",
+      };
+    }
+
+    if (authMode === "supabase") {
+      const res = await authService.changePassword(newPassword);
+      if (res.ok) {
+        setCurrentUser((prev) => (prev ? { ...prev, must_change_password: false } : null));
+        setUsers((prev) =>
+          prev.map((u) => (u.id === currentUser.id ? { ...u, must_change_password: false } : u))
+        );
+      }
+      return res;
+    }
+
+    // Demo Mode
+    setCurrentUser((prev) => (prev ? { ...prev, must_change_password: false } : null));
+    setUsers((prev) =>
+      prev.map((u) => (u.id === currentUser.id ? { ...u, must_change_password: false } : u))
+    );
+    appendAuditLog(
+      "GANTI_PASSWORD_PERTAMA_KALI",
+      "profiles",
+      currentUser.id,
+      { must_change_password: false },
+      "Wali santri berhasil mengganti kata sandi awal berbasis NIS"
+    );
+
+    return { ok: true, message: "Kata sandi Anda berhasil diperbarui. Selamat datang di portal SIPETA!" };
+  };
+
   // ============================================================================
   // ADMIN ACTIONS
   // ============================================================================
@@ -1046,11 +1101,15 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
       return { ok: false, message: "Hanya Admin atau Superadmin yang dapat mendaftarkan santri." };
     }
-    if (santriList.some((s) => s.nis === payload.nis.trim())) {
-      return { ok: false, message: `NIS ${payload.nis} sudah terdaftar. NIS harus unik.` };
+    const cleanNis = payload.nis.trim();
+    if (santriList.some((s) => s.nis === cleanNis)) {
+      return { ok: false, message: `NIS ${cleanNis} sudah terdaftar. NIS harus unik.` };
     }
 
-    const rawUsernameWali = payload.username_wali ? normalizeUsername(payload.username_wali) : `wali_${payload.nis.trim().toLowerCase()}`;
+    // Kebijakan Login Wali: Username = NIS, Password Awal = NIS
+    const rawUsernameWali = payload.username_wali ? normalizeUsername(payload.username_wali) : cleanNis;
+    const initialPassword = payload.password_wali || cleanNis;
+
     if (!isValidUsername(rawUsernameWali)) {
       return {
         ok: false,
@@ -1072,7 +1131,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            nis: payload.nis,
+            nis: cleanNis,
             nama_lengkap: payload.nama_lengkap,
             tempat_lahir: payload.tempat_lahir,
             tanggal_lahir: payload.tanggal_lahir,
@@ -1086,7 +1145,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
               hubungan: payload.hubungan_wali,
               no_telepon: payload.telepon_wali,
               username_wali: rawUsernameWali,
-              password_wali: payload.password_wali || "AbuManshur@123",
+              password_wali: initialPassword,
               email_kontak: emailKontak !== "-" ? emailKontak : undefined,
             },
           }),
@@ -1109,7 +1168,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
 
     const newSantri: Santri = {
       id: newSantriId,
-      nis: payload.nis.trim(),
+      nis: cleanNis,
       nama_lengkap: payload.nama_lengkap.trim(),
       tempat_lahir: payload.tempat_lahir.trim(),
       tanggal_lahir: payload.tanggal_lahir,
@@ -1132,6 +1191,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       role: "wali",
       is_active: true,
       santri_id: newSantriId,
+      must_change_password: true,
       created_at: new Date().toISOString(),
     };
 
@@ -1146,34 +1206,183 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       alamat: payload.alamat.trim(),
     };
 
-    const penempatanAwal: RiwayatPenempatanSantri = {
-      id: `rwp-${Date.now()}`,
-      santri_id: newSantriId,
-      kelas_lama_id: null,
-      kelas_baru_id: payload.kelas_id,
-      kamar_lama_id: null,
-      kamar_baru_id: payload.kamar_id,
-      tanggal_efektif: new Date().toISOString().slice(0, 10),
-      keterangan: "Penempatan awal pendaftaran santri baru",
-      petugas_nama: currentUser.nama_lengkap,
-      created_at: new Date().toISOString(),
-    };
-
-    setSantriList((prev) => [newSantri, ...prev]);
+    setSantriList((prev) => [...prev, newSantri]);
+    setWaliList((prev) => [...prev, newWaliRecord]);
     setUsers((prev) => [...prev, newWaliUser]);
-    setWaliList((prev) => [newWaliRecord, ...prev]);
-    setRiwayatPenempatan((prev) => [penempatanAwal, ...prev]);
 
-    appendAuditLog("REGISTRASI_SANTRI_DAN_WALI", "santri", newSantriId, {
-      nis: newSantri.nis,
-      nama_santri: newSantri.nama_lengkap,
-      wali_username: rawUsernameWali,
-      wali_email_sintetis: syntheticWaliEmail,
-    });
+    appendAuditLog(
+      "REGISTRASI_SANTRI_DAN_WALI",
+      "santri",
+      newSantriId,
+      { santri: newSantri, wali: newWaliRecord },
+      `Registrasi santri baru ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) & akun wali @${rawUsernameWali}`
+    );
 
     return {
       ok: true,
-      message: `Data santri ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) beserta akun Orang Tua/Wali (@${rawUsernameWali}) berhasil dibuat.`,
+      message: `Santri ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) dan akun wali @${rawUsernameWali} berhasil didaftarkan.`,
+    };
+  };
+
+  const importSantriBatch: SipetaContextValue["importSantriBatch"] = async (rows) => {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang melakukan import data santri." };
+    }
+
+    if (authMode === "supabase") {
+      const res = await administrasiService.importSantriBatch(rows);
+      if (res.ok) {
+        await refreshFromSupabase();
+      }
+      return res;
+    }
+
+    // Demo Mode Batch Processing
+    const results: any[] = [];
+    let successCount = 0;
+    let failedCount = 0;
+    let waliCreatedCount = 0;
+
+    const newSantriToAdd: Santri[] = [];
+    const newWaliToAdd: WaliSantri[] = [];
+    const newUsersToAdd: UserProfile[] = [];
+
+    for (const r of rows) {
+      const cleanNis = r.nis.trim();
+      const cleanNama = r.nama_lengkap.trim();
+
+      const matchedKelas = kelasList.find(
+        (k) =>
+          k.kode_kelas.toUpperCase() === r.kode_kelas.toUpperCase().trim() ||
+          k.nama_kelas.toLowerCase().includes(r.kelas.toLowerCase().trim())
+      );
+
+      const matchedKamar = kamarList.find(
+        (km) =>
+          km.nama_kamar.toLowerCase().includes(r.kamar.toLowerCase().trim()) ||
+          km.kode_kamar.toLowerCase() === r.kamar.toLowerCase().trim()
+      );
+
+      if (!matchedKelas) {
+        results.push({
+          row_number: r.row_number,
+          nis: cleanNis,
+          nama_lengkap: cleanNama,
+          status: "FAILED",
+          reason: `Kelas '${r.kode_kelas || r.kelas}' tidak ditemukan di database.`,
+        });
+        failedCount++;
+        continue;
+      }
+
+      if (!matchedKamar) {
+        results.push({
+          row_number: r.row_number,
+          nis: cleanNis,
+          nama_lengkap: cleanNama,
+          status: "FAILED",
+          reason: `Kamar '${r.kamar}' tidak ditemukan di database.`,
+        });
+        failedCount++;
+        continue;
+      }
+
+      if (
+        santriList.some((s) => s.nis === cleanNis) ||
+        newSantriToAdd.some((s) => s.nis === cleanNis)
+      ) {
+        results.push({
+          row_number: r.row_number,
+          nis: cleanNis,
+          nama_lengkap: cleanNama,
+          status: "FAILED",
+          reason: `NIS '${cleanNis}' sudah terdaftar dalam sistem.`,
+        });
+        failedCount++;
+        continue;
+      }
+
+      const sntId = `snt-${cleanNis}`;
+      const waliUserId = `usr-wali-${cleanNis}`;
+
+      newSantriToAdd.push({
+        id: sntId,
+        nis: cleanNis,
+        nama_lengkap: cleanNama,
+        tempat_lahir: r.tempat_lahir,
+        tanggal_lahir: r.tanggal_lahir,
+        jenis_kelamin: r.jenis_kelamin,
+        alamat: r.alamat,
+        tahun_masuk: 2026,
+        tahun_ajaran_id: "ta-2026-2027",
+        kelas_id: matchedKelas.id,
+        kamar_id: matchedKamar.id,
+        status: "AKTIF",
+        created_at: new Date().toISOString(),
+      });
+
+      newWaliToAdd.push({
+        id: `wali-${cleanNis}`,
+        user_id: waliUserId,
+        santri_id: sntId,
+        nama_lengkap: r.nama_wali,
+        hubungan: r.hubungan_wali,
+        no_telepon: r.no_telepon_wali,
+        email: r.email_kontak || usernameToInternalEmail(cleanNis),
+        alamat: r.alamat,
+      });
+
+      newUsersToAdd.push({
+        id: waliUserId,
+        nama_lengkap: `${r.nama_wali} (Wali ${cleanNama})`,
+        username: cleanNis,
+        email: usernameToInternalEmail(cleanNis),
+        no_telepon: r.no_telepon_wali,
+        role: "wali",
+        is_active: true,
+        santri_id: sntId,
+        must_change_password: true,
+        created_at: new Date().toISOString(),
+      });
+
+      results.push({
+        row_number: r.row_number,
+        nis: cleanNis,
+        nama_lengkap: cleanNama,
+        status: "SUCCESS",
+        santri_id: sntId,
+        wali_username: cleanNis,
+      });
+
+      successCount++;
+      waliCreatedCount++;
+    }
+
+    setSantriList((prev) => [...prev, ...newSantriToAdd]);
+    setWaliList((prev) => [...prev, ...newWaliToAdd]);
+    setUsers((prev) => [...prev, ...newUsersToAdd]);
+
+    appendAuditLog(
+      "IMPORT_SANTRI_EXCEL",
+      "santri",
+      `batch-${Date.now()}`,
+      { total: rows.length, success: successCount, failed: failedCount },
+      `Import massal santri & akun wali via Excel (Mode Demo). Berhasil: ${successCount}, Gagal: ${failedCount}`
+    );
+
+    const report: ImportBatchReport = {
+      total_processed: rows.length,
+      success_count: successCount,
+      failed_count: failedCount,
+      wali_account_created_count: waliCreatedCount,
+      results,
+      imported_at: new Date().toISOString(),
+    };
+
+    return {
+      ok: true,
+      message: `Proses import selesai: ${successCount} data santri berhasil dibuat, ${failedCount} gagal.`,
+      report,
     };
   };
 
@@ -2522,6 +2731,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         switchActiveUser,
         getSaldoSantri,
         resetDemoData,
+        changePassword,
         createUserAccount,
         toggleUserActive,
         resetUserPassword,
@@ -2529,6 +2739,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         deleteUserAccount,
         updateRekeningResmi,
         createSantriWithWali,
+        importSantriBatch,
         deleteSantriBatch,
         moveSantriPlacement,
         updateStatusSantri,

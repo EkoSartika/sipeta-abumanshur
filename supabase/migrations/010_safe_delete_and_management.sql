@@ -142,3 +142,4 @@ EXECUTE FUNCTION public.fn_prevent_hard_delete_santri_with_history();
 -- ALTER TABLE public.kelas DROP COLUMN IF EXISTS deleted_by, DROP COLUMN IF EXISTS deleted_at;
 -- ALTER TABLE public.santri DROP COLUMN IF EXISTS deleted_by, DROP COLUMN IF EXISTS deleted_at;
 -- ============================================================================
+

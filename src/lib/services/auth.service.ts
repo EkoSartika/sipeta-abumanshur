@@ -70,6 +70,7 @@ export class AuthService {
         role: profile.role as UserRole,
         is_active: profile.is_active,
         santri_id: santriId,
+        must_change_password: profile.must_change_password === true,
         created_at: profile.created_at,
       };
     } catch {
@@ -148,6 +149,7 @@ export class AuthService {
         role: profile.role as UserRole,
         is_active: profile.is_active,
         santri_id: santriId,
+        must_change_password: profile.must_change_password === true,
         created_at: profile.created_at,
       };
 
@@ -295,6 +297,28 @@ export class AuthService {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, message: `Gagal memperbarui profil: ${msg}` };
+    }
+  }
+
+  /**
+   * Mengganti password pengguna (khususnya untuk kewajiban must_change_password)
+   */
+  async changePassword(newPassword: string): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_password: newPassword }),
+      });
+
+      const data = await res.json();
+      return {
+        ok: res.ok && data.ok,
+        message: data.message ?? (res.ok ? "Kata sandi berhasil diperbarui." : "Gagal mengganti kata sandi."),
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal ganti kata sandi: ${msg}` };
     }
   }
 

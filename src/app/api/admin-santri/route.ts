@@ -32,8 +32,8 @@ const registerSantriSchema = z.object({
     nama_lengkap: z.string().min(3, "Nama wali minimal 3 karakter."),
     hubungan: z.enum(["Ayah", "Ibu", "Wali"]),
     no_telepon: z.string().min(8, "Nomor telepon wali minimal 8 digit."),
-    username_wali: z.string().min(3, "Username wali minimal 3 karakter.").max(30),
-    password_wali: z.string().min(8, "Password wali minimal 8 karakter."),
+    username_wali: z.string().optional(),
+    password_wali: z.string().optional(),
     email_kontak: z.string().email("Format email kontak tidak valid.").optional().or(z.literal("")),
   }),
 });
@@ -56,22 +56,17 @@ export async function POST(request: NextRequest) {
 
     const payload = validation.data;
 
-    // 1. Validasi username wali & password wali
-    const cleanUsername = normalizeUsername(payload.wali.username_wali);
+    // 1. Kebijakan Akun Wali Otomatis: Username = NIS, Password Awal = NIS
+    const cleanNis = payload.nis.trim();
+    const cleanUsername = normalizeUsername(payload.wali.username_wali || cleanNis);
+    const initialPassword = payload.wali.password_wali || cleanNis;
+
     if (!isValidUsername(cleanUsername)) {
       return NextResponse.json(
         {
           ok: false,
           message: "Username wali hanya boleh berisi huruf kecil, angka, titik, strip (-), atau garis bawah (_), 3-30 karakter.",
         },
-        { status: 400 }
-      );
-    }
-
-    const pwdCheck = validatePasswordStrength(payload.wali.password_wali);
-    if (!pwdCheck.valid) {
-      return NextResponse.json(
-        { ok: false, message: pwdCheck.message },
         { status: 400 }
       );
     }
@@ -190,16 +185,17 @@ export async function POST(request: NextRequest) {
 
       createdSantriId = santriResult.id;
 
-      // Tahap B: Buat Akun Auth Supabase untuk Wali
+      // Tahap B: Buat Akun Auth Supabase untuk Wali (Username = NIS, Password Awal = NIS)
       const { data: authCreated, error: authErr } = await adminClient.auth.admin.createUser({
         email: syntheticEmail,
-        password: payload.wali.password_wali,
+        password: initialPassword,
         email_confirm: true,
         user_metadata: {
           nama_lengkap: payload.wali.nama_lengkap,
           username: cleanUsername,
           role: "wali",
           santri_id: createdSantriId,
+          must_change_password: true,
         },
       });
 
@@ -209,7 +205,7 @@ export async function POST(request: NextRequest) {
 
       createdAuthUserId = authCreated.user.id;
 
-      // Tahap C: Buat profil wali di public.profiles
+      // Tahap C: Buat profil wali di public.profiles dengan must_change_password = true
       const { error: profileErr } = await adminClient.from("profiles").insert({
         id: createdAuthUserId,
         nama_lengkap: `${payload.wali.nama_lengkap.trim()} (Wali ${payload.nama_lengkap.trim()})`,
@@ -218,6 +214,8 @@ export async function POST(request: NextRequest) {
         no_telepon: payload.wali.no_telepon.trim(),
         role: "wali",
         is_active: true,
+        santri_id: createdSantriId,
+        must_change_password: true,
       });
 
       if (profileErr) {
@@ -513,3 +511,4 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+

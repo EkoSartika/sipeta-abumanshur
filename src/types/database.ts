@@ -68,6 +68,7 @@ export interface UserProfile {
   role: UserRole;
   is_active: boolean;
   santri_id?: string; // Khusus role 'wali' (Relasi 1:1)
+  must_change_password?: boolean; // Khusus kewajiban ganti password login pertama kali
   created_at: string;
 }
 
@@ -410,4 +411,66 @@ export interface AuditLogItem {
   alasan_perubahan?: string;
   waktu: string;
 }
+
+// ============================================================================
+// INTERFACES UNTUK FITUR IMPORT EXCEL SANTRI & AKUN WALI
+// ============================================================================
+
+export interface ImportSantriRow {
+  row_number: number;
+  nis: string;
+  nama_lengkap: string;
+  jenis_kelamin: "L" | "P";
+  tempat_lahir: string;
+  tanggal_lahir: string; // YYYY-MM-DD
+  kelas: string;
+  kode_kelas: string;
+  kamar: string;
+  nama_wali: string;
+  hubungan_wali: "Ayah" | "Ibu" | "Wali";
+  no_telepon_wali: string;
+  email_kontak?: string;
+  alamat: string;
+}
+
+export interface ImportRowError {
+  row_number: number;
+  nis?: string;
+  nama_lengkap?: string;
+  column?: string;
+  reason: string;
+}
+
+export interface ImportValidationSummary {
+  total_rows: number;
+  valid_count: number;
+  error_count: number;
+  duplicate_nis_in_file: string[];
+  already_registered_nis: string[];
+  kelas_not_found: string[];
+  kamar_not_found: string[];
+  empty_required_fields: number;
+  errors: ImportRowError[];
+  valid_rows: ImportSantriRow[];
+}
+
+export interface ImportRowResult {
+  row_number: number;
+  nis: string;
+  nama_lengkap: string;
+  status: "SUCCESS" | "FAILED";
+  reason?: string;
+  santri_id?: string;
+  wali_username?: string;
+}
+
+export interface ImportBatchReport {
+  total_processed: number;
+  success_count: number;
+  failed_count: number;
+  wali_account_created_count: number;
+  results: ImportRowResult[];
+  imported_at: string;
+}
+
 

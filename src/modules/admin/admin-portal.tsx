@@ -2,22 +2,27 @@
 
 import React, { useState, useMemo } from "react";
 import {
+  AlertCircle,
   AlertTriangle,
   ArrowRightLeft,
   Building2,
+  CheckCircle2,
   CheckSquare,
   CreditCard,
   Download,
   Edit2,
   FileSpreadsheet,
+  FileUp,
   Info,
   Megaphone,
   Plus,
   Receipt,
   RefreshCw,
+  RotateCcw,
   Search,
   Square,
   Trash2,
+  UploadCloud,
   Users,
   X,
 } from "lucide-react";
@@ -32,14 +37,30 @@ import {
 } from "@/lib/utils/format";
 import { exportSantriToExcel } from "@/lib/utils/excel-export";
 import {
+  downloadSantriImportTemplate,
+  parseSantriExcel,
+  validateSantriImportRows,
+  downloadImportReportExcel,
+} from "@/lib/utils/excel-import";
+import {
   isValidUsername,
   normalizeUsername,
   validatePasswordStrength,
 } from "@/lib/utils/auth-mapping";
-import type { Kamar, KebijakanCicilan, Kelas, StatusSantri, Tagihan } from "@/types/database";
+import type {
+  ImportBatchReport,
+  ImportSantriRow,
+  ImportValidationSummary,
+  Kamar,
+  KebijakanCicilan,
+  Kelas,
+  StatusSantri,
+  Tagihan,
+} from "@/types/database";
 
 type AdminTab =
   | "santri_wali"
+  | "import_santri"
   | "kelas_kamar"
   | "jenis_dan_tagihan"
   | "pengumuman";
@@ -47,6 +68,7 @@ type AdminTab =
 export function AdminPortal() {
   const {
     currentUser,
+    users,
     santriList,
     waliList,
     kelasList,
@@ -57,6 +79,7 @@ export function AdminPortal() {
     riwayatPenyesuaianTagihan,
     pengumumanList,
     createSantriWithWali,
+    importSantriBatch,
     deleteSantriBatch,
     moveSantriPlacement,
     updateStatusSantri,
@@ -74,6 +97,16 @@ export function AdminPortal() {
 
   const [activeTab, setActiveTab] = useState<AdminTab>("santri_wali");
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // State Import Data Santri Excel (6 Langkah)
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importRawRows, setImportRawRows] = useState<Record<string, string>[]>([]);
+  const [importValidation, setImportValidation] = useState<ImportValidationSummary | null>(null);
+  const [importStep, setImportStep] = useState<"UPLOAD" | "PREVIEW" | "PROCESSING" | "RESULT">("UPLOAD");
+  const [importParsing, setImportParsing] = useState(false);
+  const [importExecuting, setImportExecuting] = useState(false);
+  const [importReport, setImportReport] = useState<ImportBatchReport | null>(null);
+  const [importFilterErrorOnly, setImportFilterErrorOnly] = useState(false);
 
   // Filter & Search Santri
   const [santriSearch, setSantriSearch] = useState("");
@@ -251,7 +284,11 @@ export function AdminPortal() {
     e.preventDefault();
     setFeedback(null);
 
-    const cleanUser = normalizeUsername(usernameWali);
+    const cleanNis = nis.trim();
+    // Kebijakan: Username Wali = NIS, Password Awal = NIS
+    const cleanUser = normalizeUsername(usernameWali || cleanNis);
+    const initialPwd = passwordWali || cleanNis;
+
     if (!isValidUsername(cleanUser)) {
       setFeedback({
         ok: false,
@@ -260,16 +297,10 @@ export function AdminPortal() {
       return;
     }
 
-    const pwdCheck = validatePasswordStrength(passwordWali);
-    if (!pwdCheck.valid) {
-      setFeedback({ ok: false, text: pwdCheck.message || "Password tidak memenuhi syarat keamanan." });
-      return;
-    }
-
     setRegisterSubmitting(true);
     try {
       const res = await createSantriWithWali({
-        nis,
+        nis: cleanNis,
         nama_lengkap: namaSantri,
         tempat_lahir: tempatLahir,
         tanggal_lahir: tanggalLahir,
@@ -282,7 +313,7 @@ export function AdminPortal() {
         hubungan_wali: hubunganWali,
         telepon_wali: teleponWali,
         username_wali: cleanUser,
-        password_wali: passwordWali,
+        password_wali: initialPwd,
         email_kontak_wali: emailKontakWali,
       });
 
@@ -298,6 +329,88 @@ export function AdminPortal() {
     } finally {
       setRegisterSubmitting(false);
     }
+  };
+
+  // Handlers Import Data Santri Excel (6 Langkah)
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls")) {
+      setFeedback({ ok: false, text: "Format file harus berekstensi .xlsx atau .xls." });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setFeedback({ ok: false, text: "Ukuran file terlalu besar (maksimal 10MB)." });
+      return;
+    }
+
+    setImportFile(file);
+    setImportParsing(true);
+    setFeedback(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const raw = parseSantriExcel(buffer);
+      setImportRawRows(raw);
+
+      const existingNisSet = new Set(santriList.map((s) => s.nis.trim()));
+      const existingUsernameSet = new Set(
+        users.filter((u) => u.username).map((u) => u.username!.toLowerCase().trim())
+      );
+
+      const summary = validateSantriImportRows(
+        raw,
+        kelasList,
+        kamarList,
+        existingNisSet,
+        existingUsernameSet
+      );
+      setImportValidation(summary);
+      setImportStep("PREVIEW");
+      setFeedback({
+        ok: summary.valid_count > 0,
+        text: `File berhasil dibaca: ${summary.valid_count} baris valid, ${summary.error_count} baris bermasalah.`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal membaca file Excel.";
+      setFeedback({ ok: false, text: msg });
+    } finally {
+      setImportParsing(false);
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (!importValidation || importValidation.valid_rows.length === 0) return;
+    setImportExecuting(true);
+    setImportStep("PROCESSING");
+    try {
+      const res = await importSantriBatch(importValidation.valid_rows);
+      if (res.report) {
+        setImportReport(res.report);
+        setImportStep("RESULT");
+        setFeedback({ ok: res.ok, text: res.message });
+      } else {
+        setFeedback({ ok: res.ok, text: res.message });
+        setImportStep("PREVIEW");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat memproses import.";
+      setFeedback({ ok: false, text: msg });
+      setImportStep("PREVIEW");
+    } finally {
+      setImportExecuting(false);
+    }
+  };
+
+  const handleResetImport = () => {
+    setImportFile(null);
+    setImportRawRows([]);
+    setImportValidation(null);
+    setImportReport(null);
+    setImportStep("UPLOAD");
+    setImportFilterErrorOnly(false);
   };
 
   const getSantriCountInKelas = (kelasId: string) =>
@@ -492,6 +605,7 @@ export function AdminPortal() {
         <div className="mt-4 flex flex-wrap gap-2 border-t border-white/15 pt-4">
           {[
             { id: "santri_wali", label: "Data Santri & Akun Wali (1:1)", icon: Users },
+            { id: "import_santri", label: "Import Data Santri (Excel)", icon: FileSpreadsheet },
             { id: "kelas_kamar", label: "Kelas, Kamar & Riwayat Penempatan", icon: Building2 },
             {
               id: "jenis_dan_tagihan",
@@ -565,8 +679,19 @@ export function AdminPortal() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => {
+                      setActiveTab("import_santri");
+                      setFeedback(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-sm transition"
+                  >
+                    <FileUp className="h-4 w-4" />
+                    <span>Import Excel Santri</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleExportAll}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 shadow-sm"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 shadow-sm transition"
                   >
                     <FileSpreadsheet className="h-4 w-4" />
                     <span>Ekspor Data Santri (.xlsx)</span>
@@ -1063,31 +1188,39 @@ export function AdminPortal() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-emerald-200/70">
                   <div>
-                    <label className="font-semibold text-emerald-950">Username Login Wali</label>
+                    <div className="flex items-center justify-between">
+                      <label className="font-semibold text-emerald-950">Username Login Wali</label>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                        Default = NIS
+                      </span>
+                    </div>
                     <input
                       type="text"
-                      required
-                      value={usernameWali}
+                      value={usernameWali || nis}
                       onChange={(e) => setUsernameWali(e.target.value.toLowerCase().trim())}
-                      placeholder="Contoh: wali2026001"
+                      placeholder={nis || "Sesuai NIS Santri"}
                       className="mt-1 w-full rounded-lg border border-emerald-400 bg-white px-2.5 py-1.5 font-mono focus:border-emerald-600 focus:outline-none"
                     />
                     <p className="mt-0.5 text-[10px] text-slate-500">
-                      3-30 karakter (a-z, 0-9, titik, strip, underscore)
+                      Otomatis sama dengan NIS Santri ({nis || "-"}).
                     </p>
                   </div>
                   <div>
-                    <label className="font-semibold text-emerald-950">Password Login Wali</label>
+                    <div className="flex items-center justify-between">
+                      <label className="font-semibold text-emerald-950">Password Awal Wali</label>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                        Default = NIS
+                      </span>
+                    </div>
                     <input
-                      type="password"
-                      required
-                      value={passwordWali}
+                      type="text"
+                      value={passwordWali || nis}
                       onChange={(e) => setPasswordWali(e.target.value)}
-                      placeholder="Minimal 6 karakter"
-                      className="mt-1 w-full rounded-lg border border-emerald-400 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                      placeholder={nis || "Sesuai NIS Santri"}
+                      className="mt-1 w-full rounded-lg border border-emerald-400 bg-white px-2.5 py-1.5 font-mono focus:border-emerald-600 focus:outline-none"
                     />
-                    <p className="mt-0.5 text-[10px] text-slate-500">
-                      Diberikan kepada wali untuk login
+                    <p className="mt-0.5 text-[10px] text-emerald-700 font-medium">
+                      Wajib diganti saat wali login pertama kali (must_change_password).
                     </p>
                   </div>
                 </div>
@@ -1104,6 +1237,505 @@ export function AdminPortal() {
               </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB KHUSUS: IMPORT DATA SANTRI & OTOMATISASI AKUN WALI (EXCEL)
+         ===================================================================== */}
+      {activeTab === "import_santri" && (
+        <div className="space-y-6">
+          {/* Header Kartu Informasi Kebijakan Akun Wali */}
+          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-900 to-emerald-950 p-5 sm:p-6 text-white shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  <span>Sistem Import Santri &amp; Otomatisasi Akun Wali</span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white">
+                  Import Data Santri Massal (.xlsx / .xls)
+                </h3>
+                <p className="text-xs sm:text-sm text-emerald-100/80 max-w-2xl">
+                  Setiap santri otomatis dibuatkan satu akun wali 1:1. Username dan password awal
+                  menggunakan NIS santri (format teks). Wali diwajibkan mengganti password pada
+                  saat pertama kali login (<strong>must_change_password</strong>).
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={downloadSantriImportTemplate}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-bold text-emerald-950 shadow-md hover:bg-emerald-50 transition"
+                >
+                  <Download className="h-4 w-4 text-emerald-700" />
+                  <span>Download Template Excel Resmi</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Step Wizard Indicator */}
+            <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-white/10 text-xs">
+              <div
+                className={`flex items-center gap-2 rounded-lg p-2 ${
+                  importStep === "UPLOAD"
+                    ? "bg-white/20 font-bold text-white"
+                    : "text-emerald-300/70"
+                }`}
+              >
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">
+                  1
+                </div>
+                <span>Upload File Excel</span>
+              </div>
+              <div
+                className={`flex items-center gap-2 rounded-lg p-2 ${
+                  importStep === "PREVIEW"
+                    ? "bg-white/20 font-bold text-white"
+                    : "text-emerald-300/70"
+                }`}
+              >
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">
+                  2
+                </div>
+                <span>Preview &amp; Validasi</span>
+              </div>
+              <div
+                className={`flex items-center gap-2 rounded-lg p-2 ${
+                  importStep === "PROCESSING"
+                    ? "bg-white/20 font-bold text-white"
+                    : "text-emerald-300/70"
+                }`}
+              >
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">
+                  3
+                </div>
+                <span>Proses Pembuatan Akun</span>
+              </div>
+              <div
+                className={`flex items-center gap-2 rounded-lg p-2 ${
+                  importStep === "RESULT"
+                    ? "bg-white/20 font-bold text-white"
+                    : "text-emerald-300/70"
+                }`}
+              >
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">
+                  4
+                </div>
+                <span>Laporan Hasil Import</span>
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 1: UPLOAD */}
+          {importStep === "UPLOAD" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+              <div className="max-w-xl mx-auto text-center space-y-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <UploadCloud className="h-8 w-8" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-slate-900">
+                    Pilih File Excel Data Santri
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Gunakan template resmi SIPETA. Mendukung file <strong>.xlsx</strong> atau{" "}
+                    <strong>.xls</strong> maksimal 10 MB.
+                  </p>
+                </div>
+
+                <div className="relative mt-4">
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={handleFileChange}
+                    disabled={importParsing}
+                    className="absolute inset-0 z-10 h-full w-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <div className="rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 p-8 text-center transition hover:border-emerald-500 hover:bg-emerald-50/70">
+                    <FileSpreadsheet className="mx-auto h-10 w-10 text-emerald-600" />
+                    <p className="mt-2 text-sm font-semibold text-emerald-950">
+                      {importParsing
+                        ? "Sedang membaca file & memvalidasi data..."
+                        : "Klik untuk memilih file Excel atau seret file ke sini"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Sistem akan memvalidasi NIS, kelas, kamar, format tanggal, dan relasi 1:1 akun
+                      wali
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-left space-y-2">
+                  <p className="text-xs font-bold text-slate-800">
+                    13 Kolom Wajib Pada Template Excel:
+                  </p>
+                  <ol className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-600 list-decimal pl-4">
+                    <li>NIS (Format Teks, angka 0 awal terjaga)</li>
+                    <li>Nama Lengkap Santri</li>
+                    <li>Jenis Kelamin (L / P)</li>
+                    <li>Tempat Lahir</li>
+                    <li>Tanggal Lahir (YYYY-MM-DD)</li>
+                    <li>Kelas (Nama atau Kode)</li>
+                    <li>Kode Kelas (Opsional pendukung)</li>
+                    <li>Kamar Asrama (Nama atau Kode)</li>
+                    <li>Nama Orang Tua/Wali</li>
+                    <li>Hubungan Wali (Ayah / Ibu / Wali)</li>
+                    <li>Nomor Telepon Wali (Min 8 digit)</li>
+                    <li>Email Kontak (Opsional komunikasi)</li>
+                    <li>Alamat Santri &amp; Wali</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: PREVIEW & VALIDASI */}
+          {importStep === "PREVIEW" && importValidation && (
+            <div className="space-y-6">
+              {/* Ringkasan Validasi Kartu Metrik */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+                  <p className="text-[11px] font-semibold text-slate-500">Total Baris</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900">
+                    {importValidation.total_rows}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 shadow-sm">
+                  <p className="text-[11px] font-semibold text-emerald-800">Data Valid</p>
+                  <p className="mt-1 text-xl font-bold text-emerald-950">
+                    {importValidation.valid_count}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 shadow-sm">
+                  <p className="text-[11px] font-semibold text-rose-800">Data Bermasalah</p>
+                  <p className="mt-1 text-xl font-bold text-rose-950">
+                    {importValidation.error_count}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 shadow-sm">
+                  <p className="text-[11px] font-semibold text-amber-800">NIS Duplikat File</p>
+                  <p className="mt-1 text-xl font-bold text-amber-950">
+                    {importValidation.duplicate_nis_in_file.length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-purple-200 bg-purple-50 p-3.5 shadow-sm">
+                  <p className="text-[11px] font-semibold text-purple-800">NIS Sudah Ada DB</p>
+                  <p className="mt-1 text-xl font-bold text-purple-950">
+                    {importValidation.already_registered_nis.length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3.5 shadow-sm">
+                  <p className="text-[11px] font-semibold text-sky-800">Kelas/Kamar Salah</p>
+                  <p className="mt-1 text-xl font-bold text-sky-950">
+                    {importValidation.kelas_not_found.length +
+                      importValidation.kamar_not_found.length}
+                  </p>
+                </div>
+              </div>
+
+              {/* Rincian Kesalahan jika ada */}
+              {importValidation.errors.length > 0 && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 sm:p-5">
+                  <div className="flex items-center gap-2 text-rose-900 font-bold text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                    <span>Daftar Kesalahan Validasi ({importValidation.errors.length} masalah)</span>
+                  </div>
+                  <p className="text-xs text-rose-800 mt-0.5">
+                    Baris dengan kesalahan tidak akan diimpor. Anda dapat memperbaiki file Excel
+                    terlebih dahulu atau tetap melanjutkan import hanya untuk baris yang valid.
+                  </p>
+
+                  <div className="mt-3 max-h-48 overflow-y-auto rounded-xl border border-rose-200 bg-white p-3 divide-y divide-rose-100 text-xs">
+                    {importValidation.errors.map((err, idx) => (
+                      <div key={idx} className="py-1.5 flex items-start gap-2">
+                        <span className="font-mono font-bold text-rose-700 shrink-0">
+                          Baris {err.row_number}
+                        </span>
+                        {err.nis && (
+                          <span className="font-mono text-slate-500 shrink-0">({err.nis})</span>
+                        )}
+                        <span className="font-semibold text-slate-700 shrink-0">
+                          [{err.column}]:
+                        </span>
+                        <span className="text-slate-600">{err.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Tabel Baris */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Preview Data Excel ({importRawRows.length} Baris Terbaca)
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      File: {importFile?.name} ({(importFile?.size ? importFile.size / 1024 : 0).toFixed(1)} KB)
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setImportFilterErrorOnly(!importFilterErrorOnly)}
+                      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                        importFilterErrorOnly
+                          ? "border-rose-400 bg-rose-50 text-rose-800"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span>
+                        {importFilterErrorOnly
+                          ? "Menampilkan Baris Bermasalah"
+                          : "Filter: Baris Bermasalah Saja"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-slate-200 bg-slate-50 font-semibold text-slate-700">
+                      <tr>
+                        <th className="px-3 py-2 text-center w-12">No.</th>
+                        <th className="px-3 py-2">Status Validasi</th>
+                        <th className="px-3 py-2">NIS</th>
+                        <th className="px-3 py-2">Nama Santri</th>
+                        <th className="px-3 py-2">L/P</th>
+                        <th className="px-3 py-2">Kelas</th>
+                        <th className="px-3 py-2">Kamar Asrama</th>
+                        <th className="px-3 py-2">Wali (Akun 1:1)</th>
+                        <th className="px-3 py-2">No. HP Wali</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-800">
+                      {importRawRows
+                        .map((row, idx) => {
+                          const rowNum = idx + 2;
+                          const rowErrors = importValidation.errors.filter(
+                            (e) => e.row_number === rowNum
+                          );
+                          const isValid = rowErrors.length === 0;
+
+                          if (importFilterErrorOnly && isValid) {
+                            return null;
+                          }
+
+                          return (
+                            <tr
+                              key={idx}
+                              className={isValid ? "hover:bg-slate-50/80" : "bg-rose-50/40"}
+                            >
+                              <td className="px-3 py-2 text-center font-mono text-slate-500">
+                                {rowNum}
+                              </td>
+                              <td className="px-3 py-2">
+                                {isValid ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    <span>Valid</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
+                                    <AlertCircle className="h-3 w-3" />
+                                    <span>{rowErrors.length} Kesalahan</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 font-mono font-bold text-slate-900">
+                                {row["NIS"] || row.nis || "-"}
+                              </td>
+                              <td className="px-3 py-2 font-medium">
+                                {row["Nama Lengkap Santri"] || row.nama_lengkap || "-"}
+                              </td>
+                              <td className="px-3 py-2">{row["Jenis Kelamin"] || row.jenis_kelamin || "-"}</td>
+                              <td className="px-3 py-2">{row["Kelas"] || row.kelas || "-"}</td>
+                              <td className="px-3 py-2">{row["Kamar Asrama"] || row.kamar || "-"}</td>
+                              <td className="px-3 py-2">{row["Nama Orang Tua/Wali"] || row.nama_wali || "-"}</td>
+                              <td className="px-3 py-2">{row["Nomor Telepon Wali"] || row.no_telepon_wali || "-"}</td>
+                            </tr>
+                          );
+                        })
+                        .filter(Boolean)}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Toolbar Aksi Konfirmasi Batal / Lanjut */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleResetImport}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    Batal &amp; Upload File Lain
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={importValidation.valid_count === 0 || importExecuting}
+                      onClick={handleExecuteImport}
+                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md hover:bg-emerald-800 disabled:opacity-50 transition"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>
+                        Lanjutkan &amp; Proses Import ({importValidation.valid_count} Baris Valid)
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: PROCESSING */}
+          {importStep === "PROCESSING" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 shadow-sm text-center space-y-4">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-emerald-600 border-t-transparent"></div>
+              <h4 className="text-base font-bold text-slate-900">
+                Sedang Memproses Data Santri &amp; Akun Wali...
+              </h4>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Sistem sedang membuat data santri, akun Supabase Auth wali berbasis NIS, relasi 1:1,
+                dan mencatat audit log. Mohon jangan menutup browser.
+              </p>
+            </div>
+          )}
+
+          {/* STEP 4: HASIL IMPORT & LAPORAN */}
+          {importStep === "RESULT" && importReport && (
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Proses Import Selesai</span>
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-900 mt-2">
+                      Laporan Hasil Import Data Santri
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Waktu Eksekusi: {importReport.imported_at}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => downloadImportReportExcel(importReport)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-sm transition"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download Laporan Hasil (.xlsx)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleResetImport();
+                        setActiveTab("santri_wali");
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-800 shadow-sm transition"
+                    >
+                      <Users className="h-4 w-4" />
+                      <span>Selesai &amp; Buka Data Santri</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ringkasan Hasil */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[11px] font-semibold text-slate-500">Total Diproses</p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">
+                      {importReport.total_processed}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                    <p className="text-[11px] font-semibold text-emerald-800">Berhasil Dibuat</p>
+                    <p className="mt-1 text-xl font-bold text-emerald-950">
+                      {importReport.success_count}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                    <p className="text-[11px] font-semibold text-rose-800">Gagal</p>
+                    <p className="mt-1 text-xl font-bold text-rose-950">
+                      {importReport.failed_count}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-3">
+                    <p className="text-[11px] font-semibold text-sky-800">Akun Wali Dibuat</p>
+                    <p className="mt-1 text-xl font-bold text-sky-950">
+                      {importReport.wali_account_created_count}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tabel Hasil Per Baris */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-slate-200 bg-slate-50 font-semibold text-slate-700">
+                      <tr>
+                        <th className="px-3 py-2 text-center w-12">Baris</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">NIS</th>
+                        <th className="px-3 py-2">Nama Santri</th>
+                        <th className="px-3 py-2">Akun Wali</th>
+                        <th className="px-3 py-2">Keterangan / Pesan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-800">
+                      {importReport.results.map((res, idx) => {
+                        const isSuccess = res.status === "SUCCESS";
+                        return (
+                          <tr
+                            key={idx}
+                            className={isSuccess ? "hover:bg-slate-50/80" : "bg-rose-50/40"}
+                          >
+                            <td className="px-3 py-2 text-center font-mono text-slate-500">
+                              {res.row_number}
+                            </td>
+                            <td className="px-3 py-2">
+                              {isSuccess ? (
+                                <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                                  Sukses
+                                </span>
+                              ) : (
+                                <span className="inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
+                                  Gagal
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 font-mono font-bold text-slate-900">
+                              {res.nis}
+                            </td>
+                            <td className="px-3 py-2 font-medium">{res.nama_lengkap}</td>
+                            <td className="px-3 py-2">
+                              {res.wali_username ? (
+                                <span className="inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
+                                  Username: {res.wali_username}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-[11px]">-</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {res.reason || (isSuccess ? "Berhasil disimpan" : "-")}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
