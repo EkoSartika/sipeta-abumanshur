@@ -416,20 +416,20 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       if (rekening) setRekeningResmi(rekening);
-      if (kelas.length) setKelasList(kelas);
-      if (kamar.length) setKamarList(kamar);
-      if (santri.length) setSantriList(santri);
-      if (wali.length) setWaliList(wali);
-      if (jenis.length) setJenisPembayaranList(jenis);
-      if (tagihan.length) setTagihanList(tagihan);
-      if (transaksi.length) setTransaksiPembayaranList(transaksi);
-      if (topup.length) setPengajuanUangSakuList(topup);
-      if (mengaji.length) setMengajiList(mengaji);
-      if (tahfidz.length) setTahfidzList(tahfidz);
-      if (prestasi.length) setPrestasiList(prestasi);
-      if (kedisiplinan.length) setKedisiplinanList(kedisiplinan);
-      if (pengumuman.length) setPengumumanList(pengumuman);
-      if (notifikasi.length) setNotifikasiList(notifikasi);
+      setKelasList(kelas ?? []);
+      setKamarList(kamar ?? []);
+      setSantriList(santri ?? []);
+      setWaliList(wali ?? []);
+      setJenisPembayaranList(jenis ?? []);
+      setTagihanList(tagihan ?? []);
+      setTransaksiPembayaranList(transaksi ?? []);
+      setPengajuanUangSakuList(topup ?? []);
+      setMengajiList(mengaji ?? []);
+      setTahfidzList(tahfidz ?? []);
+      setPrestasiList(prestasi ?? []);
+      setKedisiplinanList(kedisiplinan ?? []);
+      setPengumumanList(pengumuman ?? []);
+      setNotifikasiList(notifikasi ?? []);
       if (fetchedUsers && fetchedUsers.length > 0) {
         setUsers(fetchedUsers);
       }
