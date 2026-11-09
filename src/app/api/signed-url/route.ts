@@ -104,13 +104,25 @@ export async function POST(request: NextRequest) {
     // 3. Verifikasi Profil & Status Aktif Pengguna
     const { data: profile, error: profileErr } = await supabase
       .from("profiles")
-      .select("id, role, is_active")
+      .select("id, role, is_active, must_change_password")
       .eq("id", user.id)
       .single();
 
     if (profileErr || !profile || !profile.is_active) {
       return NextResponse.json(
         { error: "Akses ditolak: Akun pengguna tidak ditemukan atau telah dinonaktifkan." },
+        { status: 403 }
+      );
+    }
+
+    // Blokir jika wali belum mengganti password awal
+    if (profile.role === "wali" && profile.must_change_password) {
+      return NextResponse.json(
+        {
+          error:
+            "Akses ditolak: Anda wajib mengganti kata sandi awal terlebih dahulu sebelum mengakses dokumen privat.",
+          must_change_password: true,
+        },
         { status: 403 }
       );
     }

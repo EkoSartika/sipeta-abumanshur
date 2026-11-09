@@ -31,3 +31,4 @@ WHERE must_change_password = TRUE;
 -- DROP INDEX IF EXISTS public.idx_profiles_must_change_pwd;
 -- ALTER TABLE public.profiles DROP COLUMN IF EXISTS must_change_password;
 -- ============================================================================
+

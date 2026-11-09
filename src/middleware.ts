@@ -46,8 +46,31 @@ export async function middleware(request: NextRequest) {
         },
       });
 
-      // Refresh session if needed
-      await supabase.auth.getUser();
+      // Refresh session if needed & enforce must_change_password on server
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const pathname = request.nextUrl.pathname;
+
+      // Blokir akses API dan rute terlindungi jika wali santri belum mengganti password awal
+      if (user && user.user_metadata?.must_change_password === true) {
+        if (
+          pathname.startsWith("/api/") &&
+          pathname !== "/api/auth/change-password" &&
+          pathname !== "/api/health"
+        ) {
+          return NextResponse.json(
+            {
+              ok: false,
+              message:
+                "Akses ditolak: Anda wajib mengganti kata sandi awal terlebih dahulu sebelum mengakses data sistem.",
+              must_change_password: true,
+            },
+            { status: 403 }
+          );
+        }
+      }
     } catch {
       // Abaikan jika Supabase offline/tidak terjangkau di sandbox
     }
