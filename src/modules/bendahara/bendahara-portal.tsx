@@ -10,6 +10,7 @@ import {
   FileCheck2,
   History,
   Info,
+  Landmark,
   RotateCcw,
   ShieldCheck,
   Upload,
@@ -32,7 +33,8 @@ type BendaharaTab =
   | "verifikasi_pembayaran"
   | "verifikasi_saku"
   | "penyerahan_saku"
-  | "ledger_koreksi";
+  | "ledger_koreksi"
+  | "rekening_info";
 
 export function BendaharaPortal() {
   const {
@@ -42,6 +44,7 @@ export function BendaharaPortal() {
     transaksiPembayaranList,
     pengajuanUangSakuList,
     mutasiUangSakuList,
+    rekeningResmi,
     getSaldoSantri,
     verifyTransaksiPembayaran,
     verifyTopupUangSaku,
@@ -202,6 +205,11 @@ export function BendaharaPortal() {
               id: "ledger_koreksi",
               label: "Saldo Santri, Ledger & Jurnal Koreksi",
               icon: History,
+            },
+            {
+              id: "rekening_info",
+              label: "Rekening Resmi Pesantren",
+              icon: Landmark,
             },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -990,10 +998,85 @@ export function BendaharaPortal() {
                   type="submit"
                   className="w-full rounded-xl bg-purple-700 py-2.5 text-xs font-bold text-white hover:bg-purple-800"
                 >
-                  Simpan Jurnal Koreksi & Rekam Audit
+                  Simpan Jurnal Koreksi &amp; Rekam Audit
                 </button>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB: REKENING RESMI PESANTREN (TAMPILAN BACA SAJA / READ-ONLY BENDAHARA)
+          Sesuai Bagian B.3 & D: Bendahara dapat melihat rekening untuk verifikasi
+          pembayaran, tetapi tidak dapat mengubahnya.
+         ===================================================================== */}
+      {activeTab === "rekening_info" && (
+        <div className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-800 border border-blue-200">
+                <Landmark className="h-3.5 w-3.5" />
+                <span>Referensi Rekening Resmi Pesantren</span>
+              </div>
+              <h3 className="mt-2 text-base font-extrabold text-slate-900">
+                Rekening Resmi Tujuan Pembayaran &amp; Uang Saku
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Gunakan informasi rekening resmi tunggal ini untuk mencocokkan mutasi bank saat verifikasi pembayaran transfer wali santri.
+              </p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 border border-slate-200 shrink-0">
+              Tampilan Baca Saja
+            </span>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-900 via-emerald-950 to-slate-900 p-6 text-white shadow-md space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider">
+                  Bank Tujuan Resmi
+                </span>
+                <h4 className="text-xl font-extrabold text-white mt-0.5">
+                  {rekeningResmi.nama_bank}
+                </h4>
+              </div>
+              <span className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-mono font-bold text-emerald-200 border border-white/15">
+                Kode: {rekeningResmi.kode_bank}
+              </span>
+            </div>
+
+            <div>
+              <span className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider">
+                Nomor Rekening
+              </span>
+              <p className="text-2xl font-mono font-extrabold tracking-wider text-emerald-100 mt-0.5">
+                {rekeningResmi.nomor_rekening}
+              </p>
+            </div>
+
+            <div className="border-t border-white/10 pt-3 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[11px] text-emerald-300">Atas Nama:</span>
+                <p className="font-bold text-white text-sm">{rekeningResmi.atas_nama}</p>
+              </div>
+              <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-400/30">
+                1 Rekening Tunggal Aktif
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-1.5 text-xs">
+            <span className="font-bold text-slate-800 flex items-center gap-1.5">
+              <Info className="h-4 w-4 text-emerald-700" />
+              Petunjuk Verifikasi Transaksi:
+            </span>
+            <p className="text-slate-600 leading-relaxed">
+              {rekeningResmi.catatan_instruksi}
+            </p>
+            <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+              * Otoritas perubahan konfigurasi rekening resmi berada di bawah wewenang <strong>Admin Administrasi</strong> dan <strong>Superadmin</strong>.
+            </p>
           </div>
         </div>
       )}

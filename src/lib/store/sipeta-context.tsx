@@ -93,6 +93,7 @@ import {
   usernameToInternalEmail,
   validatePasswordStrength,
 } from "@/lib/utils/auth-mapping";
+import { getRoleLabel } from "@/lib/utils/format";
 
 export interface ActionResponse {
   ok: boolean;
@@ -156,6 +157,17 @@ interface SipetaContextValue {
     role: UserProfile["role"];
     santri_id?: string;
   }) => Promise<ActionResponse>;
+  manageUserAccount: (
+    userId: string,
+    payload: {
+      nama_lengkap?: string;
+      username?: string;
+      new_password?: string;
+      no_telepon?: string;
+      role?: UserRole;
+      is_active?: boolean;
+    }
+  ) => Promise<ActionResponse>;
   toggleUserActive: (userId: string) => Promise<ActionResponse>;
   resetUserPassword: (userId: string, newPassword: string) => Promise<ActionResponse>;
   updateUserProfile: (
@@ -931,6 +943,103 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  const manageUserAccount: SipetaContextValue["manageUserAccount"] = async (userId, payload) => {
+    if (!currentUser || currentUser.role !== "superadmin") {
+      return { ok: false, message: "Hanya Superadmin yang berwenang mengelola akun pengguna." };
+    }
+    const target = users.find((u) => u.id === userId);
+    if (!target) return { ok: false, message: "Akun pengguna tidak ditemukan." };
+
+    if (payload.new_password && payload.new_password.trim() !== "") {
+      const pwdCheck = validatePasswordStrength(payload.new_password);
+      if (!pwdCheck.valid) {
+        return { ok: false, message: pwdCheck.message || "Kata sandi tidak valid." };
+      }
+    }
+
+    if (payload.username && payload.username.trim() !== "") {
+      const cleanUser = normalizeUsername(payload.username);
+      if (!isValidUsername(cleanUser)) {
+        return {
+          ok: false,
+          message:
+            "Username hanya boleh berisi huruf kecil, angka, titik, strip, garis bawah (3-30 karakter).",
+        };
+      }
+      const isDuplicate = users.some(
+        (u) => u.id !== userId && u.username?.toLowerCase() === cleanUser
+      );
+      if (isDuplicate) {
+        return { ok: false, message: `Username '${cleanUser}' sudah digunakan oleh akun lain.` };
+      }
+    }
+
+    if (authMode === "supabase") {
+      const res = await authService.manageUserAccount(userId, payload);
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => {
+            if (u.id !== userId) return u;
+            const updated = { ...u };
+            if (payload.nama_lengkap) updated.nama_lengkap = payload.nama_lengkap;
+            if (payload.username) {
+              updated.username = normalizeUsername(payload.username);
+              if (u.role !== "superadmin") {
+                updated.email = usernameToInternalEmail(updated.username);
+              }
+            }
+            if (payload.no_telepon !== undefined) updated.no_telepon = payload.no_telepon;
+            if (payload.role) updated.role = payload.role;
+            if (payload.is_active !== undefined) updated.is_active = payload.is_active;
+            return updated;
+          })
+        );
+      }
+      return res;
+    }
+
+    // Mode Demo
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id !== userId) return u;
+        const updated = { ...u };
+        if (payload.nama_lengkap) updated.nama_lengkap = payload.nama_lengkap;
+        if (payload.username) {
+          updated.username = normalizeUsername(payload.username);
+          if (u.role !== "superadmin") {
+            updated.email = usernameToInternalEmail(updated.username);
+          }
+        }
+        if (payload.no_telepon !== undefined) updated.no_telepon = payload.no_telepon;
+        if (payload.role) updated.role = payload.role;
+        if (payload.is_active !== undefined) updated.is_active = payload.is_active;
+        return updated;
+      })
+    );
+
+    appendAuditLog(
+      "MANAGE_USER_ACCOUNT",
+      "profiles",
+      userId,
+      {
+        nama_lengkap: payload.nama_lengkap ?? target.nama_lengkap,
+        username: payload.username ?? target.username,
+        role: payload.role ?? target.role,
+        is_active: payload.is_active ?? target.is_active,
+        password_diubah: !!payload.new_password,
+      },
+      "Pembaruan informasi akun oleh Superadmin",
+      {
+        nama_lengkap: target.nama_lengkap,
+        username: target.username,
+        role: target.role,
+        is_active: target.is_active,
+      }
+    );
+
+    return { ok: true, message: "Informasi akun berhasil diperbarui." };
+  };
+
   const updateUserProfile: SipetaContextValue["updateUserProfile"] = async (userId, data) => {
     if (!currentUser || currentUser.role !== "superadmin") {
       return { ok: false, message: "Hanya Superadmin yang berwenang memperbarui profil akun." };
@@ -1025,13 +1134,23 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateRekeningResmi: SipetaContextValue["updateRekeningResmi"] = (payload) => {
-    if (!currentUser || currentUser.role !== "superadmin") {
-      return { ok: false, message: "Hanya Superadmin yang dapat mengelola rekening resmi pesantren." };
+    if (!currentUser || (currentUser.role !== "superadmin" && currentUser.role !== "admin")) {
+      return {
+        ok: false,
+        message: "Hanya Admin Administrasi dan Superadmin yang berwenang memperbarui rekening resmi pesantren.",
+      };
     }
+
+    const cleanNoRek = payload.nomor_rekening.trim();
+    if (cleanNoRek.length < 8) {
+      return { ok: false, message: "Nomor rekening tidak valid. Minimal 8 digit/karakter." };
+    }
+
     const oldRek = { ...rekeningResmi };
     const updated: RekeningPesantren = {
       ...rekeningResmi,
       ...payload,
+      nomor_rekening: cleanNoRek,
       updated_at: new Date().toISOString(),
     };
     setRekeningResmi(updated);
@@ -1040,7 +1159,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       "rekening_pesantren",
       rekeningResmi.id,
       { ...updated },
-      "Pembaruan konfigurasi rekening resmi pesantren oleh Superadmin",
+      `Pembaruan konfigurasi rekening resmi pesantren oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`,
       { ...oldRek }
     );
     return { ok: true, message: "Rekening resmi pesantren berhasil diperbarui." };
@@ -2733,6 +2852,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         resetDemoData,
         changePassword,
         createUserAccount,
+        manageUserAccount,
         toggleUserActive,
         resetUserPassword,
         updateUserProfile,

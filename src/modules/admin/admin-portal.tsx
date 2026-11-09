@@ -14,6 +14,7 @@ import {
   FileSpreadsheet,
   FileUp,
   Info,
+  Landmark,
   Megaphone,
   Plus,
   Receipt,
@@ -62,6 +63,7 @@ type AdminTab =
   | "santri_wali"
   | "import_santri"
   | "kelas_kamar"
+  | "rekening_pesantren"
   | "jenis_dan_tagihan"
   | "pengumuman";
 
@@ -78,6 +80,7 @@ export function AdminPortal() {
     tagihanList,
     riwayatPenyesuaianTagihan,
     pengumumanList,
+    rekeningResmi,
     createSantriWithWali,
     importSantriBatch,
     deleteSantriBatch,
@@ -93,10 +96,18 @@ export function AdminPortal() {
     generateTagihan,
     adjustTagihan,
     createPengumuman,
+    updateRekeningResmi,
   } = useSipeta();
 
   const [activeTab, setActiveTab] = useState<AdminTab>("santri_wali");
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // State Form Rekening Resmi Pesantren (Kewenangan Admin Administrasi Sesuai Bagian D)
+  const [namaBankAdmin, setNamaBankAdmin] = useState(rekeningResmi.nama_bank);
+  const [kodeBankAdmin, setKodeBankAdmin] = useState(rekeningResmi.kode_bank);
+  const [nomorRekeningAdmin, setNomorRekeningAdmin] = useState(rekeningResmi.nomor_rekening);
+  const [atasNamaAdmin, setAtasNamaAdmin] = useState(rekeningResmi.atas_nama);
+  const [catatanInstruksiAdmin, setCatatanInstruksiAdmin] = useState(rekeningResmi.catatan_instruksi);
 
   // State Import Data Santri Excel (6 Langkah)
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -607,6 +618,7 @@ export function AdminPortal() {
             { id: "santri_wali", label: "Data Santri & Akun Wali (1:1)", icon: Users },
             { id: "import_santri", label: "Import Data Santri (Excel)", icon: FileSpreadsheet },
             { id: "kelas_kamar", label: "Kelas, Kamar & Riwayat Penempatan", icon: Building2 },
+            { id: "rekening_pesantren", label: "Rekening Resmi Pesantren", icon: Landmark },
             {
               id: "jenis_dan_tagihan",
               label: "Jenis Pembayaran, Kebijakan Cicilan & Tagihan",
@@ -2491,6 +2503,112 @@ export function AdminPortal() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB: REKENING RESMI TUNGGAL PESANTREN (KEWENANGAN ADMIN ADMINISTRASI)
+         ===================================================================== */}
+      {activeTab === "rekening_pesantren" && (
+        <div className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="border-b border-slate-100 pb-3">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
+              <Landmark className="h-3.5 w-3.5" />
+              <span>Pengelolaan Rekening Resmi Pesantren</span>
+            </div>
+            <h3 className="mt-2 text-base font-extrabold text-slate-900">
+              Pengaturan Rekening Resmi Tunggal Pesantren
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Admin Administrasi berwenang mengelola rekening resmi pesantren. Seluruh pembayaran tagihan dan pengisian uang saku santri diarahkan ke rekening resmi ini.
+            </p>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const res = updateRekeningResmi({
+                nama_bank: namaBankAdmin,
+                kode_bank: kodeBankAdmin,
+                nomor_rekening: nomorRekeningAdmin,
+                atas_nama: atasNamaAdmin,
+                catatan_instruksi: catatanInstruksiAdmin,
+              });
+              setFeedback({ ok: res.ok, text: res.message });
+            }}
+            className="space-y-3.5 text-xs"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">Nama Bank</label>
+                <input
+                  type="text"
+                  required
+                  value={namaBankAdmin}
+                  onChange={(e) => setNamaBankAdmin(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 min-h-[44px] text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Kode Bank</label>
+                <input
+                  type="text"
+                  required
+                  value={kodeBankAdmin}
+                  onChange={(e) => setKodeBankAdmin(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 min-h-[44px] text-xs font-mono font-bold text-slate-900 focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Nomor Rekening Resmi</label>
+              <input
+                type="text"
+                required
+                value={nomorRekeningAdmin}
+                onChange={(e) => setNomorRekeningAdmin(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold min-h-[44px] text-slate-900 focus:border-emerald-600 focus:outline-none"
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Nomor rekening tunggal resmi pesantren (minimal 8 digit).
+              </p>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Atas Nama Pemilik Rekening
+              </label>
+              <input
+                type="text"
+                required
+                value={atasNamaAdmin}
+                onChange={(e) => setAtasNamaAdmin(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 min-h-[44px] text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Instruksi Pembayaran</label>
+              <textarea
+                rows={3}
+                required
+                value={catatanInstruksiAdmin}
+                onChange={(e) => setCatatanInstruksiAdmin(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none"
+              />
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-800 px-5 py-2.5 font-bold text-white hover:bg-emerald-900 shadow min-h-[44px] touch-manipulation cursor-pointer inline-flex items-center gap-2"
+              >
+                <Landmark className="h-4 w-4" />
+                <span>Simpan Rekening Resmi Pesantren</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

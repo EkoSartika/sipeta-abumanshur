@@ -272,6 +272,44 @@ export class AuthService {
   }
 
   /**
+   * Pengelolaan Akun Terpadu (Username, Password Baru, Profil, Role, Status) oleh Superadmin
+   * Sesuai Bagian A PRD: Satu Modal Terpadu "Kelola Akun"
+   */
+  async manageUserAccount(
+    userId: string,
+    payload: {
+      nama_lengkap?: string;
+      username?: string;
+      new_password?: string;
+      no_telepon?: string;
+      role?: UserRole;
+      is_active?: boolean;
+    }
+  ): Promise<{ ok: boolean; message: string; updatedUser?: Partial<UserProfile> }> {
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "MANAGE_ACCOUNT",
+          user_id: userId,
+          ...payload,
+        }),
+      });
+
+      const data = await res.json();
+      return {
+        ok: res.ok && data.ok,
+        message: data.message ?? (res.ok ? "Informasi akun berhasil diperbarui." : "Gagal memperbarui akun."),
+        updatedUser: data.data,
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal memperbarui akun: ${msg}` };
+    }
+  }
+
+  /**
    * Pembaruan data profil akun oleh Superadmin melalui Secure Server Endpoint
    */
   async updateUserProfile(

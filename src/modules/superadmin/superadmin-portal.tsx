@@ -51,9 +51,8 @@ export function SuperadminPortal({
     rekeningResmi,
     auditLogs,
     createUserAccount,
+    manageUserAccount,
     toggleUserActive,
-    resetUserPassword,
-    updateUserProfile,
     deleteUserAccount,
     updateRekeningResmi,
   } = useSipeta();
@@ -74,7 +73,7 @@ export function SuperadminPortal({
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  // State Modal Buat Akun Baru
+  // State Modal Buat Akun Baru (Hanya Admin, Bendahara, Pengelola)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [namaUser, setNamaUser] = useState("");
   const [usernameUser, setUsernameUser] = useState("");
@@ -83,21 +82,18 @@ export function SuperadminPortal({
   const [roleUser, setRoleUser] = useState<UserRole>("admin");
   const [passwordUser, setPasswordUser] = useState("");
   const [passwordConfirmUser, setPasswordConfirmUser] = useState("");
-  const [santriIdWali, setSantriIdWali] = useState(santriList[0]?.id ?? "");
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
-  // State Modal Reset Password
-  const [resetModalUser, setResetModalUser] = useState<UserProfile | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [resetSubmitting, setResetSubmitting] = useState(false);
-
-  // State Modal Edit Profil
-  const [editModalUser, setEditModalUser] = useState<UserProfile | null>(null);
-  const [editNama, setEditNama] = useState("");
-  const [editTelepon, setEditTelepon] = useState("");
-  const [editRole, setEditRole] = useState<UserRole>("admin");
-  const [editSubmitting, setEditSubmitting] = useState(false);
+  // State Modal Terpadu: Kelola Akun (Username, Password Baru Opsional, Profil, Role, Status)
+  const [manageModalUser, setManageModalUser] = useState<UserProfile | null>(null);
+  const [manageNama, setManageNama] = useState("");
+  const [manageUsername, setManageUsername] = useState("");
+  const [managePassword, setManagePassword] = useState("");
+  const [manageConfirmPassword, setManageConfirmPassword] = useState("");
+  const [manageTelepon, setManageTelepon] = useState("");
+  const [manageRole, setManageRole] = useState<UserRole>("admin");
+  const [manageIsActive, setManageIsActive] = useState(true);
+  const [manageSubmitting, setManageSubmitting] = useState(false);
 
   // State Modal Hapus Akun
   const [deleteModalUser, setDeleteModalUser] = useState<UserProfile | null>(null);
@@ -148,15 +144,22 @@ export function SuperadminPortal({
     setRoleUser("admin");
     setPasswordUser("");
     setPasswordConfirmUser("");
-    setSantriIdWali(santriList[0]?.id ?? "");
     setFeedback(null);
     setIsCreateModalOpen(true);
   };
 
-  // Handle Form Buat Akun Baru
+  // Handle Form Buat Akun Baru (Superadmin hanya membuat Admin, Bendahara, Pengelola)
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
+
+    if (roleUser === "wali" || (roleUser as string) === "superadmin") {
+      setFeedback({
+        ok: false,
+        text: "Superadmin hanya dapat membuat akun Admin Administrasi, Bendahara, atau Pengelola Kepesantrenan.",
+      });
+      return;
+    }
 
     if (passwordUser !== passwordConfirmUser) {
       setFeedback({ ok: false, text: "Konfirmasi kata sandi tidak cocok." });
@@ -169,35 +172,31 @@ export function SuperadminPortal({
       return;
     }
 
-    if (roleUser !== "superadmin") {
-      const cleanUser = normalizeUsername(usernameUser);
-      if (!isValidUsername(cleanUser)) {
-        setFeedback({
-          ok: false,
-          text: "Username harus 3-30 karakter alfanumerik (huruf kecil, angka, titik, strip, atau garis bawah).",
-        });
-        return;
-      }
+    const cleanUser = normalizeUsername(usernameUser);
+    if (!isValidUsername(cleanUser)) {
+      setFeedback({
+        ok: false,
+        text: "Username harus 3-30 karakter alfanumerik (huruf kecil, angka, titik, strip, atau garis bawah).",
+      });
+      return;
+    }
 
-      if (users.some((u) => u.username?.toLowerCase() === cleanUser)) {
-        setFeedback({
-          ok: false,
-          text: `Username '@${cleanUser}' sudah digunakan oleh pengguna lain. Silakan pilih username yang berbeda.`,
-        });
-        return;
-      }
+    if (users.some((u) => u.username?.toLowerCase() === cleanUser)) {
+      setFeedback({
+        ok: false,
+        text: `Username '@${cleanUser}' sudah digunakan oleh pengguna lain. Silakan pilih username yang berbeda.`,
+      });
+      return;
     }
 
     setCreateSubmitting(true);
     try {
       const res = await createUserAccount({
         nama_lengkap: namaUser.trim(),
-        username: roleUser !== "superadmin" ? normalizeUsername(usernameUser) : undefined,
-        email: roleUser === "superadmin" ? emailUser.trim() : undefined,
+        username: cleanUser,
         password: passwordUser,
         no_telepon: teleponUser.trim() || "-",
         role: roleUser,
-        santri_id: roleUser === "wali" ? santriIdWali : undefined,
       });
 
       setFeedback({ ok: res.ok, text: res.message });
@@ -215,6 +214,83 @@ export function SuperadminPortal({
     }
   };
 
+  // Handle Buka Modal Kelola Akun Terpadu (Username, Password Baru Opsional, Profil, Role, Status)
+  const handleOpenManageModal = (user: UserProfile) => {
+    setManageModalUser(user);
+    setManageNama(user.nama_lengkap);
+    setManageUsername(user.username || "");
+    setManagePassword("");
+    setManageConfirmPassword("");
+    setManageTelepon(user.no_telepon && user.no_telepon !== "-" ? user.no_telepon : "");
+    setManageRole(user.role);
+    setManageIsActive(user.is_active);
+    setFeedback(null);
+  };
+
+  // Handle Submit Kelola Akun Terpadu
+  const handleManageAccountSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manageModalUser) return;
+    setFeedback(null);
+
+    // 1. Validasi Password Baru (Opsional)
+    if (managePassword.trim() !== "") {
+      if (managePassword !== manageConfirmPassword) {
+        setFeedback({ ok: false, text: "Konfirmasi kata sandi baru tidak cocok." });
+        return;
+      }
+      const pwdCheck = validatePasswordStrength(managePassword);
+      if (!pwdCheck.valid) {
+        setFeedback({ ok: false, text: pwdCheck.message ?? "Kata sandi tidak valid." });
+        return;
+      }
+    }
+
+    // 2. Validasi Username (Khusus Akun Non-Superadmin Resmi)
+    if (manageModalUser.role !== "superadmin" && manageUsername.trim() !== "") {
+      const cleanUser = normalizeUsername(manageUsername);
+      if (!isValidUsername(cleanUser)) {
+        setFeedback({
+          ok: false,
+          text: "Username harus 3-30 karakter alfanumerik (huruf kecil, angka, titik, strip, garis bawah).",
+        });
+        return;
+      }
+      const isDuplicate = users.some(
+        (u) => u.id !== manageModalUser.id && u.username?.toLowerCase() === cleanUser
+      );
+      if (isDuplicate) {
+        setFeedback({
+          ok: false,
+          text: `Username '@${cleanUser}' sudah digunakan oleh pengguna lain. Silakan pilih username berbeda.`,
+        });
+        return;
+      }
+    }
+
+    setManageSubmitting(true);
+    try {
+      const res = await manageUserAccount(manageModalUser.id, {
+        nama_lengkap: manageNama.trim(),
+        username:
+          manageModalUser.role !== "superadmin" && manageUsername.trim()
+            ? normalizeUsername(manageUsername)
+            : undefined,
+        new_password: managePassword.trim() !== "" ? managePassword : undefined,
+        no_telepon: manageTelepon.trim() || "-",
+        role: manageRole,
+        is_active: manageIsActive,
+      });
+
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setManageModalUser(null);
+      }
+    } finally {
+      setManageSubmitting(false);
+    }
+  };
+
   const handleDeleteUser = async () => {
     if (!deleteModalUser) return;
     setDeleteSubmitting(true);
@@ -226,59 +302,6 @@ export function SuperadminPortal({
       }
     } finally {
       setDeleteSubmitting(false);
-    }
-  };
-
-  // Handle Reset Password
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetModalUser) return;
-    setFeedback(null);
-
-    if (newPassword !== confirmNewPassword) {
-      setFeedback({ ok: false, text: "Konfirmasi kata sandi baru tidak cocok." });
-      return;
-    }
-
-    const pwdCheck = validatePasswordStrength(newPassword);
-    if (!pwdCheck.valid) {
-      setFeedback({ ok: false, text: pwdCheck.message ?? "Kata sandi tidak valid." });
-      return;
-    }
-
-    setResetSubmitting(true);
-    try {
-      const res = await resetUserPassword(resetModalUser.id, newPassword);
-      setFeedback({ ok: res.ok, text: res.message });
-      if (res.ok) {
-        setResetModalUser(null);
-        setNewPassword("");
-        setConfirmNewPassword("");
-      }
-    } finally {
-      setResetSubmitting(false);
-    }
-  };
-
-  // Handle Edit Profil
-  const handleEditProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editModalUser) return;
-    setFeedback(null);
-
-    setEditSubmitting(true);
-    try {
-      const res = await updateUserProfile(editModalUser.id, {
-        nama_lengkap: editNama.trim(),
-        no_telepon: editTelepon.trim(),
-        role: editRole,
-      });
-      setFeedback({ ok: res.ok, text: res.message });
-      if (res.ok) {
-        setEditModalUser(null);
-      }
-    } finally {
-      setEditSubmitting(false);
     }
   };
 
@@ -482,33 +505,15 @@ export function SuperadminPortal({
                       )}
                     </div>
 
-                    {/* Tombol Aksi Mobile Touch Targets (min 44px) */}
-                    <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-slate-100">
+                    {/* Tombol Aksi Mobile Touch Targets (min 44px) - Hanya 3 Aksi Sesuai Bagian E.1 */}
+                    <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-slate-100">
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditModalUser(u);
-                          setEditNama(u.nama_lengkap);
-                          setEditTelepon(u.no_telepon || "");
-                          setEditRole(u.role);
-                        }}
-                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-300 bg-white px-1.5 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50 min-h-[44px] touch-manipulation cursor-pointer"
+                        onClick={() => handleOpenManageModal(u)}
+                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-300 bg-emerald-50 px-1.5 py-2 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 min-h-[44px] touch-manipulation cursor-pointer"
                       >
-                        <Edit2 className="h-3.5 w-3.5" />
-                        <span>Edit</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setResetModalUser(u);
-                          setNewPassword("");
-                          setConfirmNewPassword("");
-                        }}
-                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-1.5 py-2 text-[11px] font-bold text-amber-900 hover:bg-amber-100 min-h-[44px] touch-manipulation cursor-pointer"
-                      >
-                        <KeyRound className="h-3.5 w-3.5" />
-                        <span>Sandi</span>
+                        <UserCheck className="h-3.5 w-3.5 text-emerald-700" />
+                        <span>Kelola Akun</span>
                       </button>
 
                       <button
@@ -571,7 +576,7 @@ export function SuperadminPortal({
               <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
-                    <th className="py-3 px-4">Nama Lengkap & Username</th>
+                    <th className="py-3 px-4">Nama Lengkap &amp; Username</th>
                     <th className="py-3 px-3">Role</th>
                     <th className="py-3 px-3">No. Telepon</th>
                     <th className="py-3 px-3">Relasi Santri (Khusus Wali)</th>
@@ -599,9 +604,17 @@ export function SuperadminPortal({
                           <td className="py-3.5 px-4">
                             <div className="font-extrabold text-slate-900">{u.nama_lengkap}</div>
                             <div className="font-mono text-[11px] text-emerald-800 font-bold">
-                              {u.username ? `@${u.username}` : u.email}
+                              {u.username
+                                ? `@${u.username}`
+                                : u.role === "superadmin"
+                                ? u.email
+                                : `@${u.email.split("@")[0]}`}
                             </div>
-                            <div className="text-[10px] text-slate-400">{u.email}</div>
+                            {u.role === "superadmin" && (
+                              <div className="text-[10px] text-slate-500 font-medium">
+                                Email Resmi: {u.email}
+                              </div>
+                            )}
                           </td>
                           <td className="py-3.5 px-3">
                             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-bold text-slate-800">
@@ -637,33 +650,15 @@ export function SuperadminPortal({
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <div className="inline-flex items-center gap-1.5">
-                              {/* Edit Profil Button */}
+                              {/* Kelola Akun Button (Terpadu: Profil, Username, Password, Role, Status) */}
                               <button
                                 type="button"
-                                title="Ubah data profil pengguna"
-                                onClick={() => {
-                                  setEditModalUser(u);
-                                  setEditNama(u.nama_lengkap);
-                                  setEditTelepon(u.no_telepon || "");
-                                  setEditRole(u.role);
-                                }}
-                                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 min-h-[36px]"
+                                title="Kelola data profil, username, password, role, dan status akun"
+                                onClick={() => handleOpenManageModal(u)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-900 hover:bg-emerald-100 min-h-[36px] transition cursor-pointer"
                               >
-                                Edit
-                              </button>
-
-                              {/* Reset Password Button */}
-                              <button
-                                type="button"
-                                title="Atur ulang kata sandi pengguna"
-                                onClick={() => {
-                                  setResetModalUser(u);
-                                  setNewPassword("");
-                                  setConfirmNewPassword("");
-                                }}
-                                className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100 min-h-[36px]"
-                              >
-                                Sandi
+                                <UserCheck className="h-3.5 w-3.5 text-emerald-700" />
+                                <span>Kelola Akun</span>
                               </button>
 
                               {/* Toggle Active Button */}
@@ -766,83 +761,59 @@ export function SuperadminPortal({
                   onChange={(e) => {
                     const nextRole = e.target.value as UserRole;
                     setRoleUser(nextRole);
-                    if (nextRole === "superadmin") {
-                      setUsernameUser("");
-                    } else {
-                      setEmailUser("");
-                    }
                   }}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
                 >
                   <option value="admin">Admin Administrasi Pesantren</option>
                   <option value="bendahara">Bendahara Pesantren</option>
                   <option value="pengelola">Pengelola Kepesantrenan &amp; Asrama</option>
-                  <option value="wali">Orang Tua / Wali Santri (Relasi 1:1)</option>
-                  <option value="superadmin">Superadmin (Khusus Email Resmi)</option>
                 </select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Sesuai kebijakan: Superadmin hanya membuat akun petugas internal (Admin, Bendahara, Pengelola). Akun Wali dibuat otomatis oleh Admin melalui NIS Santri.
+                </p>
               </div>
 
-              {roleUser === "superadmin" ? (
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Email Resmi Superadmin
-                  </label>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Username Akun Internal
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-3 font-mono text-xs text-slate-400 font-bold">
+                    @
+                  </span>
                   <input
-                    type="email"
+                    type="text"
                     required
-                    placeholder="sipetaabumanshur@gmail.com"
-                    value={emailUser}
-                    onChange={(e) => setEmailUser(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
+                    name="sipeta_new_user_username"
+                    id="sipeta_new_user_username"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    placeholder="Masukkan username (contoh: admin01, bendahara01)"
+                    value={usernameUser}
+                    onChange={(e) => {
+                      const clean = e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+                      setUsernameUser(clean);
+                    }}
+                    className="w-full rounded-xl border border-slate-300 pl-7 pr-3 py-2 text-xs font-mono font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
                   />
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Akun Superadmin menggunakan email resmi terdaftar di Supabase Auth.
-                  </p>
                 </div>
-              ) : (
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Username Akun Internal
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3 font-mono text-xs text-slate-400 font-bold">
-                      @
-                    </span>
-                    <input
-                      type="text"
-                      required
-                      name="sipeta_new_user_username"
-                      id="sipeta_new_user_username"
-                      autoComplete="off"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      placeholder="Masukkan username"
-                      value={usernameUser}
-                      onChange={(e) => {
-                        const clean = e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "");
-                        setUsernameUser(clean);
-                      }}
-                      className="w-full rounded-xl border border-slate-300 pl-7 pr-3 py-2 text-xs font-mono font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
-                    />
-                  </div>
-                  {usernameUser.length > 0 &&
-                    users.some((u) => u.username?.toLowerCase() === usernameUser.toLowerCase()) && (
-                      <p className="mt-1 text-[11px] font-bold text-rose-600">
-                        ⚠️ Username &apos;@{usernameUser}&apos; sudah digunakan oleh akun lain. Silakan pilih username berbeda.
-                      </p>
-                    )}
-                  {usernameUser.length > 0 && !isValidUsername(usernameUser) && (
-                    <p className="mt-1 text-[11px] text-amber-700 font-medium">
-                      Username harus 3–30 karakter (huruf kecil, angka, titik, strip, garis bawah). Contoh: admin01, bendahara01, pengelola01, wali2026001.
+                {usernameUser.length > 0 &&
+                  users.some((u) => u.username?.toLowerCase() === usernameUser.toLowerCase()) && (
+                    <p className="mt-1 text-[11px] font-bold text-rose-600">
+                      ⚠️ Username &apos;@{usernameUser}&apos; sudah digunakan oleh akun lain. Silakan pilih username berbeda.
                     </p>
                   )}
-                  <p className="mt-1 text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200 leading-normal">
-                    ✓ Kebijakan SIPETA: Akun internal masuk dengan <strong>username</strong>. Tidak
-                    menggunakan Gmail atau email pribadi. Domain sintetis internal otomatis
-                    diterapkan.
+                {usernameUser.length > 0 && !isValidUsername(usernameUser) && (
+                  <p className="mt-1 text-[11px] text-amber-700 font-medium">
+                    Username harus 3–30 karakter (huruf kecil, angka, titik, strip, garis bawah). Contoh: admin01, bendahara01, pengelola01.
                   </p>
-                </div>
-              )}
+                )}
+                <p className="mt-1 text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200 leading-normal">
+                  ✓ Kebijakan SIPETA: Akun internal masuk dengan <strong>username</strong>. Tidak
+                  menggunakan Gmail atau email pribadi.
+                </p>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -850,7 +821,7 @@ export function SuperadminPortal({
                   <input
                     type="password"
                     required
-                    placeholder="Min. 8 karakter"
+                    placeholder="Min. 8 karakter alfanumerik"
                     value={passwordUser}
                     onChange={(e) => setPasswordUser(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
@@ -885,28 +856,6 @@ export function SuperadminPortal({
                 />
               </div>
 
-              {roleUser === "wali" && (
-                <div className="rounded-xl bg-blue-50/70 p-3.5 border border-blue-200 space-y-2">
-                  <label className="block font-bold text-blue-950">
-                    Hubungkan ke Santri Asuhan (Relasi 1:1 Wajib)
-                  </label>
-                  <select
-                    value={santriIdWali}
-                    onChange={(e) => setSantriIdWali(e.target.value)}
-                    className="w-full rounded-xl border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none min-h-[44px]"
-                  >
-                    {santriList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nama_lengkap} (NIS: {s.nis})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[11px] text-blue-800 leading-normal">
-                    Sesuai Bab 2 PRD: 1 Santri hanya memiliki 1 akun Orang Tua/Wali resmi.
-                  </p>
-                </div>
-              )}
-
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
@@ -918,7 +867,7 @@ export function SuperadminPortal({
                 <button
                   type="submit"
                   disabled={createSubmitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-2.5 font-bold text-white shadow hover:bg-emerald-900 disabled:opacity-50 min-h-[44px]"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-2.5 font-bold text-white shadow hover:bg-emerald-900 disabled:opacity-50 min-h-[44px] cursor-pointer"
                 >
                   {createSubmitting ? (
                     <>
@@ -936,132 +885,134 @@ export function SuperadminPortal({
       )}
 
       {/* ===================================================================== */}
-      {/* MODAL 2: RESET PASSWORD PENGGUNA */}
+      {/* MODAL TERPADU: KELOLA AKUN PENGGUNA (SATU MODAL SESUAI BAGIAN A & E.2) */}
       {/* ===================================================================== */}
-      {resetModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+      {manageModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="my-8 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <KeyRound className="h-5 w-5 text-amber-600" />
-                <h3 className="text-base font-extrabold text-slate-900">Atur Ulang Kata Sandi</h3>
+                <UserCheck className="h-5 w-5 text-emerald-700" />
+                <h3 className="text-base font-extrabold text-slate-900">Kelola Akun Pengguna</h3>
               </div>
               <button
                 type="button"
-                onClick={() => setResetModalUser(null)}
+                onClick={() => setManageModalUser(null)}
                 className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs border border-slate-200">
-              <p className="font-bold text-slate-900">{resetModalUser.nama_lengkap}</p>
-              <p className="text-slate-600">
-                Username / Email:{" "}
-                <span className="font-mono font-bold text-emerald-800">
-                  {resetModalUser.username ? `@${resetModalUser.username}` : resetModalUser.email}
-                </span>{" "}
-                • Role: <strong>{getRoleLabel(resetModalUser.role)}</strong>
-              </p>
-            </div>
-
-            <form onSubmit={handleResetPassword} className="mt-4 space-y-3.5 text-xs">
+            <div className="rounded-xl bg-slate-50 p-3 text-xs border border-slate-200 flex items-center justify-between">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Kata Sandi Baru</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Minimal 8 karakter alfanumerik"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
-                />
+                <p className="font-bold text-slate-900">{manageModalUser.nama_lengkap}</p>
+                <p className="text-slate-500 text-[11px] mt-0.5">
+                  ID: <span className="font-mono">{manageModalUser.username ? `@${manageModalUser.username}` : manageModalUser.email}</span> • Peran: <strong>{getRoleLabel(manageModalUser.role)}</strong>
+                </p>
               </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Konfirmasi Kata Sandi Baru
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Ulangi kata sandi baru"
-                  value={confirmNewPassword}
-                  onChange={(e) => setConfirmNewPassword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
-                />
-              </div>
-
-              <div className="rounded-xl bg-amber-50 p-3 text-[11px] text-amber-900 border border-amber-200">
-                <p className="font-bold">Ketentuan Kata Sandi Aman:</p>
-                <ul className="list-disc list-inside mt-1 space-y-0.5 text-amber-800">
-                  <li>Minimal 8 karakter panjangnya</li>
-                  <li>Memuat kombinasi huruf dan angka</li>
-                  <li>Kata sandi tidak dicatat pada audit log untuk menjaga kerahasiaan</li>
-                </ul>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setResetModalUser(null)}
-                  className="rounded-xl border border-slate-300 px-4 py-2.5 font-bold text-slate-700 hover:bg-slate-50 min-h-[44px]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={resetSubmitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 font-bold text-white shadow hover:bg-amber-700 disabled:opacity-50 min-h-[44px]"
-                >
-                  {resetSubmitting ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Memproses...</span>
-                    </>
-                  ) : (
-                    <span>Perbarui Kata Sandi</span>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* MODAL 3: UBAH PROFIL PENGGUNA */}
-      {/* ===================================================================== */}
-      {editModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Edit2 className="h-5 w-5 text-emerald-700" />
-                <h3 className="text-base font-extrabold text-slate-900">Ubah Profil Pengguna</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditModalUser(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  manageModalUser.is_active
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-rose-100 text-rose-800"
+                }`}
               >
-                <X className="h-5 w-5" />
-              </button>
+                {manageModalUser.is_active ? "Akun Aktif" : "Akun Nonaktif"}
+              </span>
             </div>
 
-            <form onSubmit={handleEditProfile} className="mt-4 space-y-4 text-xs">
+            <form onSubmit={handleManageAccountSubmit} className="space-y-3.5 text-xs">
+              {/* Nama Lengkap */}
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Nama Lengkap</label>
                 <input
                   type="text"
                   required
-                  value={editNama}
-                  onChange={(e) => setEditNama(e.target.value)}
+                  value={manageNama}
+                  onChange={(e) => setManageNama(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
                 />
               </div>
 
+              {/* Username */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Username Akun</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-3 font-mono text-xs text-slate-400 font-bold">
+                    @
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    disabled={manageModalUser.role === "superadmin"}
+                    value={manageUsername}
+                    onChange={(e) => {
+                      const clean = e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+                      setManageUsername(clean);
+                    }}
+                    className={`w-full rounded-xl border pl-7 pr-3 py-2 text-xs font-mono font-bold min-h-[44px] ${
+                      manageModalUser.role === "superadmin"
+                        ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                        : "border-slate-300 text-slate-900 focus:border-emerald-600 focus:outline-none"
+                    }`}
+                  />
+                </div>
+                {manageModalUser.role === "superadmin" ? (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Akun Superadmin menggunakan identitas email resmi terdaftar (
+                    <strong className="font-mono">sipetaabumanshur@gmail.com</strong>).
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Username dapat diedit (3-30 karakter). Keunikan divalidasi oleh sistem.
+                  </p>
+                )}
+              </div>
+
+              {/* Kata Sandi Baru (Opsional Sesuai Bagian A & E.2) */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-slate-700">Kata Sandi Baru</label>
+                    <span className="text-[10px] font-semibold text-slate-400">
+                      (Opsional - Kosongkan jika tidak ingin diubah)
+                    </span>
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Kosongkan jika kata sandi tidak ingin diubah"
+                    value={managePassword}
+                    onChange={(e) => setManagePassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
+                  />
+                </div>
+
+                {/* Konfirmasi Kata Sandi Baru (Hanya Muncul Jika Password Diisi) */}
+                {managePassword.trim() !== "" && (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Konfirmasi Kata Sandi Baru <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Ulangi kata sandi baru"
+                      value={manageConfirmPassword}
+                      onChange={(e) => setManageConfirmPassword(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
+                    />
+                    {managePassword !== manageConfirmPassword &&
+                      manageConfirmPassword.length > 0 && (
+                        <p className="mt-1 text-[11px] font-bold text-rose-600">
+                          ⚠️ Konfirmasi kata sandi baru tidak cocok.
+                        </p>
+                      )}
+                  </div>
+                )}
+              </div>
+
+              {/* Nomor Telepon / WhatsApp */}
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
                   Nomor Telepon / WhatsApp
@@ -1069,47 +1020,64 @@ export function SuperadminPortal({
                 <input
                   type="text"
                   required
-                  value={editTelepon}
-                  onChange={(e) => setEditTelepon(e.target.value)}
+                  value={manageTelepon}
+                  onChange={(e) => setManageTelepon(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Role Pengguna</label>
-                <select
-                  value={editRole}
-                  disabled={editModalUser.id === currentUser?.id}
-                  onChange={(e) => setEditRole(e.target.value as UserRole)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px] disabled:opacity-50"
-                >
-                  <option value="admin">Admin Administrasi</option>
-                  <option value="bendahara">Bendahara Pesantren</option>
-                  <option value="pengelola">Pengelola Kepesantrenan</option>
-                  <option value="wali">Orang Tua / Wali Santri</option>
-                  <option value="superadmin">Superadmin</option>
-                </select>
-                {editModalUser.id === currentUser?.id && (
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Anda tidak dapat mengubah role akun Superadmin Anda sendiri.
-                  </p>
-                )}
+              {/* Role & Status Akun */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Role Pengguna</label>
+                  <select
+                    disabled={
+                      manageModalUser.id === currentUser?.id || manageModalUser.role === "wali"
+                    }
+                    value={manageRole}
+                    onChange={(e) => setManageRole(e.target.value as UserRole)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px] disabled:bg-slate-100 disabled:text-slate-500"
+                  >
+                    {manageModalUser.role === "superadmin" && (
+                      <option value="superadmin">Superadmin Pesantren</option>
+                    )}
+                    <option value="admin">Admin Administrasi</option>
+                    <option value="bendahara">Bendahara Pesantren</option>
+                    <option value="pengelola">Pengelola Kepesantrenan</option>
+                    {manageModalUser.role === "wali" && (
+                      <option value="wali">Orang Tua / Wali Santri</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Keaktifan</label>
+                  <select
+                    disabled={manageModalUser.id === currentUser?.id}
+                    value={manageIsActive ? "active" : "inactive"}
+                    onChange={(e) => setManageIsActive(e.target.value === "active")}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px] disabled:bg-slate-100 disabled:text-slate-500"
+                  >
+                    <option value="active">Aktif (Dapat Login)</option>
+                    <option value="inactive">Nonaktif (Diblokir)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setEditModalUser(null)}
+                  onClick={() => setManageModalUser(null)}
                   className="rounded-xl border border-slate-300 px-4 py-2.5 font-bold text-slate-700 hover:bg-slate-50 min-h-[44px]"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={editSubmitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-2.5 font-bold text-white shadow hover:bg-emerald-900 disabled:opacity-50 min-h-[44px]"
+                  disabled={manageSubmitting}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-2.5 font-bold text-white shadow hover:bg-emerald-900 disabled:opacity-50 min-h-[44px] cursor-pointer"
                 >
-                  {editSubmitting ? (
+                  {manageSubmitting ? (
                     <>
                       <RefreshCw className="h-4 w-4 animate-spin" />
                       <span>Menyimpan...</span>
@@ -1271,6 +1239,49 @@ export function SuperadminPortal({
               Simpan Rekening Resmi Pesantren
             </button>
           </form>
+
+          {/* Riwayat Audit Pengawasan Perubahan Rekening Sesuai Bagian D PRD */}
+          <div className="mt-8 pt-6 border-t border-slate-200 space-y-3">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-emerald-700" />
+              <span>Riwayat Audit Pengawasan Rekening Resmi</span>
+            </h4>
+            {auditLogs.filter(
+              (l) =>
+                l.jenis_objek === "rekening_pesantren" ||
+                l.aktivitas.includes("REKENING")
+            ).length === 0 ? (
+              <p className="text-xs text-slate-400 italic">
+                Belum ada rekaman perubahan konfigurasi rekening resmi.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {auditLogs
+                  .filter(
+                    (l) =>
+                      l.jenis_objek === "rekening_pesantren" ||
+                      l.aktivitas.includes("REKENING")
+                  )
+                  .map((log) => (
+                    <div
+                      key={log.id}
+                      className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-emerald-900">{log.aktivitas}</span>
+                        <span className="text-[11px] text-slate-400">
+                          {formatWaktuLengkap(log.waktu)}
+                        </span>
+                      </div>
+                      <p className="text-slate-600">
+                        Oleh: <strong>{log.user_role}</strong> ({log.user_id}) • Alasan:{" "}
+                        {log.alasan_perubahan || "Pembaruan rekening"}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
