@@ -176,15 +176,22 @@ interface SipetaContextValue {
       no_telepon?: string;
       role?: UserRole;
       is_active?: boolean;
+      must_change_password?: boolean;
     }
   ) => Promise<ActionResponse>;
   toggleUserActive: (userId: string) => Promise<ActionResponse>;
-  resetUserPassword: (userId: string, newPassword: string) => Promise<ActionResponse>;
+  resetUserPassword: (userId: string, newPassword: string, mustChangePassword?: boolean) => Promise<ActionResponse>;
   updateUserProfile: (
     userId: string,
     data: { nama_lengkap: string; no_telepon?: string; role?: UserRole }
   ) => Promise<ActionResponse>;
   deleteUserAccount: (userId: string) => Promise<ActionResponse>;
+  deleteUserAccountBatch: (userIds: string[]) => Promise<{
+    ok: boolean;
+    message: string;
+    results?: Array<{ id: string; nama_lengkap?: string; status: string; actionTaken?: string; message: string }>;
+    summary?: { total: number; deleted: number; deactivated: number; skipped: number; failed: number };
+  }>;
   updateRekeningResmi: (payload: Omit<RekeningPesantren, "id" | "is_active" | "updated_at">) => ActionResponse;
 
   // Admin Actions
@@ -325,6 +332,19 @@ interface SipetaContextValue {
     status_baru: StatusTindakLanjut;
     alasan_perubahan: string;
   }) => ActionResponse;
+  createMasterKategoriPelanggaran: (payload: {
+    kode_kategori: string;
+    nama_kategori: string;
+    tingkat_pelanggaran: "RINGAN" | "SEDANG" | "BERAT";
+    poin_pembinaan: number;
+    standar_tindak_lanjut: string;
+    is_active?: boolean;
+  }) => Promise<ActionResponse>;
+  updateMasterKategoriPelanggaran: (
+    id: string,
+    payload: Partial<MasterKategoriPelanggaran>
+  ) => Promise<ActionResponse>;
+  deleteMasterKategoriPelanggaranBatch: (ids: string[]) => Promise<ActionResponse>;
 }
 
 const SipetaContext = createContext<SipetaContextValue | null>(null);
@@ -369,7 +389,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   );
   const [tahfidzList, setTahfidzList] = useState<SetoranTahfidz[]>(INITIAL_SETORAN_TAHFIDZ);
   const [prestasiList, setPrestasiList] = useState<PrestasiSantri[]>(INITIAL_PRESTASI);
-  const [masterPelanggaranList] = useState<MasterKategoriPelanggaran[]>(
+  const [masterPelanggaranList, setMasterPelanggaranList] = useState<MasterKategoriPelanggaran[]>(
     INITIAL_MASTER_PELANGGARAN
   );
   const [kedisiplinanList, setKedisiplinanList] =
@@ -403,6 +423,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         tahfidz,
         prestasi,
         kedisiplinan,
+        kategoriPelanggaran,
         pengumuman,
         notifikasi,
         fetchedUsers,
@@ -420,6 +441,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         kepesantrenanService.getSetoranTahfidz(),
         kepesantrenanService.getPrestasiSantri(),
         kepesantrenanService.getCatatanKedisiplinan(),
+        kepesantrenanService.getMasterKategoriPelanggaran(true),
         administrasiService.getPengumumanList(),
         notifikasiService.getNotifikasi(),
         authService.getAllProfiles(),
@@ -438,6 +460,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       setTahfidzList(tahfidz ?? []);
       setPrestasiList(prestasi ?? []);
       setKedisiplinanList(kedisiplinan ?? []);
+      if (kategoriPelanggaran && kategoriPelanggaran.length > 0) {
+        setMasterPelanggaranList(kategoriPelanggaran);
+      }
       setPengumumanList(pengumuman ?? []);
       setNotifikasiList(notifikasi ?? []);
       if (fetchedUsers && fetchedUsers.length > 0) {
@@ -941,7 +966,11 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
-  const resetUserPassword: SipetaContextValue["resetUserPassword"] = async (userId, newPassword) => {
+  const resetUserPassword: SipetaContextValue["resetUserPassword"] = async (
+    userId,
+    newPassword,
+    mustChangePassword = true
+  ) => {
     if (!currentUser || currentUser.role !== "superadmin") {
       return { ok: false, message: "Hanya Superadmin yang berwenang mengatur ulang kata sandi." };
     }
@@ -951,7 +980,13 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (authMode === "supabase") {
-      return await authService.resetUserPassword(userId, newPassword);
+      const res = await authService.resetUserPassword(userId, newPassword, mustChangePassword);
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, must_change_password: mustChangePassword } : u))
+        );
+      }
+      return res;
     }
 
     const target = users.find((u) => u.id === userId);
@@ -1017,6 +1052,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
             if (payload.no_telepon !== undefined) updated.no_telepon = payload.no_telepon;
             if (payload.role) updated.role = payload.role;
             if (payload.is_active !== undefined) updated.is_active = payload.is_active;
+            if (payload.must_change_password !== undefined) updated.must_change_password = payload.must_change_password;
             return updated;
           })
         );
@@ -1053,6 +1089,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         if (payload.no_telepon !== undefined) updated.no_telepon = payload.no_telepon;
         if (payload.role) updated.role = payload.role;
         if (payload.is_active !== undefined) updated.is_active = payload.is_active;
+        if (payload.must_change_password !== undefined) updated.must_change_password = payload.must_change_password;
         return updated;
       })
     );
@@ -1185,6 +1222,71 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     });
 
     return { ok: true, message: `Akun ${target.nama_lengkap} berhasil dihapus dari sistem.` };
+  };
+
+  const deleteUserAccountBatch: SipetaContextValue["deleteUserAccountBatch"] = async (userIds) => {
+    if (!currentUser || currentUser.role !== "superadmin") {
+      return { ok: false, message: "Hanya Superadmin yang berwenang menghapus akun pengguna." };
+    }
+    if (!userIds || userIds.length === 0) {
+      return { ok: false, message: "Pilih setidaknya satu akun untuk dihapus." };
+    }
+
+    if (authMode === "supabase") {
+      const res = await authService.deleteUserAccountBatch(userIds);
+      if (res.ok && res.results) {
+        const deletedIds = res.results.filter((r) => r.status === "DELETED").map((r) => r.id);
+        const deactivatedIds = res.results.filter((r) => r.status === "DEACTIVATED").map((r) => r.id);
+        setUsers((prev) =>
+          prev
+            .filter((u) => !deletedIds.includes(u.id))
+            .map((u) => (deactivatedIds.includes(u.id) ? { ...u, is_active: false } : u))
+        );
+      }
+      return res;
+    }
+
+    // Mode Demo Batch Execution
+    const results: Array<{ id: string; nama_lengkap?: string; status: string; actionTaken?: string; message: string }> = [];
+    let deleted = 0;
+    let deactivated = 0;
+    let skipped = 0;
+
+    for (const uid of userIds) {
+      const u = users.find((x) => x.id === uid);
+      if (!u) continue;
+      if (uid === currentUser.id) {
+        skipped++;
+        results.push({ id: uid, nama_lengkap: u.nama_lengkap, status: "SKIPPED", message: "Tidak dapat menghapus akun sendiri saat sedang aktif." });
+        continue;
+      }
+      if (u.role === "superadmin" && (u.email === "sipetaabumanshur@gmail.com" || u.username === "superadmin")) {
+        skipped++;
+        results.push({ id: uid, nama_lengkap: u.nama_lengkap, status: "SKIPPED", message: "Akun Superadmin utama pesantren dilindungi sistem." });
+        continue;
+      }
+
+      const hasHistory =
+        transaksiPembayaranList.some((t) => t.wali_user_id === uid) ||
+        mutasiUangSakuList.some((m) => m.petugas_nama?.toLowerCase().includes(u.nama_lengkap.toLowerCase()));
+
+      if (hasHistory) {
+        deactivated++;
+        setUsers((prev) => prev.map((x) => (x.id === uid ? { ...x, is_active: false } : x)));
+        results.push({ id: uid, nama_lengkap: u.nama_lengkap, status: "DEACTIVATED", actionTaken: "DEACTIVATED", message: "Dinonaktifkan aman karena memiliki riwayat penting." });
+      } else {
+        deleted++;
+        setUsers((prev) => prev.filter((x) => x.id !== uid));
+        results.push({ id: uid, nama_lengkap: u.nama_lengkap, status: "DELETED", actionTaken: "DELETED", message: "Berhasil dihapus permanen dari sistem." });
+      }
+    }
+
+    return {
+      ok: true,
+      message: `Proses penghapusan massal selesai: ${deleted} dihapus, ${deactivated} dinonaktifkan, ${skipped} dilewati.`,
+      results,
+      summary: { total: userIds.length, deleted, deactivated, skipped, failed: 0 },
+    };
   };
 
   const updateRekeningResmi: SipetaContextValue["updateRekeningResmi"] = (payload) => {
@@ -2933,6 +3035,127 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  const createMasterKategoriPelanggaran: SipetaContextValue["createMasterKategoriPelanggaran"] = async (
+    payload
+  ) => {
+    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Pengelola Kepesantrenan atau Superadmin yang berwenang menambah kategori pelanggaran." };
+    }
+
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.createMasterKategoriPelanggaran(payload);
+      if (res.ok && res.data) {
+        setMasterPelanggaranList((prev) => [...prev, res.data!]);
+        appendAuditLog("TAMBAH_MASTER_KATEGORI_PELANGGARAN", "master_kategori_pelanggaran", res.data.id, {
+          kode_kategori: payload.kode_kategori,
+          nama_kategori: payload.nama_kategori,
+          tingkat_pelanggaran: payload.tingkat_pelanggaran,
+        });
+        return { ok: true, message: "Kategori pelanggaran berhasil ditambahkan ke database." };
+      }
+      if (!res.ok) {
+        return { ok: false, message: res.message };
+      }
+    }
+
+    // Demo / Standalone fallback
+    const newItem: MasterKategoriPelanggaran = {
+      id: `kat-${Date.now()}`,
+      kode_kategori: payload.kode_kategori.trim().toUpperCase(),
+      nama_kategori: payload.nama_kategori.trim(),
+      tingkat_pelanggaran: payload.tingkat_pelanggaran,
+      poin_pembinaan: payload.poin_pembinaan,
+      standar_tindak_lanjut: payload.standar_tindak_lanjut.trim(),
+      is_active: payload.is_active !== false,
+      created_at: new Date().toISOString(),
+    };
+    setMasterPelanggaranList((prev) => [...prev, newItem]);
+    appendAuditLog("TAMBAH_MASTER_KATEGORI_PELANGGARAN", "master_kategori_pelanggaran", newItem.id, {
+      kode_kategori: newItem.kode_kategori,
+      nama_kategori: newItem.nama_kategori,
+    });
+    return { ok: true, message: "Kategori pelanggaran baru berhasil ditambahkan." };
+  };
+
+  const updateMasterKategoriPelanggaran: SipetaContextValue["updateMasterKategoriPelanggaran"] = async (
+    id,
+    payload
+  ) => {
+    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Pengelola Kepesantrenan atau Superadmin yang berwenang mengubah kategori pelanggaran." };
+    }
+
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.updateMasterKategoriPelanggaran(id, payload);
+      if (!res.ok) return { ok: false, message: res.message };
+    }
+
+    setMasterPelanggaranList((prev) =>
+      prev.map((k) => (k.id === id ? { ...k, ...payload } : k))
+    );
+    appendAuditLog("UBAH_MASTER_KATEGORI_PELANGGARAN", "master_kategori_pelanggaran", id, payload);
+    return { ok: true, message: "Kategori pelanggaran berhasil diperbarui." };
+  };
+
+  const deleteMasterKategoriPelanggaranBatch: SipetaContextValue["deleteMasterKategoriPelanggaranBatch"] = async (
+    ids
+  ) => {
+    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
+      return { ok: false, message: "Hanya Pengelola Kepesantrenan atau Superadmin yang berwenang menghapus kategori pelanggaran." };
+    }
+    if (!ids || ids.length === 0) {
+      return { ok: false, message: "Pilih setidaknya satu kategori pelanggaran untuk dihapus." };
+    }
+
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.deleteMasterKategoriPelanggaranBatch(ids);
+      // Refresh list dari server untuk memastikan sinkronisasi akurat
+      const refreshed = await kepesantrenanService.getMasterKategoriPelanggaran(true);
+      if (refreshed.length > 0) {
+        setMasterPelanggaranList(refreshed);
+      }
+      return {
+        ok: res.ok,
+        message: `${res.message} (Dihapus: ${res.summary.deleted}, Dinonaktifkan: ${res.summary.deactivated}, Gagal: ${res.summary.failed})`,
+      };
+    }
+
+    // Demo Mode logic: periksa penggunaan di kedisiplinanList
+    let delCount = 0;
+    let deactCount = 0;
+    const usedKategoriIds = new Set(kedisiplinanList.map((c) => c.kategori_id));
+
+    setMasterPelanggaranList((prev) => {
+      const remaining: MasterKategoriPelanggaran[] = [];
+      for (const k of prev) {
+        if (!ids.includes(k.id)) {
+          remaining.push(k);
+        } else {
+          if (usedKategoriIds.has(k.id)) {
+            // Soft deactivate
+            remaining.push({ ...k, is_active: false });
+            deactCount++;
+          } else {
+            // Clean hard delete
+            delCount++;
+          }
+        }
+      }
+      return remaining;
+    });
+
+    appendAuditLog("HAPUS_MASTER_KATEGORI_PELANGGARAN_BATCH", "master_kategori_pelanggaran", ids.join(","), {
+      total: ids.length,
+      deleted: delCount,
+      deactivated: deactCount,
+    });
+
+    return {
+      ok: true,
+      message: `Proses selesai: ${delCount} kategori dihapus bersih, ${deactCount} dinonaktifkan secara aman karena memiliki riwayat pembinaan santri.`,
+    };
+  };
+
   return (
     <SipetaContext.Provider
       value={{
@@ -2986,6 +3209,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         resetUserPassword,
         updateUserProfile,
         deleteUserAccount,
+        deleteUserAccountBatch,
         updateRekeningResmi,
         createSantriWithWali,
         importSantriBatch,
@@ -3019,6 +3243,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         recordPrestasiSantri,
         recordCatatanKedisiplinan,
         updateTindakLanjutKedisiplinan,
+        createMasterKategoriPelanggaran,
+        updateMasterKategoriPelanggaran,
+        deleteMasterKategoriPelanggaranBatch,
       }}
     >
       {children}

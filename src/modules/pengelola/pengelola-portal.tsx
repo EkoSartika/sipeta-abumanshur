@@ -1,16 +1,40 @@
 "use client";
 
-import React, { useState } from "react";
-import { Award, BookOpen, History, Info, ShieldAlert, Sparkles } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Award,
+  BookOpen,
+  CheckCircle2,
+  Edit2,
+  FileSpreadsheet,
+  History,
+  Info,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  ShieldAlert,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
 import { formatTanggal, formatWaktuLengkap } from "@/lib/utils/format";
 import type {
   JenisSetoranTahfidz,
+  MasterKategoriPelanggaran,
   StatusTindakLanjut,
   TingkatPrestasi,
 } from "@/types/database";
 
-export type PengelolaTab = "dashboard" | "mengaji" | "tahfidz" | "prestasi" | "kedisiplinan";
+export type PengelolaTab =
+  | "dashboard"
+  | "mengaji"
+  | "tahfidz"
+  | "prestasi"
+  | "kedisiplinan"
+  | "master_kategori_pelanggaran";
 
 export interface PengelolaPortalProps {
   activeTab?: PengelolaTab | string;
@@ -33,6 +57,9 @@ export function PengelolaPortal({
     recordPrestasiSantri,
     recordCatatanKedisiplinan,
     updateTindakLanjutKedisiplinan,
+    createMasterKategoriPelanggaran,
+    updateMasterKategoriPelanggaran,
+    deleteMasterKategoriPelanggaranBatch,
   } = useSipeta();
 
   const [internalTab, setInternalTab] = useState<PengelolaTab>("dashboard");
@@ -83,10 +110,15 @@ export function PengelolaPortal({
     "Meraih medali emas bidang Nahwu & Qiraatul Kutub."
   );
 
+  // Subtab Navigasi Kedisiplinan: Catatan & Pembinaan vs Master Kategori Pelanggaran
+  const [disiplinSubTab, setDisiplinSubTab] = useState<"catatan" | "master">(
+    controlledTab === "master_kategori_pelanggaran" ? "master" : "catatan"
+  );
+
   // State Kedisiplinan
   const [santriDisiplin, setSantriDisiplin] = useState(santriList[0]?.id ?? "snt-001");
   const [kategoriDisiplinId, setKategoriDisiplinId] = useState(
-    masterPelanggaranList[0]?.id ?? "kat-dis-01"
+    masterPelanggaranList.find((k) => k.is_active !== false)?.id ?? masterPelanggaranList[0]?.id ?? "kat-dis-01"
   );
   const [deskripsiDisiplin, setDeskripsiDisiplin] = useState("");
   const [tindakLanjutDisiplin, setTindakLanjutDisiplin] = useState(
@@ -107,6 +139,127 @@ export function PengelolaPortal({
   const [alasanUpdateDisiplin, setAlasanUpdateDisiplin] = useState(
     "Verifikasi akhir pembinaan oleh Pengelola Kepesantrenan"
   );
+
+  // State Manajemen Master Kategori Pelanggaran
+  const [selectedKatIds, setSelectedKatIds] = useState<string[]>([]);
+  const [modalTambahKatOpen, setModalTambahKatOpen] = useState(false);
+  const [submittingKat, setSubmittingKat] = useState(false);
+  const [newKodeKat, setNewKodeKat] = useState("");
+  const [newNamaKat, setNewNamaKat] = useState("");
+  const [newTingkatKat, setNewTingkatKat] = useState<"RINGAN" | "SEDANG" | "BERAT">("RINGAN");
+  const [newPoinKat, setNewPoinKat] = useState(5);
+  const [newStandarTindakKat, setNewStandarTindakKat] = useState("");
+
+  // Modal Edit Kategori
+  const [editKatModal, setEditKatModal] = useState<MasterKategoriPelanggaran | null>(null);
+  const [editNamaKat, setEditNamaKat] = useState("");
+  const [editTingkatKat, setEditTingkatKat] = useState<"RINGAN" | "SEDANG" | "BERAT">("RINGAN");
+  const [editPoinKat, setEditPoinKat] = useState(5);
+  const [editStandarTindakKat, setEditStandarTindakKat] = useState("");
+  const [editIsActiveKat, setEditIsActiveKat] = useState(true);
+
+  // Modal Bulk Delete Kategori
+  const [bulkDeleteKatModalOpen, setBulkDeleteKatModalOpen] = useState(false);
+  const [bulkDeleteKatSubmitting, setBulkDeleteKatSubmitting] = useState(false);
+
+  // Kategori aktif untuk dropdown form
+  const activeKategoriList = useMemo(() => {
+    return masterPelanggaranList.filter((k) => k.is_active !== false);
+  }, [masterPelanggaranList]);
+
+  const handleOpenTambahKatModal = () => {
+    setNewKodeKat(`KAT-${Date.now().toString().slice(-4)}`);
+    setNewNamaKat("");
+    setNewTingkatKat("RINGAN");
+    setNewPoinKat(5);
+    setNewStandarTindakKat("");
+    setModalTambahKatOpen(true);
+  };
+
+  const handleCreateKategoriSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newKodeKat.trim() || !newNamaKat.trim()) return;
+    setSubmittingKat(true);
+    try {
+      const res = await createMasterKategoriPelanggaran({
+        kode_kategori: newKodeKat.trim().toUpperCase(),
+        nama_kategori: newNamaKat.trim(),
+        tingkat_pelanggaran: newTingkatKat,
+        poin_pembinaan: Number(newPoinKat),
+        standar_tindak_lanjut: newStandarTindakKat.trim() || "Pembinaan musyrif kamar",
+        is_active: true,
+      });
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setModalTambahKatOpen(false);
+      }
+    } finally {
+      setSubmittingKat(false);
+    }
+  };
+
+  const handleOpenEditKat = (k: MasterKategoriPelanggaran) => {
+    setEditKatModal(k);
+    setEditNamaKat(k.nama_kategori);
+    setEditTingkatKat(k.tingkat_pelanggaran);
+    setEditPoinKat(k.poin_pembinaan);
+    setEditStandarTindakKat(k.standar_tindak_lanjut);
+    setEditIsActiveKat(k.is_active !== false);
+  };
+
+  const handleEditKategoriSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editKatModal) return;
+    setSubmittingKat(true);
+    try {
+      const res = await updateMasterKategoriPelanggaran(editKatModal.id, {
+        nama_kategori: editNamaKat.trim(),
+        tingkat_pelanggaran: editTingkatKat,
+        poin_pembinaan: Number(editPoinKat),
+        standar_tindak_lanjut: editStandarTindakKat.trim(),
+        is_active: editIsActiveKat,
+      });
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setEditKatModal(null);
+      }
+    } finally {
+      setSubmittingKat(false);
+    }
+  };
+
+  const isAllKatSelected =
+    masterPelanggaranList.length > 0 &&
+    masterPelanggaranList.every((k) => selectedKatIds.includes(k.id));
+
+  const handleToggleSelectAllKat = () => {
+    if (isAllKatSelected) {
+      setSelectedKatIds([]);
+    } else {
+      setSelectedKatIds(masterPelanggaranList.map((k) => k.id));
+    }
+  };
+
+  const handleToggleSelectOneKat = (id: string) => {
+    setSelectedKatIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDeleteKat = async () => {
+    if (selectedKatIds.length === 0) return;
+    setBulkDeleteKatSubmitting(true);
+    try {
+      const res = await deleteMasterKategoriPelanggaranBatch(selectedKatIds);
+      setFeedback({ ok: res.ok, text: res.message });
+      if (res.ok) {
+        setSelectedKatIds([]);
+        setBulkDeleteKatModalOpen(false);
+      }
+    } finally {
+      setBulkDeleteKatSubmitting(false);
+    }
+  };
 
   const getSantriName = (id: string) => {
     const s = santriList.find((x) => x.id === id);
@@ -690,219 +843,660 @@ export function PengelolaPortal({
         </div>
       )}
 
-      {/* TAB 4: KEDISIPLINAN & RIWAYAT PERUBAHAN PEMBINAAN */}
-      {activeTab === "kedisiplinan" && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900">
-                Catat Pelanggaran & Pembinaan Baru
-              </h3>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const res = recordCatatanKedisiplinan({
-                    santri_id: santriDisiplin,
-                    tanggal_kejadian: new Date().toISOString().slice(0, 10),
-                    waktu_kejadian: "06:30",
-                    kategori_id: kategoriDisiplinId,
-                    deskripsi: deskripsiDisiplin,
-                    tindak_lanjut: tindakLanjutDisiplin,
-                    catatan_pembinaan: catatanPembinaanDisiplin,
-                    status_tindak_lanjut: "DALAM_PEMBINAAN",
-                  });
-                  setFeedback({ ok: res.ok, text: res.message });
-                  if (res.ok) setDeskripsiDisiplin("");
-                }}
-                className="mt-3 space-y-3 text-xs"
-              >
-                <div>
-                  <label className="font-semibold text-slate-700">Santri</label>
-                  <select
-                    value={santriDisiplin}
-                    onChange={(e) => setSantriDisiplin(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-                  >
-                    {santriList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nis} — {s.nama_lengkap}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">
-                    Kategori Pelanggaran (Master Data)
-                  </label>
-                  <select
-                    value={kategoriDisiplinId}
-                    onChange={(e) => setKategoriDisiplinId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5"
-                  >
-                    {masterPelanggaranList.map((k) => (
-                      <option key={k.id} value={k.id}>
-                        [{k.tingkat_pelanggaran}] {k.nama_kategori}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Deskripsi Kejadian</label>
-                  <textarea
-                    rows={2}
-                    required
-                    value={deskripsiDisiplin}
-                    onChange={(e) => setDeskripsiDisiplin(e.target.value)}
-                    placeholder="Uraikan waktu dan kronologi singkat..."
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Tindak Lanjut</label>
-                  <input
-                    type="text"
-                    required
-                    value={tindakLanjutDisiplin}
-                    onChange={(e) => setTindakLanjutDisiplin(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Catatan Pembinaan</label>
-                  <input
-                    type="text"
-                    required
-                    value={catatanPembinaanDisiplin}
-                    onChange={(e) => setCatatanPembinaanDisiplin(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-emerald-700 py-2 font-bold text-white hover:bg-emerald-800"
-                >
-                  Simpan Catatan Kedisiplinan
-                </button>
-              </form>
+      {/* TAB 4: KEDISIPLINAN & MASTER KATEGORI PELANGGARAN */}
+      {(activeTab === "kedisiplinan" || activeTab === "master_kategori_pelanggaran") && (
+        <div className="w-full space-y-6">
+          {/* Subtab Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">Kedisiplinan &amp; Pembinaan Santri</h3>
+              <p className="text-xs text-slate-500">
+                Pencatatan pelanggaran, evaluasi pembinaan, serta manajemen master kategori pelanggaran pesantren.
+              </p>
             </div>
-
-            {/* Form Update Status Tindak Lanjut dengan Riwayat */}
-            <div className="rounded-2xl border border-indigo-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <History className="h-4 w-4 text-indigo-700" />
-                <h3 className="text-sm font-bold text-slate-900">
-                  Perbarui Tindak Lanjut (Simpan Riwayat Sebelumnya)
-                </h3>
-              </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const target = kedisiplinanList.find((c) => c.id === selectedDisiplinId);
-                  const res = updateTindakLanjutKedisiplinan({
-                    catatan_id: selectedDisiplinId,
-                    tindak_lanjut_baru: target?.tindak_lanjut ?? tindakLanjutDisiplin,
-                    catatan_pembinaan_baru: catatanPembinaanUpdate,
-                    status_baru: statusTindakBaru,
-                    alasan_perubahan: alasanUpdateDisiplin,
-                  });
-                  setFeedback({ ok: res.ok, text: res.message });
-                }}
-                className="mt-3 space-y-2.5 text-xs"
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setDisiplinSubTab("catatan")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition min-h-[38px] ${
+                  disiplinSubTab === "catatan"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
               >
-                <div>
-                  <label className="font-semibold text-slate-700">Pilih Catatan</label>
-                  <select
-                    value={selectedDisiplinId}
-                    onChange={(e) => setSelectedDisiplinId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  >
-                    {kedisiplinanList.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {getSantriName(d.santri_id)} — {d.nama_kategori}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Status Baru</label>
-                  <select
-                    value={statusTindakBaru}
-                    onChange={(e) => setStatusTindakBaru(e.target.value as StatusTindakLanjut)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 font-bold"
-                  >
-                    <option value="TERCATAT">TERCATAT</option>
-                    <option value="DALAM_PEMBINAAN">DALAM_PEMBINAAN</option>
-                    <option value="SELESAI">SELESAI</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Catatan Pembinaan Terbaru</label>
-                  <input
-                    type="text"
-                    required
-                    value={catatanPembinaanUpdate}
-                    onChange={(e) => setCatatanPembinaanUpdate(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Alasan Perubahan</label>
-                  <input
-                    type="text"
-                    required
-                    value={alasanUpdateDisiplin}
-                    onChange={(e) => setAlasanUpdateDisiplin(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-indigo-700 py-2 font-bold text-white hover:bg-indigo-800"
-                >
-                  Perbarui & Arsipkan Catatan Lama
-                </button>
-              </form>
+                <ShieldAlert className="h-4 w-4" />
+                <span>Catatan &amp; Pembinaan</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisiplinSubTab("master")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition min-h-[38px] ${
+                  disiplinSubTab === "master"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>Master Kategori Pelanggaran</span>
+              </button>
             </div>
           </div>
 
-          <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-            <h3 className="text-base font-bold text-slate-900">
-              Daftar Catatan Kedisiplinan & Jejak Riwayat Pembinaan
-            </h3>
-            {kedisiplinanList.map((d) => (
-              <div key={d.id} className="rounded-xl border border-slate-200 p-4 text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="font-bold text-slate-900">
-                    {getSantriName(d.santri_id)} — {d.nama_kategori}
-                  </span>
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-800">
-                    {d.status_tindak_lanjut}
+          {/* SUBTAB A: CATATAN & PEMBINAAN KEDISIPLINAN */}
+          {disiplinSubTab === "catatan" && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-base font-bold text-slate-900">
+                    Catat Pelanggaran &amp; Pembinaan Baru
+                  </h3>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const res = recordCatatanKedisiplinan({
+                        santri_id: santriDisiplin,
+                        tanggal_kejadian: new Date().toISOString().slice(0, 10),
+                        waktu_kejadian: "06:30",
+                        kategori_id: kategoriDisiplinId,
+                        deskripsi: deskripsiDisiplin,
+                        tindak_lanjut: tindakLanjutDisiplin,
+                        catatan_pembinaan: catatanPembinaanDisiplin,
+                        status_tindak_lanjut: "DALAM_PEMBINAAN",
+                      });
+                      setFeedback({ ok: res.ok, text: res.message });
+                      if (res.ok) setDeskripsiDisiplin("");
+                    }}
+                    className="mt-3 space-y-3 text-xs"
+                  >
+                    <div>
+                      <label className="font-semibold text-slate-700">Santri</label>
+                      <select
+                        value={santriDisiplin}
+                        onChange={(e) => setSantriDisiplin(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"
+                      >
+                        {santriList.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nis} — {s.nama_lengkap}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">
+                        Kategori Pelanggaran (Hanya Kategori Aktif)
+                      </label>
+                      <select
+                        value={kategoriDisiplinId}
+                        onChange={(e) => setKategoriDisiplinId(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-medium"
+                      >
+                        {activeKategoriList.length === 0 ? (
+                          <option value="">Tidak ada kategori aktif</option>
+                        ) : (
+                          activeKategoriList.map((k) => (
+                            <option key={k.id} value={k.id}>
+                              [{k.tingkat_pelanggaran}] {k.nama_kategori} ({k.poin_pembinaan} Poin)
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">Deskripsi Kejadian</label>
+                      <textarea
+                        rows={2}
+                        required
+                        value={deskripsiDisiplin}
+                        onChange={(e) => setDeskripsiDisiplin(e.target.value)}
+                        placeholder="Uraikan waktu dan kronologi singkat kejadian..."
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">Tindak Lanjut Standar</label>
+                      <input
+                        type="text"
+                        required
+                        value={tindakLanjutDisiplin}
+                        onChange={(e) => setTindakLanjutDisiplin(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">Catatan Pembinaan</label>
+                      <input
+                        type="text"
+                        required
+                        value={catatanPembinaanDisiplin}
+                        onChange={(e) => setCatatanPembinaanDisiplin(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full rounded-xl bg-emerald-700 py-2.5 font-bold text-white hover:bg-emerald-800 transition shadow-sm min-h-[44px] cursor-pointer"
+                    >
+                      Simpan Catatan Kedisiplinan
+                    </button>
+                  </form>
+                </div>
+
+                {/* Form Update Status Tindak Lanjut dengan Riwayat */}
+                <div className="rounded-2xl border border-indigo-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <History className="h-4 w-4 text-indigo-700" />
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Perbarui Tindak Lanjut (Simpan Riwayat Sebelumnya)
+                    </h3>
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const target = kedisiplinanList.find((c) => c.id === selectedDisiplinId);
+                      const res = updateTindakLanjutKedisiplinan({
+                        catatan_id: selectedDisiplinId,
+                        tindak_lanjut_baru: target?.tindak_lanjut ?? tindakLanjutDisiplin,
+                        catatan_pembinaan_baru: catatanPembinaanUpdate,
+                        status_baru: statusTindakBaru,
+                        alasan_perubahan: alasanUpdateDisiplin,
+                      });
+                      setFeedback({ ok: res.ok, text: res.message });
+                    }}
+                    className="mt-3 space-y-2.5 text-xs"
+                  >
+                    <div>
+                      <label className="font-semibold text-slate-700">Pilih Catatan Santri</label>
+                      <select
+                        value={selectedDisiplinId}
+                        onChange={(e) => setSelectedDisiplinId(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-2"
+                      >
+                        {kedisiplinanList.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {getSantriName(d.santri_id)} — {d.nama_kategori}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">Status Pembinaan Baru</label>
+                      <select
+                        value={statusTindakBaru}
+                        onChange={(e) => setStatusTindakBaru(e.target.value as StatusTindakLanjut)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-2 font-bold"
+                      >
+                        <option value="TERCATAT">TERCATAT</option>
+                        <option value="DALAM_PEMBINAAN">DALAM_PEMBINAAN</option>
+                        <option value="SELESAI">SELESAI</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">Catatan Pembinaan Terbaru</label>
+                      <input
+                        type="text"
+                        required
+                        value={catatanPembinaanUpdate}
+                        onChange={(e) => setCatatanPembinaanUpdate(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">Alasan Perubahan Status</label>
+                      <input
+                        type="text"
+                        required
+                        value={alasanUpdateDisiplin}
+                        onChange={(e) => setAlasanUpdateDisiplin(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-2.5 py-2"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full rounded-xl bg-indigo-700 py-2.5 font-bold text-white hover:bg-indigo-800 transition min-h-[44px] cursor-pointer"
+                    >
+                      Perbarui Status &amp; Arsipkan Catatan Lama
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Daftar Catatan Kedisiplinan &amp; Jejak Pembinaan
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Riwayat perubahan status dan evaluasi tersimpan lengkap tanpa menimpa catatan lama.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                    {kedisiplinanList.length} Catatan
                   </span>
                 </div>
-                <p className="text-slate-600">{d.deskripsi}</p>
-                <p className="text-slate-800">
-                  <strong>Pembinaan Saat Ini:</strong> {d.catatan_pembinaan}
-                </p>
-                {d.riwayat_perubahan.length > 0 && (
-                  <div className="border-t border-slate-100 pt-2">
-                    <span className="font-bold text-slate-500">
-                      Riwayat Catatan Sebelumnya ({d.riwayat_perubahan.length}):
-                    </span>
-                    {d.riwayat_perubahan.map((r) => (
-                      <div
-                        key={r.id}
-                        className="mt-1 rounded bg-slate-50 p-2 text-[11px] text-slate-600"
-                      >
-                        [{formatWaktuLengkap(r.created_at)}] {r.status_sebelum} →{" "}
-                        {r.status_sesudah} | Catatan lama: &ldquo;{r.catatan_pembinaan_sebelum}
-                        &rdquo;
+
+                <div className="space-y-3">
+                  {kedisiplinanList.map((d) => (
+                    <div key={d.id} className="rounded-xl border border-slate-200 p-4 text-xs space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-bold text-slate-900 text-sm">
+                          {getSantriName(d.santri_id)} — {d.nama_kategori}
+                        </span>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                            d.status_tindak_lanjut === "SELESAI"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : d.status_tindak_lanjut === "DALAM_PEMBINAAN"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-slate-100 text-slate-800"
+                          }`}
+                        >
+                          {d.status_tindak_lanjut}
+                        </span>
                       </div>
-                    ))}
+                      <p className="text-slate-600">{d.deskripsi}</p>
+                      <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <strong>Pembinaan Saat Ini:</strong> {d.catatan_pembinaan}
+                      </p>
+                      {d.riwayat_perubahan && d.riwayat_perubahan.length > 0 && (
+                        <div className="border-t border-slate-100 pt-2 space-y-1">
+                          <span className="font-bold text-slate-500 text-[11px]">
+                            Riwayat Catatan Sebelumnya ({d.riwayat_perubahan.length}):
+                          </span>
+                          {d.riwayat_perubahan.map((r) => (
+                            <div
+                              key={r.id}
+                              className="rounded bg-slate-50 p-2 text-[11px] text-slate-600 border border-slate-200/60"
+                            >
+                              <div className="font-medium text-slate-800">
+                                [{formatWaktuLengkap(r.created_at)}] {r.status_sebelum} → {r.status_sesudah} (Oleh: {r.diubah_oleh_nama})
+                              </div>
+                              <div>Catatan sebelumnya: &ldquo;{r.catatan_pembinaan_sebelum}&rdquo;</div>
+                              <div className="text-[10px] text-slate-400 italic">Alasan: {r.alasan_perubahan}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUBTAB B: MASTER KATEGORI PELANGGARAN */}
+          {disiplinSubTab === "master" && (
+            <div className="w-full space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900">
+                      Master Data Kategori Pelanggaran Pesantren
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Standar rujukan tingkat pelanggaran, poin pembinaan, dan pedoman tindak lanjut resmi.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenTambahKatModal}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-900 shadow-sm transition min-h-[40px] cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Tambah Kategori Baru</span>
+                  </button>
+                </div>
+
+                {/* Bulk Action Bar Kategori */}
+                {selectedKatIds.length > 0 && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <span className="text-xs font-bold text-rose-950">
+                      Terpilih {selectedKatIds.length} kategori pelanggaran
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKatIds([])}
+                        className="rounded-lg bg-white border border-rose-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBulkDeleteKatModalOpen(true)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-rose-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-800"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Hapus Terpilih</span>
+                      </button>
+                    </div>
                   </div>
                 )}
+
+                {/* Tabel Master Kategori */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                        <th className="py-3 px-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isAllKatSelected}
+                            onChange={handleToggleSelectAllKat}
+                            className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                          />
+                        </th>
+                        <th className="py-3 px-3">Kode</th>
+                        <th className="py-3 px-3">Nama Kategori</th>
+                        <th className="py-3 px-3">Tingkat</th>
+                        <th className="py-3 px-3 text-center">Poin</th>
+                        <th className="py-3 px-3">Standar Tindak Lanjut</th>
+                        <th className="py-3 px-3">Status</th>
+                        <th className="py-3 px-4 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {masterPelanggaranList.map((k) => {
+                        const isSelected = selectedKatIds.includes(k.id);
+                        return (
+                          <tr key={k.id} className={`hover:bg-slate-50/70 transition ${isSelected ? "bg-rose-50/40" : ""}`}>
+                            <td className="py-3 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleSelectOneKat(k.id)}
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                              />
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold text-emerald-800">
+                              {k.kode_kategori}
+                            </td>
+                            <td className="py-3 px-3 font-bold text-slate-900">
+                              {k.nama_kategori}
+                            </td>
+                            <td className="py-3 px-3">
+                              <span
+                                className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                                  k.tingkat_pelanggaran === "RINGAN"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : k.tingkat_pelanggaran === "SEDANG"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-rose-100 text-rose-800"
+                                }`}
+                              >
+                                {k.tingkat_pelanggaran}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center font-bold text-slate-800">
+                              {k.poin_pembinaan}
+                            </td>
+                            <td className="py-3 px-3 text-slate-600 max-w-xs truncate">
+                              {k.standar_tindak_lanjut}
+                            </td>
+                            <td className="py-3 px-3">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                  k.is_active !== false
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-slate-200 text-slate-700"
+                                }`}
+                              >
+                                {k.is_active !== false ? "Aktif" : "Nonaktif"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditKat(k)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                                <span>Edit</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* MODAL TAMBAH KATEGORI */}
+          {modalTambahKatOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h4 className="text-base font-extrabold text-slate-900">Tambah Kategori Pelanggaran</h4>
+                  <button
+                    type="button"
+                    onClick={() => setModalTambahKatOpen(false)}
+                    className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <form onSubmit={handleCreateKategoriSubmit} className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Kode Kategori</label>
+                    <input
+                      type="text"
+                      required
+                      value={newKodeKat}
+                      onChange={(e) => setNewKodeKat(e.target.value.toUpperCase())}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Nama Kategori</label>
+                    <input
+                      type="text"
+                      required
+                      value={newNamaKat}
+                      onChange={(e) => setNewNamaKat(e.target.value)}
+                      placeholder="Contoh: Terlambat Mengikuti Shalat Berjamaah"
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-medium"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Tingkat</label>
+                      <select
+                        value={newTingkatKat}
+                        onChange={(e) => setNewTingkatKat(e.target.value as "RINGAN" | "SEDANG" | "BERAT")}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold"
+                      >
+                        <option value="RINGAN">RINGAN</option>
+                        <option value="SEDANG">SEDANG</option>
+                        <option value="BERAT">BERAT</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Poin Pembinaan</label>
+                      <input
+                        type="number"
+                        min={1}
+                        required
+                        value={newPoinKat}
+                        onChange={(e) => setNewPoinKat(Number(e.target.value))}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 font-bold"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Standar Tindak Lanjut</label>
+                    <textarea
+                      rows={2}
+                      required
+                      value={newStandarTindakKat}
+                      onChange={(e) => setNewStandarTindakKat(e.target.value)}
+                      placeholder="Pedoman tindakan pembinaan standar..."
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setModalTambahKatOpen(false)}
+                      className="rounded-xl border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 min-h-[42px]"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingKat}
+                      className="rounded-xl bg-emerald-800 px-5 py-2 font-bold text-white hover:bg-emerald-900 disabled:opacity-50 min-h-[42px] cursor-pointer"
+                    >
+                      {submittingKat ? "Menyimpan..." : "Simpan Kategori"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL EDIT KATEGORI */}
+          {editKatModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h4 className="text-base font-extrabold text-slate-900">Edit Kategori Pelanggaran</h4>
+                  <button
+                    type="button"
+                    onClick={() => setEditKatModal(null)}
+                    className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <form onSubmit={handleEditKategoriSubmit} className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Kode Kategori</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={editKatModal.kode_kategori}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 font-mono font-bold text-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Nama Kategori</label>
+                    <input
+                      type="text"
+                      required
+                      value={editNamaKat}
+                      onChange={(e) => setEditNamaKat(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-medium"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Tingkat</label>
+                      <select
+                        value={editTingkatKat}
+                        onChange={(e) => setEditTingkatKat(e.target.value as "RINGAN" | "SEDANG" | "BERAT")}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold"
+                      >
+                        <option value="RINGAN">RINGAN</option>
+                        <option value="SEDANG">SEDANG</option>
+                        <option value="BERAT">BERAT</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Poin Pembinaan</label>
+                      <input
+                        type="number"
+                        min={1}
+                        required
+                        value={editPoinKat}
+                        onChange={(e) => setEditPoinKat(Number(e.target.value))}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 font-bold"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Standar Tindak Lanjut</label>
+                    <textarea
+                      rows={2}
+                      required
+                      value={editStandarTindakKat}
+                      onChange={(e) => setEditStandarTindakKat(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Status Keaktifan</label>
+                    <select
+                      value={editIsActiveKat ? "active" : "inactive"}
+                      onChange={(e) => setEditIsActiveKat(e.target.value === "active")}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold"
+                    >
+                      <option value="active">Aktif (Dapat Dipilih)</option>
+                      <option value="inactive">Nonaktif (Diarsipkan)</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setEditKatModal(null)}
+                      className="rounded-xl border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 min-h-[42px]"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingKat}
+                      className="rounded-xl bg-emerald-800 px-5 py-2 font-bold text-white hover:bg-emerald-900 disabled:opacity-50 min-h-[42px] cursor-pointer"
+                    >
+                      {submittingKat ? "Menyimpan..." : "Simpan Perubahan"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL BULK DELETE KATEGORI */}
+          {bulkDeleteKatModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-white p-5 shadow-2xl space-y-4">
+                <div className="flex items-center gap-2 text-rose-700 border-b border-rose-100 pb-3">
+                  <AlertTriangle className="h-5 w-5 shrink-0" />
+                  <h4 className="text-base font-extrabold text-slate-900">
+                    Hapus {selectedKatIds.length} Kategori Terpilih?
+                  </h4>
+                </div>
+                <div className="text-xs text-slate-600 space-y-2">
+                  <p>
+                    Kategori yang <strong>belum pernah digunakan</strong> pada riwayat pembinaan santri akan <em>dihapus permanen</em>.
+                  </p>
+                  <p className="text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                    Kategori yang <strong>sudah memiliki riwayat pembinaan santri</strong> otomatis <em>dinonaktifkan secara aman (Soft Delete)</em> agar integritas rekam jejak santri tidak hilang.
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setBulkDeleteKatModalOpen(false)}
+                    className="rounded-xl border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 min-h-[42px]"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkDeleteKatSubmitting}
+                    onClick={handleBulkDeleteKat}
+                    className="rounded-xl bg-rose-700 px-5 py-2 font-bold text-white hover:bg-rose-800 disabled:opacity-50 min-h-[42px] cursor-pointer"
+                  >
+                    {bulkDeleteKatSubmitting ? "Memproses..." : "Ya, Hapus/Nonaktifkan"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

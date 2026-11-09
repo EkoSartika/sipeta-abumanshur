@@ -55,6 +55,7 @@ export function SuperadminPortal({
     manageUserAccount,
     toggleUserActive,
     deleteUserAccount,
+    deleteUserAccountBatch,
     updateRekeningResmi,
   } = useSipeta();
 
@@ -93,11 +94,25 @@ export function SuperadminPortal({
   const [manageTelepon, setManageTelepon] = useState("");
   const [manageRole, setManageRole] = useState<UserRole>("admin");
   const [manageIsActive, setManageIsActive] = useState(true);
+  const [manageMustChangePassword, setManageMustChangePassword] = useState(false);
   const [manageSubmitting, setManageSubmitting] = useState(false);
 
-  // State Modal Hapus Akun
+  // State Modal Hapus Akun Single
   const [deleteModalUser, setDeleteModalUser] = useState<UserProfile | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  // State Bulk Selection & Bulk Delete Akun
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false);
+  const [bulkDeleteResult, setBulkDeleteResult] = useState<{
+    total: number;
+    deleted: number;
+    deactivated: number;
+    skipped: number;
+    failed: number;
+    items?: Array<{ id: string; nama_lengkap?: string; status: string; actionTaken?: string; message: string }>;
+  } | null>(null);
 
   // State Rekening Resmi Pesantren
   const [namaBank, setNamaBank] = useState(rekeningResmi.nama_bank);
@@ -235,6 +250,7 @@ export function SuperadminPortal({
     setManageTelepon(user.no_telepon && user.no_telepon !== "-" ? user.no_telepon : "");
     setManageRole(user.role);
     setManageIsActive(user.is_active);
+    setManageMustChangePassword(user.must_change_password ?? false);
     setFeedback(null);
   };
 
@@ -291,6 +307,7 @@ export function SuperadminPortal({
         no_telepon: manageTelepon.trim() || "-",
         role: manageRole,
         is_active: manageIsActive,
+        must_change_password: manageMustChangePassword,
       });
 
       setFeedback({ ok: res.ok, text: res.message });
@@ -302,6 +319,58 @@ export function SuperadminPortal({
       setFeedback({ ok: false, text: `Gagal memperbarui akun: ${msg}` });
     } finally {
       setManageSubmitting(false);
+    }
+  };
+
+  // Helper Bulk Selection Akun
+  const selectableUsers = useMemo(() => {
+    return filteredUsers.filter(
+      (u) => u.id !== currentUser?.id && u.role !== "superadmin"
+    );
+  }, [filteredUsers, currentUser]);
+
+  const isAllSelected =
+    selectableUsers.length > 0 &&
+    selectableUsers.every((u) => selectedUserIds.includes(u.id));
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(selectableUsers.map((u) => u.id));
+    }
+  };
+
+  const handleToggleSelectUser = (userId: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleExecuteBulkDelete = async () => {
+    if (selectedUserIds.length === 0) return;
+    setBulkDeleteSubmitting(true);
+    try {
+      const res = await deleteUserAccountBatch(selectedUserIds);
+      if (res.ok && res.summary) {
+        setBulkDeleteResult({
+          ...res.summary,
+          items: res.results,
+        });
+        setSelectedUserIds([]);
+        setFeedback({
+          ok: true,
+          text: `Eksekusi selesai: ${res.summary.deleted} akun dihapus bersih, ${res.summary.deactivated} dinonaktifkan secara aman, ${res.summary.skipped} dilewati, ${res.summary.failed} gagal.`,
+        });
+      } else {
+        setFeedback({ ok: false, text: res.message || "Gagal menjalankan penghapusan massal akun." });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFeedback({ ok: false, text: `Terjadi kesalahan saat hapus massal: ${msg}` });
+    } finally {
+      setBulkDeleteSubmitting(false);
+      setBulkDeleteModalOpen(false);
     }
   };
 
@@ -614,6 +683,35 @@ export function SuperadminPortal({
           </div>
 
           {/* ================================================================= */}
+          {/* FLOATING / TOP BULK ACTION BAR UNTUK HAPUS MASSAL AKUN */}
+          {/* ================================================================= */}
+          {selectedUserIds.length > 0 && (
+            <div className="rounded-2xl border-2 border-rose-300 bg-rose-50/95 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
+              <div className="flex items-center gap-2.5 text-rose-950 font-bold text-xs sm:text-sm">
+                <CheckCircle2 className="h-5 w-5 text-rose-700 shrink-0" />
+                <span>Terpilih {selectedUserIds.length} akun pengguna</span>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserIds([])}
+                  className="flex-1 sm:flex-none rounded-xl border border-rose-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 min-h-[40px]"
+                >
+                  Batal Pilihan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteModalOpen(true)}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 shadow-sm min-h-[40px] cursor-pointer"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Hapus Akun Terpilih</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
           {/* TAMPILAN RESPONSIVE 1: KARTU MOBILE (< 768px) */}
           {/* ================================================================= */}
           <div className="grid grid-cols-1 gap-3 md:hidden">
@@ -635,21 +733,30 @@ export function SuperadminPortal({
                     className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="text-sm font-extrabold text-slate-900">{u.nama_lengkap}</h4>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-800">
-                            {getRoleLabel(u.role)}
-                          </span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                              u.is_active
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-rose-100 text-rose-800"
-                            }`}
-                          >
-                            {u.is_active ? "Aktif" : "Nonaktif"}
-                          </span>
+                      <div className="flex items-start gap-2.5">
+                        <input
+                          type="checkbox"
+                          disabled={isSuperadminSelf || isLastSuperadmin || u.role === "superadmin"}
+                          checked={selectedUserIds.includes(u.id)}
+                          onChange={() => handleToggleSelectUser(u.id)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        />
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-900">{u.nama_lengkap}</h4>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-800">
+                              {getRoleLabel(u.role)}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                u.is_active
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-rose-100 text-rose-800"
+                              }`}
+                            >
+                              {u.is_active ? "Aktif" : "Nonaktif"}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -751,6 +858,15 @@ export function SuperadminPortal({
               <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        title="Pilih Semua Akun"
+                        checked={isAllSelected}
+                        onChange={handleToggleSelectAll}
+                        className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                      />
+                    </th>
                     <th className="py-3 px-4">Nama Lengkap &amp; Username</th>
                     <th className="py-3 px-3">Role</th>
                     <th className="py-3 px-3">No. Telepon</th>
@@ -762,7 +878,7 @@ export function SuperadminPortal({
                 <tbody className="divide-y divide-slate-100">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
                         Tidak ada pengguna yang sesuai dengan filter.
                       </td>
                     </tr>
@@ -776,6 +892,15 @@ export function SuperadminPortal({
 
                       return (
                         <tr key={u.id} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              disabled={isSuperadminSelf || isLastSuperadmin || u.role === "superadmin"}
+                              checked={selectedUserIds.includes(u.id)}
+                              onChange={() => handleToggleSelectUser(u.id)}
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            />
+                          </td>
                           <td className="py-3.5 px-4">
                             <div className="font-extrabold text-slate-900">{u.nama_lengkap}</div>
                             <div className="font-mono text-[11px] text-emerald-800 font-bold">
@@ -1196,6 +1321,24 @@ export function SuperadminPortal({
                       )}
                   </div>
                 )}
+
+                {/* Checkbox Wajibkan Ganti Kata Sandi */}
+                <div className="pt-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={manageMustChangePassword}
+                      onChange={(e) => setManageMustChangePassword(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-900 block">Wajibkan Ganti Kata Sandi Saat Login</span>
+                      <span className="text-[11px] text-slate-500">
+                        Pengguna akan langsung diarahkan ke form ubah kata sandi saat pertama kali login.
+                      </span>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               {/* Nomor Telepon / WhatsApp */}
@@ -1334,6 +1477,163 @@ export function SuperadminPortal({
                 ) : (
                   <span>Ya, Hapus Akun</span>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 5: KONFIRMASI HAPUS MASSAL AKUN PENGGUNA (BULK DELETE) */}
+      {/* ===================================================================== */}
+      {bulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-rose-200 bg-white p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-2.5 text-rose-800 border-b border-rose-100 pb-3">
+              <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
+              <h3 className="text-base font-extrabold text-slate-900">
+                Konfirmasi Hapus {selectedUserIds.length} Akun Terpilih
+              </h3>
+            </div>
+
+            <div className="text-xs text-slate-700 space-y-3 leading-relaxed">
+              <p>
+                Anda akan memproses penghapusan massal untuk <strong>{selectedUserIds.length}</strong> akun pengguna berikut:
+              </p>
+
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2.5 divide-y divide-slate-200/60 text-xs">
+                {users
+                  .filter((u) => selectedUserIds.includes(u.id))
+                  .map((u) => (
+                    <div key={u.id} className="py-1.5 flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-slate-900">{u.nama_lengkap}</span>
+                        <span className="font-mono text-[11px] text-emerald-800 ml-1.5">
+                          @{u.username || extractUsername(u.email)}
+                        </span>
+                      </div>
+                      <span className="rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
+                        {getRoleLabel(u.role)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+
+              <div className="rounded-xl bg-amber-50 p-3 border border-amber-200 text-amber-950 text-[11px] space-y-1.5">
+                <strong className="block font-bold">Kebijakan Perlindungan Data &amp; Integritas Finansial:</strong>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>
+                    <strong>Akun tanpa relasi</strong> (tidak ada riwayat transaksi pembayaran, uang saku, atau santri aktif) akan <em>dihapus permanen (Hard Delete)</em> dari sistem dan Supabase Auth.
+                  </li>
+                  <li>
+                    <strong>Akun yang memiliki riwayat</strong> akan <em>dinonaktifkan secara aman (Soft Deactivate)</em> agar integritas pembukuan dan jejak audit pesantren tetap utuh.
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={bulkDeleteSubmitting}
+                onClick={() => setBulkDeleteModalOpen(false)}
+                className="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 min-h-[44px]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={bulkDeleteSubmitting}
+                onClick={handleExecuteBulkDelete}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-700 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-50 min-h-[44px] cursor-pointer"
+              >
+                {bulkDeleteSubmitting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Memproses Penghapusan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    <span>Ya, Proses Hapus Terpilih</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 6: REKAPITULASI HASIL HAPUS MASSAL AKUN */}
+      {/* ===================================================================== */}
+      {bulkDeleteResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-base font-extrabold text-slate-900">Hasil Pemrosesan Akun</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBulkDeleteResult(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5">
+                <div className="text-slate-500 font-semibold">Total</div>
+                <div className="text-lg font-black text-slate-900">{bulkDeleteResult.total}</div>
+              </div>
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-2.5">
+                <div className="text-emerald-700 font-semibold">Dihapus</div>
+                <div className="text-lg font-black text-emerald-900">{bulkDeleteResult.deleted}</div>
+              </div>
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5">
+                <div className="text-amber-700 font-semibold">Dinonaktifkan</div>
+                <div className="text-lg font-black text-amber-900">{bulkDeleteResult.deactivated}</div>
+              </div>
+              <div className="rounded-xl bg-rose-50 border border-rose-200 p-2.5">
+                <div className="text-rose-700 font-semibold">Gagal/Skip</div>
+                <div className="text-lg font-black text-rose-900">{bulkDeleteResult.skipped + bulkDeleteResult.failed}</div>
+              </div>
+            </div>
+
+            {bulkDeleteResult.items && bulkDeleteResult.items.length > 0 && (
+              <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2.5 divide-y divide-slate-200/60 text-xs">
+                {bulkDeleteResult.items.map((item) => (
+                  <div key={item.id} className="py-2 flex items-center justify-between gap-2">
+                    <div className="truncate">
+                      <span className="font-bold text-slate-900 block truncate">{item.nama_lengkap || item.id}</span>
+                      <span className="text-[11px] text-slate-500">{item.message}</span>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                        item.status === "DELETED"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : item.status === "DEACTIVATED"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {item.status === "DELETED" ? "Dihapus Bersih" : item.status === "DEACTIVATED" ? "Dinonaktifkan" : "Dilewati"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setBulkDeleteResult(null)}
+                className="rounded-xl bg-emerald-800 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-900 min-h-[44px]"
+              >
+                Tutup Laporan
               </button>
             </div>
           </div>

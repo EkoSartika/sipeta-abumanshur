@@ -57,11 +57,13 @@ const patchUserSchema = z.discriminatedUnion("action", [
       .transform((val) => (!val || val.trim() === "" ? "-" : val.trim())),
     role: z.enum(["superadmin", "admin", "bendahara", "pengelola", "wali"]).optional(),
     is_active: z.boolean().optional(),
+    must_change_password: z.boolean().optional(),
   }),
   z.object({
     action: z.literal("RESET_PASSWORD"),
     user_id: z.string().min(1, "ID Pengguna wajib diisi."),
     new_password: z.string().min(8, "Kata sandi baru minimal 8 karakter."),
+    must_change_password: z.boolean().optional(),
   }),
   z.object({
     action: z.literal("TOGGLE_ACTIVE"),
@@ -538,11 +540,14 @@ export async function PATCH(request: NextRequest) {
         authUpdates.email = finalNewEmail;
         authUpdates.email_confirm = true; // Langsung aktif tanpa verifikasi email
       }
-      if (payload.nama_lengkap || finalNewUsername || payload.role) {
+      if (payload.nama_lengkap || finalNewUsername || payload.role || payload.must_change_password !== undefined) {
         authUpdates.user_metadata = {
           nama_lengkap: payload.nama_lengkap ? payload.nama_lengkap.trim() : targetUser.nama_lengkap,
           username: finalNewUsername ?? targetUser.username,
           role: payload.role ?? targetUser.role,
+          ...(payload.must_change_password !== undefined
+            ? { must_change_password: payload.must_change_password }
+            : {}),
         };
       }
 
@@ -566,6 +571,7 @@ export async function PATCH(request: NextRequest) {
       if (payload.no_telepon !== undefined) profileUpdates.no_telepon = payload.no_telepon.trim();
       if (payload.role) profileUpdates.role = payload.role;
       if (payload.is_active !== undefined) profileUpdates.is_active = payload.is_active;
+      if (payload.must_change_password !== undefined) profileUpdates.must_change_password = payload.must_change_password;
       if (finalNewUsername) profileUpdates.username = finalNewUsername;
       if (finalNewEmail) profileUpdates.email = finalNewEmail;
 
@@ -669,8 +675,12 @@ export async function PATCH(request: NextRequest) {
       }
 
       // Update password di Supabase Auth via Admin API
+      const mustChange = payload.must_change_password ?? true;
       const { error: resetErr } = await adminClient.auth.admin.updateUserById(payload.user_id, {
         password: payload.new_password,
+        user_metadata: {
+          must_change_password: mustChange,
+        },
       });
 
       if (resetErr) {
@@ -678,6 +688,16 @@ export async function PATCH(request: NextRequest) {
           { ok: false, message: `Gagal mengatur ulang kata sandi: ${resetErr.message}` },
           { status: 500 }
         );
+      }
+
+      // Update flag must_change_password di profiles jika kolom tersedia
+      try {
+        await adminClient
+          .from("profiles")
+          .update({ must_change_password: mustChange })
+          .eq("id", payload.user_id);
+      } catch {
+        // Abaikan jika kolom di DB belum ada atau RPC terpisah
       }
 
       // Catat di Audit Log (Password TIDAK PERNAH dicatat)
@@ -690,6 +710,7 @@ export async function PATCH(request: NextRequest) {
         data_sesudah: {
           target_username: targetUser.username ?? targetUser.email,
           target_nama: targetUser.nama_lengkap,
+          must_change_password: mustChange,
         },
         alasan_perubahan: "Pengaturan ulang kata sandi oleh Superadmin",
       });
@@ -829,17 +850,54 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("user_id");
+    const queryUserId = searchParams.get("user_id");
 
-    if (!userId) {
+    let targetIds: string[] = [];
+    let isBulk = false;
+
+    if (queryUserId) {
+      targetIds = [queryUserId];
+    } else {
+      try {
+        const body = await request.json();
+        if (body.user_ids && Array.isArray(body.user_ids)) {
+          targetIds = body.user_ids.filter((id: unknown): id is string => typeof id === "string" && id.trim() !== "");
+          isBulk = true;
+        } else if (body.user_id && typeof body.user_id === "string") {
+          targetIds = [body.user_id];
+        }
+      } catch {
+        // Body kosong atau bukan JSON
+      }
+    }
+
+    if (targetIds.length === 0) {
       return NextResponse.json(
-        { ok: false, message: "Parameter user_id wajib disertakan." },
+        { ok: false, message: "Parameter user_id atau user_ids wajib disertakan." },
         { status: 400 }
       );
     }
 
     // Mode Demo / Simulasi jika Supabase belum terhubung
     if (!isSupabaseConfigured()) {
+      if (isBulk) {
+        return NextResponse.json({
+          ok: true,
+          results: targetIds.map((id) => ({
+            id,
+            status: "DELETED",
+            actionTaken: "DELETED",
+            message: "Akun berhasil dihapus (Mode Demo Standalone).",
+          })),
+          summary: {
+            total: targetIds.length,
+            deleted: targetIds.length,
+            deactivated: 0,
+            skipped: 0,
+            failed: 0,
+          },
+        });
+      }
       return NextResponse.json({
         ok: true,
         actionTaken: "DELETED",
@@ -875,14 +933,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 3. Pengamanan: Tidak boleh menghapus akun sendiri
-    if (callerUser.id === userId) {
-      return NextResponse.json(
-        { ok: false, message: "Keamanan: Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif." },
-        { status: 400 }
-      );
-    }
-
     const adminClient = createSupabaseAdminClient();
     if (!adminClient) {
       return NextResponse.json(
@@ -891,120 +941,243 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 4. Dapatkan data profil target
-    const { data: targetUser } = await adminClient
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
+    // 3. Proses Penghapusan / Penonaktifan per Akun
+    const results: Array<{
+      id: string;
+      nama_lengkap?: string;
+      status: "DELETED" | "DEACTIVATED" | "SKIPPED" | "FAILED";
+      actionTaken?: "DELETED" | "DEACTIVATED";
+      message: string;
+    }> = [];
 
-    if (!targetUser) {
-      return NextResponse.json(
-        { ok: false, message: "Pengguna tidak ditemukan dalam sistem." },
-        { status: 404 }
-      );
-    }
-
-    // 5. Pengamanan: Superadmin terakhir tidak boleh dihapus
-    if (targetUser.role === "superadmin") {
-      const { count: superadminCount } = await adminClient
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "superadmin");
-
-      if ((superadminCount ?? 0) <= 1) {
-        return NextResponse.json(
-          { ok: false, message: "Akun Superadmin terakhir tidak boleh dihapus demi kelangsungan akses sistem." },
-          { status: 400 }
-        );
+    for (const userId of targetIds) {
+      // Proteksi 1: Tidak boleh menghapus akun sendiri
+      if (callerUser.id === userId) {
+        results.push({
+          id: userId,
+          status: "SKIPPED",
+          message: "Keamanan: Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif.",
+        });
+        continue;
       }
-    }
 
-    // 6. Periksa relasi historis (Pembayaran, Uang Saku, Wali dengan riwayat keuangan)
-    const { count: countPembayaran } = await adminClient
-      .from("transaksi_pembayaran")
-      .select("id", { count: "exact", head: true })
-      .or(`wali_user_id.eq.${userId},verified_by.eq.${userId}`);
-
-    const { count: countUangSaku } = await adminClient
-      .from("mutasi_uang_saku")
-      .select("id", { count: "exact", head: true })
-      .eq("petugas_id", userId);
-
-    const hasCriticalHistory = (countPembayaran ?? 0) > 0 || (countUangSaku ?? 0) > 0;
-
-    // Jika memiliki riwayat keuangan penting, lakukan penonaktifan aman (Soft Delete)
-    if (hasCriticalHistory) {
-      await adminClient
+      // Dapatkan data profil target
+      const { data: targetUser } = await adminClient
         .from("profiles")
-        .update({ is_active: false })
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (!targetUser) {
+        results.push({
+          id: userId,
+          status: "FAILED",
+          message: "Pengguna tidak ditemukan dalam sistem database.",
+        });
+        continue;
+      }
+
+      // Proteksi 2: Akun Superadmin utama tidak boleh dihapus
+      const isSuperadminUtama =
+        targetUser.email?.toLowerCase() === "sipetaabumanshur@gmail.com" ||
+        targetUser.username?.toLowerCase() === "superadmin";
+
+      if (isSuperadminUtama) {
+        results.push({
+          id: userId,
+          nama_lengkap: targetUser.nama_lengkap,
+          status: "SKIPPED",
+          message: "Keamanan: Akun Superadmin utama pesantren dilindungi sistem dan tidak boleh dihapus.",
+        });
+        continue;
+      }
+
+      // Proteksi 3: Superadmin terakhir tidak boleh dihapus
+      if (targetUser.role === "superadmin") {
+        const { count: superadminCount } = await adminClient
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("role", "superadmin")
+          .eq("is_active", true);
+
+        if ((superadminCount ?? 0) <= 1) {
+          results.push({
+            id: userId,
+            nama_lengkap: targetUser.nama_lengkap,
+            status: "SKIPPED",
+            message: "Akun Superadmin aktif terakhir tidak boleh dihapus demi kelangsungan akses sistem.",
+          });
+          continue;
+        }
+      }
+
+      // Periksa Relasi Historis / Transaksi Kritis
+      // a. Pembayaran SPP / Cicilan
+      const { count: countPembayaran } = await adminClient
+        .from("transaksi_pembayaran")
+        .select("id", { count: "exact", head: true })
+        .or(`wali_user_id.eq.${userId},verified_by.eq.${userId}`);
+
+      // b. Uang Saku
+      const { count: countUangSaku } = await adminClient
+        .from("mutasi_uang_saku")
+        .select("id", { count: "exact", head: true })
+        .eq("petugas_id", userId);
+
+      const { count: countTopup } = await adminClient
+        .from("topup_uang_saku")
+        .select("id", { count: "exact", head: true })
+        .or(`wali_user_id.eq.${userId},verified_by.eq.${userId}`);
+
+      // c. Relasi Wali dengan Santri
+      let hasActiveSantriChild = false;
+      if (targetUser.role === "wali") {
+        const { data: waliRecord } = await adminClient
+          .from("wali_santri")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (waliRecord) {
+          const { count: santriCount } = await adminClient
+            .from("santri")
+            .select("id", { count: "exact", head: true })
+            .eq("wali_id", waliRecord.id);
+
+          hasActiveSantriChild = (santriCount ?? 0) > 0;
+        }
+      }
+
+      const hasCriticalHistory =
+        (countPembayaran ?? 0) > 0 ||
+        (countUangSaku ?? 0) > 0 ||
+        (countTopup ?? 0) > 0 ||
+        hasActiveSantriChild;
+
+      // KASUS A: Memiliki riwayat penting -> Penonaktifan Aman (Soft Delete)
+      if (hasCriticalHistory) {
+        await adminClient
+          .from("profiles")
+          .update({ is_active: false })
+          .eq("id", userId);
+
+        try {
+          await adminClient.auth.admin.updateUserById(userId, {
+            user_metadata: { is_active: false },
+          });
+        } catch {
+          // Abaikan jika auth metadata update tidak didukung
+        }
+
+        // Catat ke Audit Log
+        await adminClient.from("audit_logs").insert({
+          user_id: callerUser.id,
+          user_role: "superadmin",
+          aktivitas: "DEACTIVATE_USER_ACCOUNT",
+          jenis_objek: "profiles",
+          objek_id: userId,
+          data_sebelum: { is_active: targetUser.is_active },
+          data_sesudah: { is_active: false },
+          alasan_perubahan: `Akun ${targetUser.nama_lengkap} memiliki riwayat relasi/transaksi aktif sehingga dinonaktifkan secara aman (soft-deactivate).`,
+        });
+
+        results.push({
+          id: userId,
+          nama_lengkap: targetUser.nama_lengkap,
+          status: "DEACTIVATED",
+          actionTaken: "DEACTIVATED",
+          message: `Akun ${targetUser.nama_lengkap} memiliki riwayat relasi/transaksi penting. Akun telah dinonaktifkan secara aman (soft-deactivate) demi menjaga integritas data historis.`,
+        });
+        continue;
+      }
+
+      // KASUS B: Tidak memiliki relasi penting -> Hapus Bersih dengan Fallback Aman
+      if (targetUser.role === "wali") {
+        try {
+          await adminClient.from("wali_santri").delete().eq("user_id", userId);
+        } catch {
+          // Lanjut ke delete profil
+        }
+      }
+
+      const { error: delProfileErr } = await adminClient
+        .from("profiles")
+        .delete()
         .eq("id", userId);
+
+      if (delProfileErr) {
+        // Fallback aman: jika delete profil gagal karena constraint foreign key tak terduga, lakukan soft-deactivate
+        await adminClient
+          .from("profiles")
+          .update({ is_active: false })
+          .eq("id", userId);
+
+        results.push({
+          id: userId,
+          nama_lengkap: targetUser.nama_lengkap,
+          status: "DEACTIVATED",
+          actionTaken: "DEACTIVATED",
+          message: `Akun ${targetUser.nama_lengkap} dinonaktifkan secara aman karena terdapat relasi data yang dilindungi.`,
+        });
+        continue;
+      }
+
+      // Hapus dari Supabase Auth
+      try {
+        await adminClient.auth.admin.deleteUser(userId);
+      } catch (e: any) {
+        console.warn("Peringatan: Gagal menghapus akun auth Supabase:", e?.message);
+      }
 
       // Catat ke Audit Log
       await adminClient.from("audit_logs").insert({
         user_id: callerUser.id,
         user_role: "superadmin",
-        aktivitas: "DEACTIVATE_USER_ACCOUNT",
+        aktivitas: "DELETE_USER_ACCOUNT",
         jenis_objek: "profiles",
         objek_id: userId,
-        data_sebelum: { is_active: targetUser.is_active },
-        data_sesudah: { is_active: false },
-        alasan_perubahan: `Akun ${targetUser.nama_lengkap} memiliki riwayat transaksi keuangan aktif sehingga dinonaktifkan secara aman (soft-deactivate), bukan dihapus permanen.`,
+        data_sebelum: {
+          nama_lengkap: targetUser.nama_lengkap,
+          username: targetUser.username,
+          email: targetUser.email,
+          role: targetUser.role,
+        },
+        alasan_perubahan: `Penghapusan akun resmi oleh Superadmin (${targetUser.nama_lengkap})`,
       });
 
-      return NextResponse.json({
-        ok: true,
-        actionTaken: "DEACTIVATED",
-        message: `Akun ${targetUser.nama_lengkap} memiliki riwayat transaksi/keuangan penting. Sesuai prinsip integritas audit, akun telah dinonaktifkan secara aman dan data historis dipertahankan.`,
-      });
-    }
-
-    // Jika tidak memiliki riwayat penting: hapus profil & auth user secara bersih
-    // Bersihkan relasi wali_santri jika ada
-    if (targetUser.role === "wali") {
-      await adminClient.from("wali_santri").delete().eq("user_id", userId);
-    }
-
-    const { error: delProfileErr } = await adminClient
-      .from("profiles")
-      .delete()
-      .eq("id", userId);
-
-    if (delProfileErr) {
-      return NextResponse.json(
-        { ok: false, message: `Gagal menghapus profil: ${delProfileErr.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Hapus dari Supabase Auth
-    try {
-      await adminClient.auth.admin.deleteUser(userId);
-    } catch (e: any) {
-      // Catat peringatan jika auth delete bermasalah, tapi profil sudah terhapus
-      console.warn("Gagal menghapus akun auth Supabase:", e?.message);
-    }
-
-    // Catat ke Audit Log
-    await adminClient.from("audit_logs").insert({
-      user_id: callerUser.id,
-      user_role: "superadmin",
-      aktivitas: "DELETE_USER_ACCOUNT",
-      jenis_objek: "profiles",
-      objek_id: userId,
-      data_sebelum: {
+      results.push({
+        id: userId,
         nama_lengkap: targetUser.nama_lengkap,
-        username: targetUser.username,
-        email: targetUser.email,
-        role: targetUser.role,
-      },
-      alasan_perubahan: `Penghapusan akun resmi oleh Superadmin (${targetUser.nama_lengkap})`,
-    });
+        status: "DELETED",
+        actionTaken: "DELETED",
+        message: `Akun ${targetUser.nama_lengkap} berhasil dihapus permanen dari sistem.`,
+      });
+    }
+
+    // Jika pemanggilan tunggal, kembalikan format response tunggal yang ramah
+    if (!isBulk && results.length === 1 && results[0]) {
+      const single = results[0];
+      return NextResponse.json({
+        ok: single.status === "DELETED" || single.status === "DEACTIVATED",
+        actionTaken: single.actionTaken,
+        message: single.message,
+      });
+    }
+
+    // Jika pemanggilan massal (bulk), kembalikan ringkasan dan rincian per akun
+    const summary = {
+      total: results.length,
+      deleted: results.filter((r) => r.status === "DELETED").length,
+      deactivated: results.filter((r) => r.status === "DEACTIVATED").length,
+      skipped: results.filter((r) => r.status === "SKIPPED").length,
+      failed: results.filter((r) => r.status === "FAILED").length,
+    };
 
     return NextResponse.json({
       ok: true,
-      actionTaken: "DELETED",
-      message: `Akun ${targetUser.nama_lengkap} berhasil dihapus permanen dari sistem.`,
+      results,
+      summary,
+      message: `Proses penghapusan selesai: ${summary.deleted} dihapus, ${summary.deactivated} dinonaktifkan, ${summary.skipped} dilewati, ${summary.failed} gagal.`,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

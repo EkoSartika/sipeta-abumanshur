@@ -24,6 +24,7 @@ import {
   Square,
   Trash2,
   UploadCloud,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -61,6 +62,7 @@ import type {
 
 export type AdminTab =
   | "dashboard"
+  | "tambah_santri"
   | "santri_wali"
   | "import_santri"
   | "kelas_kamar"
@@ -127,6 +129,11 @@ export function AdminPortal({
   const [nomorRekeningAdmin, setNomorRekeningAdmin] = useState(rekeningResmi.nomor_rekening);
   const [atasNamaAdmin, setAtasNamaAdmin] = useState(rekeningResmi.atas_nama);
   const [catatanInstruksiAdmin, setCatatanInstruksiAdmin] = useState(rekeningResmi.catatan_instruksi);
+
+  // Subtab internal untuk menu "Tambah Data Santri" (Registrasi Santri Baru vs Import Excel)
+  const [tambahSantriSubTab, setTambahSantriSubTab] = useState<"registrasi" | "import">(
+    controlledTab === "import_santri" ? "import" : "registrasi"
+  );
 
   // State Import Data Santri Excel (6 Langkah)
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -344,7 +351,6 @@ export function AdminPortal({
         telepon_wali: teleponWali,
         username_wali: cleanUser,
         password_wali: initialPwd,
-        email_kontak_wali: emailKontakWali,
       });
 
       setFeedback({ ok: res.ok, text: res.message });
@@ -353,7 +359,6 @@ export function AdminPortal({
         setNamaWali("");
         setUsernameWali("");
         setPasswordWali("");
-        setEmailKontakWali("");
         setNis(`2026${Date.now().toString().slice(-4)}`);
       }
     } finally {
@@ -797,43 +802,55 @@ export function AdminPortal({
       )}
 
       {/* =====================================================================
-          TAB 1: DATA SANTRI & ORANG TUA/WALI (RELASI 1:1)
+          TAB 1: DATA SANTRI & ORANG TUA/WALI (DAFTAR UTAMA FULL WIDTH)
          ===================================================================== */}
       {activeTab === "santri_wali" && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Daftar Santri Terdaftar &amp; Relasi 1:1 Akun Wali
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Total: {santriList.length} santri ({filteredSantri.length} ditampilkan)
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("import_santri");
-                      setFeedback(null);
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-sm transition"
-                  >
-                    <FileUp className="h-4 w-4" />
-                    <span>Import Excel Santri</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportAll}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 shadow-sm transition"
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                    <span>Ekspor Data Santri (.xlsx)</span>
-                  </button>
-                </div>
+        <div className="w-full space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Data Santri &amp; Akun Wali Resmi Pesantren
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Total: {santriList.length} santri ({filteredSantri.length} ditampilkan) • Terhubung akun wali 1:1
+                </p>
               </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("tambah_santri");
+                    setTambahSantriSubTab("registrasi");
+                    setFeedback(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-900 shadow-sm transition"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  <span>Tambah Santri Baru</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("tambah_santri");
+                    setTambahSantriSubTab("import");
+                    setFeedback(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-sm transition"
+                >
+                  <FileUp className="h-4 w-4" />
+                  <span>Import Excel Santri</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportAll}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Ekspor Data Santri (.xlsx)</span>
+                </button>
+              </div>
+            </div>
 
               {/* Filter & Pencarian Santri */}
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-4 text-xs">
@@ -1105,9 +1122,8 @@ export function AdminPortal({
                                     <div className="font-semibold text-slate-800">
                                       {wali.nama_lengkap} ({wali.hubungan})
                                     </div>
-                                    <div className="text-[11px] text-slate-500">
+                                    <div className="text-[11px] text-slate-500 font-mono">
                                       {wali.no_telepon}
-                                      {wali.email && ` • ${wali.email}`}
                                     </div>
                                   </>
                                 ) : (
@@ -1145,241 +1161,279 @@ export function AdminPortal({
               )}
             </div>
           </div>
+        )}
 
-          {/* Form Registrasi Santri Baru + Akun Orang Tua (1:1) */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-bold text-slate-900">
-              Registrasi Santri Baru + Akun Wali (1:1)
-            </h3>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Setiap santri baru otomatis dibuatkan 1 akun wali resmi dengan username dan password
-              internal.
-            </p>
-            <form onSubmit={handleRegisterSantri} className="mt-4 space-y-3 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="font-semibold text-slate-700">NIS (Unik)</label>
-                  <input
-                    type="text"
-                    required
-                    value={nis}
-                    onChange={(e) => setNis(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Jenis Kelamin</label>
-                  <select
-                    value={jenisKelamin}
-                    onChange={(e) => setJenisKelamin(e.target.value as "L" | "P")}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                  >
-                    <option value="L">Laki-laki (Putra)</option>
-                    <option value="P">Perempuan (Putri)</option>
-                  </select>
-                </div>
-              </div>
+      {/* =====================================================================
+          TAB TERPADU: TAMBAH DATA SANTRI (REGISTRASI BARU & IMPORT EXCEL)
+         ===================================================================== */}
+      {(activeTab === "tambah_santri" || activeTab === "import_santri") && (
+        <div className="w-full space-y-6">
+          {/* Subtab Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">Tambah Data Santri</h3>
+              <p className="text-xs text-slate-500">
+                Pilih metode penambahan santri: formulir registrasi mandiri atau impor massal melalui berkas Excel.
+              </p>
+            </div>
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setTambahSantriSubTab("registrasi")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition min-h-[38px] ${
+                  tambahSantriSubTab === "registrasi"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>Registrasi Santri Baru</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTambahSantriSubTab("import")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition min-h-[38px] ${
+                  tambahSantriSubTab === "import"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>Import Data Santri (Excel)</span>
+              </button>
+            </div>
+          </div>
 
-              <div>
-                <label className="font-semibold text-slate-700">Nama Lengkap Santri</label>
-                <input
-                  type="text"
-                  required
-                  value={namaSantri}
-                  onChange={(e) => setNamaSantri(e.target.value)}
-                  placeholder="Contoh: Muhammad Rayyan Al-Fatih"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="font-semibold text-slate-700">Tempat Lahir</label>
-                  <input
-                    type="text"
-                    required
-                    value={tempatLahir}
-                    onChange={(e) => setTempatLahir(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Tanggal Lahir</label>
-                  <input
-                    type="date"
-                    required
-                    value={tanggalLahir}
-                    onChange={(e) => setTanggalLahir(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="font-semibold text-slate-700">Kelas Awal</label>
-                  <select
-                    value={kelasIdSantri}
-                    onChange={(e) => setKelasIdSantri(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                  >
-                    {kelasList.map((k) => (
-                      <option key={k.id} value={k.id}>
-                        {k.nama_kelas}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700">Kamar Asrama</label>
-                  <select
-                    value={kamarIdSantri}
-                    onChange={(e) => setKamarIdSantri(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                  >
-                    {kamarList.map((k) => (
-                      <option key={k.id} value={k.id}>
-                        {k.nama_kamar}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700">Alamat Lengkap Santri</label>
-                <input
-                  type="text"
-                  required
-                  value={alamatSantri}
-                  onChange={(e) => setAlamatSantri(e.target.value)}
-                  placeholder="Alamat domisili santri & wali"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                />
-              </div>
-
-              {/* Bagian Akun Wali dengan Visual Pembeda */}
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2.5 mt-3">
-                <div className="flex items-center gap-1.5">
-                  <Users className="h-4 w-4 text-emerald-800" />
-                  <p className="font-bold text-emerald-950">
-                    Data Akun Orang Tua / Wali (Relasi 1:1)
-                  </p>
-                </div>
-                <p className="text-[11px] text-emerald-800/90 leading-relaxed">
-                  Sesuai kebijakan SIPETA: Wali login menggunakan <strong>Username</strong> dan{" "}
-                  <strong>Password</strong> internal. Email tidak digunakan untuk login, hanya kontak
-                  komunikasi alternatif.
+          {/* Subtab A: Formulir Registrasi Santri Baru (Maksimal Lebar Elegan & Tanpa Kolom Email) */}
+          {tambahSantriSubTab === "registrasi" && (
+            <div className="max-w-3xl mx-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h4 className="text-base font-bold text-slate-900">
+                  Formulir Registrasi Santri Baru &amp; Akun Wali (1:1)
+                </h4>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Setiap santri baru otomatis dibuatkan 1 akun wali resmi terhubung 1:1. Username dan password awal menggunakan NIS santri.
                 </p>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <form onSubmit={handleRegisterSantri} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="font-semibold text-slate-700">Nama Orang Tua/Wali</label>
+                    <label className="font-semibold text-slate-700">NIS (Nomor Induk Santri - Unik)</label>
                     <input
                       type="text"
                       required
-                      value={namaWali}
-                      onChange={(e) => setNamaWali(e.target.value)}
-                      placeholder="Contoh: H. Ahmad Fauzi"
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                      value={nis}
+                      onChange={(e) => setNis(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold text-emerald-900 focus:border-emerald-600 focus:outline-none min-h-[42px]"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-slate-700">Hubungan</label>
+                    <label className="font-semibold text-slate-700">Jenis Kelamin</label>
                     <select
-                      value={hubunganWali}
-                      onChange={(e) => setHubunganWali(e.target.value as "Ayah" | "Ibu" | "Wali")}
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                      value={jenisKelamin}
+                      onChange={(e) => setJenisKelamin(e.target.value as "L" | "P")}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold focus:border-emerald-600 focus:outline-none min-h-[42px]"
                     >
-                      <option value="Ayah">Ayah</option>
-                      <option value="Ibu">Ibu</option>
-                      <option value="Wali">Wali</option>
+                      <option value="L">Laki-laki (Santri Putra)</option>
+                      <option value="P">Perempuan (Santri Putri)</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="font-semibold text-slate-700">Nama Lengkap Santri</label>
+                  <input
+                    type="text"
+                    required
+                    value={namaSantri}
+                    onChange={(e) => setNamaSantri(e.target.value)}
+                    placeholder="Contoh: Muhammad Rayyan Al-Fatih"
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 font-medium focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="font-semibold text-slate-700">No. Telepon / WhatsApp</label>
+                    <label className="font-semibold text-slate-700">Tempat Lahir</label>
+                    <input
+                      type="text"
+                      required
+                      value={tempatLahir}
+                      onChange={(e) => setTempatLahir(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700">Tanggal Lahir</label>
+                    <input
+                      type="date"
+                      required
+                      value={tanggalLahir}
+                      onChange={(e) => setTanggalLahir(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700">Kelas Awal</label>
+                    <select
+                      value={kelasIdSantri}
+                      onChange={(e) => setKelasIdSantri(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                    >
+                      {kelasList.map((k) => (
+                        <option key={k.id} value={k.id}>
+                          {k.nama_kelas}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700">Kamar Asrama</label>
+                    <select
+                      value={kamarIdSantri}
+                      onChange={(e) => setKamarIdSantri(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                    >
+                      {kamarList.map((k) => (
+                        <option key={k.id} value={k.id}>
+                          {k.nama_kamar}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700">Alamat Lengkap Santri</label>
+                  <input
+                    type="text"
+                    required
+                    value={alamatSantri}
+                    onChange={(e) => setAlamatSantri(e.target.value)}
+                    placeholder="Alamat domisili lengkap santri & orang tua"
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                  />
+                </div>
+
+                {/* Bagian Akun Orang Tua / Wali (Relasi 1:1 Tanpa Input Email) */}
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3 mt-4">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-emerald-800" />
+                    <p className="font-bold text-emerald-950 text-sm">
+                      Data Akun Orang Tua / Wali (Relasi 1:1)
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-emerald-800/90 leading-relaxed">
+                    Sesuai kebijakan SIPETA: Wali login menggunakan <strong>NIS Santri</strong> sebagai Username dan Password awal. Wali diwajibkan mengganti password pada saat pertama kali login (<strong>must_change_password</strong>).
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-semibold text-slate-700">Nama Orang Tua/Wali</label>
+                      <input
+                        type="text"
+                        required
+                        value={namaWali}
+                        onChange={(e) => setNamaWali(e.target.value)}
+                        placeholder="Contoh: H. Ahmad Fauzi"
+                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">Hubungan</label>
+                      <select
+                        value={hubunganWali}
+                        onChange={(e) => setHubunganWali(e.target.value as "Ayah" | "Ibu" | "Wali")}
+                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                      >
+                        <option value="Ayah">Ayah</option>
+                        <option value="Ibu">Ibu</option>
+                        <option value="Wali">Wali</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700">No. Telepon / WhatsApp Wali</label>
                     <input
                       type="text"
                       required
                       value={teleponWali}
                       onChange={(e) => setTeleponWali(e.target.value)}
-                      placeholder="Contoh: 081234567890"
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
+                      placeholder="Contoh: 081234567890 (Digunakan untuk koordinasi & notifikasi pesantren)"
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono focus:border-emerald-600 focus:outline-none min-h-[42px]"
                     />
                   </div>
-                  <div>
-                    <label className="font-semibold text-slate-700">Email Kontak (Opsional)</label>
-                    <input
-                      type="email"
-                      value={emailKontakWali}
-                      onChange={(e) => setEmailKontakWali(e.target.value)}
-                      placeholder="wali@contoh.com"
-                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 focus:border-emerald-600 focus:outline-none"
-                    />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-emerald-200">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="font-semibold text-emerald-950">Username Login Wali</label>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          Default = NIS
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={usernameWali || nis}
+                        onChange={(e) => setUsernameWali(e.target.value.toLowerCase().trim())}
+                        placeholder={nis || "Sesuai NIS Santri"}
+                        className="mt-1 w-full rounded-xl border border-emerald-400 bg-white px-3 py-2 font-mono font-bold focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                      />
+                      <p className="mt-0.5 text-[10px] text-slate-500">
+                        Otomatis sama dengan NIS Santri ({nis || "-"}).
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="font-semibold text-emerald-950">Password Awal Wali</label>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          Default = NIS
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={passwordWali || nis}
+                        onChange={(e) => setPasswordWali(e.target.value)}
+                        placeholder={nis || "Sesuai NIS Santri"}
+                        className="mt-1 w-full rounded-xl border border-emerald-400 bg-white px-3 py-2 font-mono font-bold focus:border-emerald-600 focus:outline-none min-h-[42px]"
+                      />
+                      <p className="mt-0.5 text-[10px] text-emerald-700 font-medium">
+                        Wajib diganti saat wali login pertama kali (must_change_password).
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-emerald-200/70">
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="font-semibold text-emerald-950">Username Login Wali</label>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
-                        Default = NIS
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      value={usernameWali || nis}
-                      onChange={(e) => setUsernameWali(e.target.value.toLowerCase().trim())}
-                      placeholder={nis || "Sesuai NIS Santri"}
-                      className="mt-1 w-full rounded-lg border border-emerald-400 bg-white px-2.5 py-1.5 font-mono focus:border-emerald-600 focus:outline-none"
-                    />
-                    <p className="mt-0.5 text-[10px] text-slate-500">
-                      Otomatis sama dengan NIS Santri ({nis || "-"}).
-                    </p>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="font-semibold text-emerald-950">Password Awal Wali</label>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
-                        Default = NIS
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      value={passwordWali || nis}
-                      onChange={(e) => setPasswordWali(e.target.value)}
-                      placeholder={nis || "Sesuai NIS Santri"}
-                      className="mt-1 w-full rounded-lg border border-emerald-400 bg-white px-2.5 py-1.5 font-mono focus:border-emerald-600 focus:outline-none"
-                    />
-                    <p className="mt-0.5 text-[10px] text-emerald-700 font-medium">
-                      Wajib diganti saat wali login pertama kali (must_change_password).
-                    </p>
-                  </div>
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={registerSubmitting}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 py-3 font-bold text-white hover:bg-emerald-900 disabled:opacity-50 transition shadow-sm min-h-[46px] cursor-pointer"
+                  >
+                    {registerSubmitting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Menyimpan Data Santri &amp; Akun Wali...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4" />
+                        <span>Simpan Santri &amp; Buat Akun Wali (1:1)</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
+              </form>
+            </div>
+          )}
 
-              <button
-                type="submit"
-                disabled={registerSubmitting}
-                className="w-full rounded-xl bg-emerald-700 py-2.5 font-bold text-white hover:bg-emerald-800 disabled:opacity-50 transition shadow-sm"
-              >
-                {registerSubmitting
-                  ? "Menyimpan Data Santri & Akun Wali..."
-                  : "Simpan Santri & Buat Akun Wali (1:1)"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================
-          TAB KHUSUS: IMPORT DATA SANTRI & OTOMATISASI AKUN WALI (EXCEL)
-         ===================================================================== */}
-      {activeTab === "import_santri" && (
+          {/* Subtab B: Import Data Santri Massal (Excel) */}
+          {tambahSantriSubTab === "import" && (
         <div className="space-y-6">
           {/* Header Kartu Informasi Kebijakan Akun Wali */}
           <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-900 to-emerald-950 p-5 sm:p-6 text-white shadow-sm">
@@ -1505,7 +1559,7 @@ export function AdminPortal({
 
                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-left space-y-2">
                   <p className="text-xs font-bold text-slate-800">
-                    13 Kolom Wajib Pada Template Excel:
+                    Format Kolom Pada Template Excel:
                   </p>
                   <ol className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-600 list-decimal pl-4">
                     <li>NIS (Format Teks, angka 0 awal terjaga)</li>
@@ -1518,8 +1572,7 @@ export function AdminPortal({
                     <li>Kamar Asrama (Nama atau Kode)</li>
                     <li>Nama Orang Tua/Wali</li>
                     <li>Hubungan Wali (Ayah / Ibu / Wali)</li>
-                    <li>Nomor Telepon Wali (Min 8 digit)</li>
-                    <li>Email Kontak (Opsional komunikasi)</li>
+                    <li>Nomor Telepon / WhatsApp Wali</li>
                     <li>Alamat Santri &amp; Wali</li>
                   </ol>
                 </div>
@@ -1874,6 +1927,8 @@ export function AdminPortal({
           )}
         </div>
       )}
+    </div>
+  )}
 
       {/* =====================================================================
           TAB 2: KELAS, KAMAR, & RIWAYAT PENEMPATAN SANTRI (BAB 4.3 PRD)

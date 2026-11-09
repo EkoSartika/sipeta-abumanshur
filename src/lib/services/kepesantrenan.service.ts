@@ -205,16 +205,163 @@ export class KepesantrenanService {
   // --------------------------------------------------------------------------
   // 4. KEDISIPLINAN & RIWAYAT PEMBINAAN
   // --------------------------------------------------------------------------
-  async getMasterKategoriPelanggaran(): Promise<MasterKategoriPelanggaran[]> {
+  async getMasterKategoriPelanggaran(includeInactive = false): Promise<MasterKategoriPelanggaran[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data, error } = await this.client
+    let query = this.client
       .from("master_kategori_pelanggaran")
       .select("*")
-      .eq("is_active", true)
       .order("poin_pembinaan", { ascending: true });
 
+    if (!includeInactive) {
+      query = query.eq("is_active", true);
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(`Gagal memuat master pelanggaran: ${error.message}`);
     return (data as MasterKategoriPelanggaran[]) ?? [];
+  }
+
+  async createMasterKategoriPelanggaran(payload: {
+    kode_kategori: string;
+    nama_kategori: string;
+    tingkat_pelanggaran: "RINGAN" | "SEDANG" | "BERAT";
+    poin_pembinaan: number;
+    standar_tindak_lanjut: string;
+    is_active?: boolean;
+  }): Promise<{ ok: boolean; message: string; data?: MasterKategoriPelanggaran }> {
+    if (!isSupabaseConfigured()) {
+      return {
+        ok: true,
+        message: "Kategori pelanggaran berhasil dibuat (Mode Demo Standalone).",
+      };
+    }
+
+    const { data, error } = await this.client
+      .from("master_kategori_pelanggaran")
+      .insert({
+        kode_kategori: payload.kode_kategori.trim().toUpperCase(),
+        nama_kategori: payload.nama_kategori.trim(),
+        tingkat_pelanggaran: payload.tingkat_pelanggaran,
+        poin_pembinaan: payload.poin_pembinaan,
+        standar_tindak_lanjut: payload.standar_tindak_lanjut.trim(),
+        is_active: payload.is_active ?? true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return { ok: false, message: `Gagal menambahkan kategori: ${error.message}` };
+    }
+    return { ok: true, message: `Kategori '${payload.nama_kategori}' berhasil ditambahkan.`, data: data as MasterKategoriPelanggaran };
+  }
+
+  async updateMasterKategoriPelanggaran(
+    id: string,
+    payload: Partial<MasterKategoriPelanggaran>
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return { ok: true, message: "Kategori pelanggaran berhasil diperbarui (Mode Demo Standalone)." };
+    }
+
+    const updateObj: Record<string, unknown> = {};
+    if (payload.nama_kategori !== undefined) updateObj.nama_kategori = payload.nama_kategori.trim();
+    if (payload.tingkat_pelanggaran !== undefined) updateObj.tingkat_pelanggaran = payload.tingkat_pelanggaran;
+    if (payload.poin_pembinaan !== undefined) updateObj.poin_pembinaan = payload.poin_pembinaan;
+    if (payload.standar_tindak_lanjut !== undefined) updateObj.standar_tindak_lanjut = payload.standar_tindak_lanjut.trim();
+    if (payload.is_active !== undefined) updateObj.is_active = payload.is_active;
+
+    const { error } = await this.client
+      .from("master_kategori_pelanggaran")
+      .update(updateObj)
+      .eq("id", id);
+
+    if (error) {
+      return { ok: false, message: `Gagal memperbarui kategori: ${error.message}` };
+    }
+    return { ok: true, message: "Kategori pelanggaran berhasil diperbarui." };
+  }
+
+  async deleteOrDeactivateMasterKategoriPelanggaran(
+    id: string
+  ): Promise<{ ok: boolean; actionTaken: "DELETED" | "DEACTIVATED"; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return { ok: true, actionTaken: "DELETED", message: "Kategori berhasil dihapus (Mode Demo Standalone)." };
+    }
+
+    // Periksa apakah kategori telah digunakan dalam catatan_kedisiplinan
+    const { count, error: countErr } = await this.client
+      .from("catatan_kedisiplinan")
+      .select("id", { count: "exact", head: true })
+      .eq("kategori_id", id);
+
+    if (countErr) {
+      return { ok: false, actionTaken: "DEACTIVATED", message: `Gagal memeriksa riwayat: ${countErr.message}` };
+    }
+
+    if ((count ?? 0) > 0) {
+      // Nonaktifkan saja demi integritas data historis
+      const { error: updErr } = await this.client
+        .from("master_kategori_pelanggaran")
+        .update({ is_active: false })
+        .eq("id", id);
+
+      if (updErr) {
+        return { ok: false, actionTaken: "DEACTIVATED", message: `Gagal menonaktifkan kategori: ${updErr.message}` };
+      }
+      return {
+        ok: true,
+        actionTaken: "DEACTIVATED",
+        message: "Kategori telah digunakan dalam riwayat kedisiplinan santri sehingga dinonaktifkan secara aman (soft-deactivate).",
+      };
+    }
+
+    // Jika belum digunakan, coba hapus permanen
+    const { error: delErr } = await this.client
+      .from("master_kategori_pelanggaran")
+      .delete()
+      .eq("id", id);
+
+    if (delErr) {
+      // Fallback ke nonaktif jika ada dependensi
+      await this.client.from("master_kategori_pelanggaran").update({ is_active: false }).eq("id", id);
+      return {
+        ok: true,
+        actionTaken: "DEACTIVATED",
+        message: "Kategori dinonaktifkan karena terdapat relasi data yang dilindungi.",
+      };
+    }
+
+    return {
+      ok: true,
+      actionTaken: "DELETED",
+      message: "Kategori pelanggaran berhasil dihapus permanen.",
+    };
+  }
+
+  async deleteMasterKategoriPelanggaranBatch(ids: string[]): Promise<{
+    ok: boolean;
+    message: string;
+    summary: { total: number; deleted: number; deactivated: number; failed: number };
+  }> {
+    let deleted = 0;
+    let deactivated = 0;
+    let failed = 0;
+
+    for (const id of ids) {
+      const res = await this.deleteOrDeactivateMasterKategoriPelanggaran(id);
+      if (res.ok) {
+        if (res.actionTaken === "DELETED") deleted++;
+        else deactivated++;
+      } else {
+        failed++;
+      }
+    }
+
+    return {
+      ok: true,
+      message: `Proses kategori: ${deleted} dihapus permanen, ${deactivated} dinonaktifkan aman, ${failed} gagal.`,
+      summary: { total: ids.length, deleted, deactivated, failed },
+    };
   }
 
   async getCatatanKedisiplinan(santriId?: string): Promise<CatatanKedisiplinan[]> {

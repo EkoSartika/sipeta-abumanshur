@@ -295,7 +295,11 @@ export class AuthService {
   /**
    * Reset password pengguna oleh Superadmin melalui Secure Server Endpoint
    */
-  async resetUserPassword(userId: string, newPassword: string): Promise<{ ok: boolean; message: string }> {
+  async resetUserPassword(
+    userId: string,
+    newPassword: string,
+    mustChangePassword: boolean = true
+  ): Promise<{ ok: boolean; message: string }> {
     try {
       const res = await fetch("/api/admin-users", {
         method: "PATCH",
@@ -304,6 +308,7 @@ export class AuthService {
           action: "RESET_PASSWORD",
           user_id: userId,
           new_password: newPassword,
+          must_change_password: mustChangePassword,
         }),
       });
 
@@ -357,6 +362,7 @@ export class AuthService {
       no_telepon?: string;
       role?: UserRole;
       is_active?: boolean;
+      must_change_password?: boolean;
     }
   ): Promise<{ ok: boolean; message: string; updatedUser?: Partial<UserProfile> }> {
     try {
@@ -451,6 +457,35 @@ export class AuthService {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, message: `Gagal menghapus akun: ${msg}` };
+    }
+  }
+
+  /**
+   * Hapus atau nonaktifkan akun pengguna secara massal oleh Superadmin (DELETE /api/admin-users)
+   */
+  async deleteUserAccountBatch(userIds: string[]): Promise<{
+    ok: boolean;
+    message: string;
+    results?: Array<{ id: string; nama_lengkap?: string; status: string; actionTaken?: string; message: string }>;
+    summary?: { total: number; deleted: number; deactivated: number; skipped: number; failed: number };
+  }> {
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_ids: userIds }),
+      });
+
+      const data = await res.json();
+      return {
+        ok: res.ok && data.ok,
+        message: data.message ?? (res.ok ? "Penghapusan massal berhasil diproses." : "Gagal memproses penghapusan massal."),
+        results: data.results,
+        summary: data.summary,
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Gagal memproses penghapusan massal: ${msg}` };
     }
   }
 

@@ -343,6 +343,9 @@ export interface MasterKategoriPelanggaran {
   tingkat_pelanggaran: "RINGAN" | "SEDANG" | "BERAT";
   poin_pembinaan: number;
   standar_tindak_lanjut: string;
+  deskripsi?: string;
+  is_active?: boolean;
+  created_at?: string;
 }
 
 export interface RiwayatPerubahanKedisiplinan {

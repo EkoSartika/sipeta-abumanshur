@@ -8,6 +8,7 @@ import {
   CreditCard,
   Eye,
   FileCheck2,
+  FileText,
   History,
   Info,
   Landmark,
@@ -34,6 +35,7 @@ export type BendaharaTab =
   | "verifikasi_pembayaran"
   | "verifikasi_saku"
   | "penyerahan_saku"
+  | "keuangan_saldo_santri"
   | "saldo_santri"
   | "ledger_koreksi"
   | "rekening_info";
@@ -86,6 +88,9 @@ export function BendaharaPortal({
   );
 
   // State form jurnal koreksi / penyesuaian ledger
+  const [keuanganSubTab, setKeuanganSubTab] = useState<"ringkasan" | "ledger" | "jurnal">(
+    controlledTab === "ledger_koreksi" ? "ledger" : "ringkasan"
+  );
   const [refMutasiId, setRefMutasiId] = useState(mutasiUangSakuList[0]?.id ?? "mut-001");
   const [jenisKoreksi, setJenisKoreksi] = useState<"PENYESUAIAN_TAMBAH" | "PENYESUAIAN_KURANG">(
     "PENYESUAIAN_TAMBAH"
@@ -883,49 +888,116 @@ export function BendaharaPortal({
       )}
 
       {/* =====================================================================
-          TAB 4: SALDO SANTRI, LEDGER IMMUTABLE & JURNAL KOREKSI (BAB 6.4 PRD)
+          TAB TERPADU: KEUANGAN & SALDO SANTRI (BAB 6 PRD)
+          Menyatukan: Ringkasan Saldo, Riwayat Mutasi Ledger, & Jurnal Koreksi
          ===================================================================== */}
-      {(activeTab === "ledger_koreksi" || activeTab === "saldo_santri") && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Rekap Saldo Seluruh Santri */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900">
-                Rekapitulasi Saldo Uang Saku per Santri (Otomatis dari Ledger)
-              </h3>
+      {(activeTab === "keuangan_saldo_santri" ||
+        activeTab === "ledger_koreksi" ||
+        activeTab === "saldo_santri") && (
+        <div className="w-full space-y-6">
+          {/* Subtab Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">Keuangan &amp; Saldo Santri</h3>
               <p className="text-xs text-slate-500">
-                Saldo tidak dapat diedit manual. Saldo = Total Masuk - Total Keluar + Penyesuaian
-                Sah.
+                Pencatatan pembukuan uang saku, riwayat mutasi ledger immutable, dan penyesuaian koreksi resmi.
               </p>
-              <div className="mt-3 overflow-x-auto">
+            </div>
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setKeuanganSubTab("ringkasan")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition min-h-[38px] ${
+                  keuanganSubTab === "ringkasan"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Wallet className="h-4 w-4" />
+                <span>Ringkasan Saldo Santri</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setKeuanganSubTab("ledger")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition min-h-[38px] ${
+                  keuanganSubTab === "ledger"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+                <span>Riwayat Mutasi / Ledger</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setKeuanganSubTab("jurnal")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition min-h-[38px] ${
+                  keuanganSubTab === "jurnal"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <RotateCcw className="h-4 w-4" />
+                <span>Jurnal Koreksi</span>
+              </button>
+            </div>
+          </div>
+
+          {/* SUBTAB 1: RINGKASAN SALDO SANTRI */}
+          {keuanganSubTab === "ringkasan" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="text-base font-bold text-slate-900">
+                    Rekapitulasi Saldo Uang Saku per Santri
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Saldo dihitung otomatis dari ledger: Masuk - Keluar + Penyesuaian Sah.
+                  </p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2 text-right">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+                    Total Dana Mengendap
+                  </span>
+                  <span className="text-base font-black text-emerald-950">
+                    {formatRupiah(
+                      santriList.reduce((acc, s) => acc + getSaldoSantri(s.id).saldo_saat_ini, 0)
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-slate-200 uppercase text-slate-500">
-                      <th className="py-2 pr-3">Santri</th>
-                      <th className="py-2 px-3 text-right">Total Masuk</th>
-                      <th className="py-2 px-3 text-right">Total Keluar</th>
-                      <th className="py-2 px-3 text-right">Penyesuaian</th>
-                      <th className="py-2 pl-3 text-right">Saldo Aktif</th>
+                    <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                      <th className="py-3 px-4">Santri &amp; NIS</th>
+                      <th className="py-3 px-3 text-right">Total Masuk</th>
+                      <th className="py-3 px-3 text-right">Total Keluar</th>
+                      <th className="py-3 px-3 text-right">Penyesuaian</th>
+                      <th className="py-3 px-4 text-right">Saldo Saat Ini</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {santriList.map((s) => {
                       const ldg = getSaldoSantri(s.id);
                       return (
-                        <tr key={s.id}>
-                          <td className="py-2.5 pr-3 font-semibold text-slate-900">
-                            {s.nama_lengkap} ({s.nis})
+                        <tr key={s.id} className="hover:bg-slate-50/70 transition">
+                          <td className="py-3 px-4 font-semibold text-slate-900">
+                            <div>{s.nama_lengkap}</div>
+                            <div className="font-mono text-[11px] text-slate-500">NIS: {s.nis}</div>
                           </td>
-                          <td className="py-2.5 px-3 text-right text-emerald-700 font-medium">
-                            {formatRupiah(ldg.total_masuk)}
+                          <td className="py-3 px-3 text-right text-emerald-700 font-semibold">
+                            +{formatRupiah(ldg.total_masuk)}
                           </td>
-                          <td className="py-2.5 px-3 text-right text-rose-700 font-medium">
-                            {formatRupiah(ldg.total_keluar)}
+                          <td className="py-3 px-3 text-right text-rose-700 font-semibold">
+                            -{formatRupiah(ldg.total_keluar)}
                           </td>
-                          <td className="py-2.5 px-3 text-right text-purple-700 font-medium">
+                          <td className="py-3 px-3 text-right text-purple-700 font-semibold">
+                            {ldg.total_penyesuaian >= 0 ? "+" : ""}
                             {formatRupiah(ldg.total_penyesuaian)}
                           </td>
-                          <td className="py-2.5 pl-3 text-right font-extrabold text-slate-900">
+                          <td className="py-3 px-4 text-right font-black text-slate-900 text-sm">
                             {formatRupiah(ldg.saldo_saat_ini)}
                           </td>
                         </tr>
@@ -935,27 +1007,43 @@ export function BendaharaPortal({
                 </table>
               </div>
             </div>
+          )}
 
-            {/* Daftar Ledger Immutable */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900">
-                Jurnal Mutasi Ledger Uang Saku (Immutable)
-              </h3>
-              <div className="mt-3 space-y-2.5">
+          {/* SUBTAB 2: RIWAYAT MUTASI / LEDGER IMMUTABLE */}
+          {keuanganSubTab === "ledger" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h4 className="text-base font-bold text-slate-900">
+                  Buku Besar Mutasi Uang Saku (Append-Only Ledger)
+                </h4>
+                <p className="text-xs text-slate-500">
+                  Seluruh mutasi bersifat immutable. Total {mutasiUangSakuList.length} transaksi tercatat.
+                </p>
+              </div>
+
+              <div className="space-y-2.5">
                 {mutasiUangSakuList.map((m) => (
                   <div
                     key={m.id}
-                    className="flex flex-col justify-between gap-2 rounded-xl border border-slate-200 p-3.5 sm:flex-row sm:items-center text-xs"
+                    className="flex flex-col justify-between gap-2 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center text-xs hover:border-slate-300 transition"
                   >
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono font-bold text-slate-900">
                           {m.nomor_transaksi}
                         </span>
-                        <span className="rounded bg-slate-100 px-2 py-0.5 font-bold text-slate-800">
+                        <span
+                          className={`rounded px-2 py-0.5 font-bold text-[10px] ${
+                            m.jenis_mutasi === "MASUK"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : m.jenis_mutasi === "KELUAR"
+                              ? "bg-rose-100 text-rose-800"
+                              : "bg-purple-100 text-purple-800"
+                          }`}
+                        >
                           {m.jenis_mutasi}
                         </span>
-                        <span className="font-semibold text-emerald-800">
+                        <span className="font-semibold text-emerald-900">
                           {getSantriName(m.santri_id)}
                         </span>
                       </div>
@@ -965,18 +1053,24 @@ export function BendaharaPortal({
                           Alasan Koreksi: {m.alasan_koreksi}
                         </p>
                       )}
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-slate-400 mt-0.5">
                         Petugas: {m.petugas_nama} • {formatWaktuLengkap(m.created_at)}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-bold text-sm text-slate-900">
+                      <p
+                        className={`font-black text-sm ${
+                          m.jenis_mutasi === "MASUK" || m.jenis_mutasi === "PENYESUAIAN_TAMBAH"
+                            ? "text-emerald-700"
+                            : "text-rose-700"
+                        }`}
+                      >
                         {m.jenis_mutasi === "MASUK" || m.jenis_mutasi === "PENYESUAIAN_TAMBAH"
                           ? "+"
                           : "-"}
                         {formatRupiah(m.nominal)}
                       </p>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-slate-500 font-mono">
                         {formatRupiah(m.saldo_sebelum)} → {formatRupiah(m.saldo_sesudah)}
                       </p>
                     </div>
@@ -984,45 +1078,43 @@ export function BendaharaPortal({
                 ))}
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Form Jurnal Koreksi / Pembalik */}
-          <div>
-            <div className="rounded-2xl border border-purple-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+          {/* SUBTAB 3: JURNAL KOREKSI / PENYESUAIAN */}
+          {keuanganSubTab === "jurnal" && (
+            <div className="max-w-2xl mx-auto rounded-2xl border border-purple-200 bg-white p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 border-b border-purple-100 pb-3">
                 <RotateCcw className="h-5 w-5 text-purple-700" />
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Jurnal Penyesuaian / Koreksi Ledger
-                  </h3>
+                  <h4 className="text-base font-bold text-slate-900">
+                    Jurnal Penyesuaian &amp; Koreksi Ledger
+                  </h4>
                   <p className="text-xs text-slate-500">
-                    Transaksi yang sudah sah bersifat immutable. Koreksi dilakukan melalui jurnal
-                    pembalik dengan alasan tercatat.
+                    Koreksi dilakukan melalui jurnal pembalik resmi dengan rekaman audit permanen.
                   </p>
                 </div>
               </div>
 
-              <form onSubmit={handleKoreksiSubmit} className="mt-4 space-y-3">
+              <form onSubmit={handleKoreksiSubmit} className="space-y-4 text-xs">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Transaksi Referensi yang Dikoreksi
                   </label>
                   <select
                     value={refMutasiId}
                     onChange={(e) => setRefMutasiId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium focus:border-purple-600 focus:outline-none min-h-[42px]"
                   >
                     {mutasiUangSakuList.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.nomor_transaksi} — {getSantriName(m.santri_id)} ({formatRupiah(m.nominal)}
-                        )
+                        {m.nomor_transaksi} — {getSantriName(m.santri_id)} ({formatRupiah(m.nominal)})
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Jenis Penyesuaian
                   </label>
                   <select
@@ -1032,15 +1124,15 @@ export function BendaharaPortal({
                         e.target.value as "PENYESUAIAN_TAMBAH" | "PENYESUAIAN_KURANG"
                       )
                     }
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold focus:border-purple-600 focus:outline-none min-h-[42px]"
                   >
-                    <option value="PENYESUAIAN_TAMBAH">PENYESUAIAN TAMBAH (+ Saldo)</option>
-                    <option value="PENYESUAIAN_KURANG">PENYESUAIAN KURANG (- Saldo)</option>
+                    <option value="PENYESUAIAN_TAMBAH">PENYESUAIAN TAMBAH (+ Tambah Saldo)</option>
+                    <option value="PENYESUAIAN_KURANG">PENYESUAIAN KURANG (- Kurangi Saldo)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700">
+                  <label className="block font-bold text-slate-700 mb-1">
                     Nominal Koreksi (Rp)
                   </label>
                   <input
@@ -1049,33 +1141,34 @@ export function BendaharaPortal({
                     required
                     value={nominalKoreksi}
                     onChange={(e) => setNominalKoreksi(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-slate-900 focus:border-purple-600 focus:outline-none min-h-[42px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Alasan Koreksi (Wajib untuk Audit Log)
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Alasan Koreksi (Wajib Dicatat untuk Audit Log Pesantren)
                   </label>
                   <textarea
                     rows={3}
                     required
                     value={alasanKoreksi}
                     onChange={(e) => setAlasanKoreksi(e.target.value)}
-                    placeholder="Jelaskan alasan koreksi secara lengkap..."
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
+                    placeholder="Tuliskan keterangan dan alasan koreksi ledger secara detail..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs focus:border-purple-600 focus:outline-none"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full rounded-xl bg-purple-700 py-2.5 text-xs font-bold text-white hover:bg-purple-800"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-purple-700 py-3 font-bold text-white hover:bg-purple-800 transition min-h-[44px] cursor-pointer"
                 >
-                  Simpan Jurnal Koreksi &amp; Rekam Audit
+                  <RotateCcw className="h-4 w-4" />
+                  <span>Simpan Jurnal Koreksi &amp; Rekam Audit</span>
                 </button>
               </form>
             </div>
-          </div>
+          )}
         </div>
       )}
 

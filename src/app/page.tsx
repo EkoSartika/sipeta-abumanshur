@@ -168,10 +168,9 @@ export default function SipetaHomePage() {
         return [
           { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
           { id: "santri_wali", label: "Data Santri & Akun Wali", icon: Users, badge: santriList.length },
-          { id: "import_santri", label: "Import Data Santri", icon: FileSpreadsheet },
+          { id: "tambah_santri", label: "Tambah Data Santri", icon: UserPlus },
           { id: "kelas_kamar", label: "Kelas, Kamar & Penempatan", icon: Building2 },
-          { id: "jenis_pembayaran", label: "Jenis Pembayaran", icon: CreditCard },
-          { id: "kebijakan_tagihan", label: "Kebijakan Cicilan & Tagihan", icon: Receipt },
+          { id: "jenis_dan_tagihan", label: "Jenis Pembayaran & Tagihan", icon: CreditCard },
           { id: "rekening_pesantren", label: "Rekening Resmi Pesantren", icon: Landmark },
           { id: "pengumuman", label: "Pengumuman Pesantren", icon: Megaphone },
           { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
@@ -183,7 +182,7 @@ export default function SipetaHomePage() {
           { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
           {
             id: "verifikasi_pembayaran",
-            label: "Verifikasi Pembayaran Tagihan",
+            label: "Verifikasi Pembayaran",
             icon: CheckCircle2,
             badge: transaksiPembayaranList.filter((t) => t.status === "MENUNGGU_VERIFIKASI").length || undefined,
           },
@@ -192,9 +191,8 @@ export default function SipetaHomePage() {
             label: "Verifikasi Top-Up Uang Saku",
             icon: ArrowRightLeft,
           },
-          { id: "penyerahan_saku", label: "Catat Penyerahan Uang Saku", icon: Camera },
-          { id: "saldo_santri", label: "Saldo Santri", icon: Wallet },
-          { id: "ledger_koreksi", label: "Ledger & Jurnal Koreksi", icon: FileText },
+          { id: "penyerahan_saku", label: "Penyerahan Uang Saku", icon: Camera },
+          { id: "keuangan_saldo_santri", label: "Keuangan & Saldo Santri", icon: Wallet },
           { id: "rekening_info", label: "Rekening Resmi Pesantren", icon: Landmark },
           { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
           { id: "profile", label: "Profil Saya", icon: UserCheck },
@@ -270,12 +268,60 @@ export default function SipetaHomePage() {
   if (!isAuthenticated || !currentUser) {
     const publishedAnnouncements = pengumumanList.filter((p) => p.is_published);
 
-    const portalsList = [
-      { role: "wali", title: "Orang Tua / Wali Santri", url: "/login", desc: "Akses tagihan, cicilan SPP, saldo uang saku, dan tahfidz" },
-      { role: "admin", title: "Admin Administrasi", url: "/admin/login", desc: "Kelola santri, import Excel, kelas, asrama, dan tagihan" },
-      { role: "bendahara", title: "Bendahara Pesantren", url: "/bendahara/login", desc: "Verifikasi pembayaran SPP, top-up uang saku, dan ledger" },
-      { role: "pengelola", title: "Pengelola Kepesantrenan", url: "/pengelola/login", desc: "Input mutaba'ah mengaji, setoran tahfidz, dan pembinaan" },
-      { role: "superadmin", title: "Superadmin (Pimpinan)", url: "/superadmin/login", desc: "Pusat tata kelola akun petugas, rekening, dan jejak audit" },
+    const portalsList: {
+      role: UserRole;
+      title: string;
+      url: string;
+      badge: string;
+      identifier: string;
+      desc: string;
+      icon: React.ElementType;
+    }[] = [
+      {
+        role: "wali",
+        title: "Orang Tua / Wali Santri",
+        url: "/login",
+        badge: "Wali Santri",
+        identifier: "Masuk dengan NIS Santri",
+        desc: "Layanan informasi tagihan SPP, cicilan biaya, saldo & mutasi uang saku, serta mutaba'ah tahfidz santri.",
+        icon: Users,
+      },
+      {
+        role: "admin",
+        title: "Admin Administrasi",
+        url: "/admin/login",
+        badge: "Staf Internal",
+        identifier: "Masuk dengan Username",
+        desc: "Pengelolaan master data santri, akun wali, penempatan kelas & asrama, serta konfigurasi jenis pembayaran.",
+        icon: UserCheck,
+      },
+      {
+        role: "bendahara",
+        title: "Bendahara Pesantren",
+        url: "/bendahara/login",
+        badge: "Keuangan",
+        identifier: "Masuk dengan Username",
+        desc: "Verifikasi setoran SPP bank BSI, persetujuan uang saku, pencatatan penyerahan fisik, dan pembukuan ledger.",
+        icon: Wallet,
+      },
+      {
+        role: "pengelola",
+        title: "Pengelola Kepesantrenan",
+        url: "/pengelola/login",
+        badge: "Asatidz & Pembina",
+        identifier: "Masuk dengan Username",
+        desc: "Pencatatan mutaba'ah mengaji harian, setoran tahfidz Al-Qur'an, rekam prestasi santri, dan pembinaan kedisiplinan.",
+        icon: BookOpen,
+      },
+      {
+        role: "superadmin",
+        title: "Superadmin (Pimpinan)",
+        url: "/superadmin/login",
+        badge: "Pimpinan & IT",
+        identifier: "Masuk dengan Akun Resmi",
+        desc: "Tata kelola seluruh akun pengguna, penetapan rekening resmi tunggal BSI pesantren, dan pengawasan jejak audit.",
+        icon: Shield,
+      },
     ];
 
     return (
@@ -309,115 +355,189 @@ export default function SipetaHomePage() {
             <div className="flex items-center gap-2">
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 transition"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 transition"
               >
                 <LogIn className="h-4 w-4" />
-                <span>Pintu Masuk</span>
+                <span>Masuk Portal</span>
               </Link>
             </div>
           </div>
         </header>
 
         {/* Hero & Konten Utama Publik */}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Kolom Kiri: Informasi Pesantren & Pengumuman */}
-            <div className="lg:col-span-7 space-y-6">
-              {/* Welcome Card */}
-              <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-emerald-900 to-emerald-950 p-6 sm:p-8 text-white shadow-lg">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="rounded-full bg-emerald-800/80 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-200 border border-emerald-700">
-                    Gerbang Pelayanan Resmi
-                  </span>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 space-y-8">
+          {/* Welcome Card Banner */}
+          <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-emerald-900 to-emerald-950 p-6 sm:p-8 text-white shadow-lg">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="rounded-full bg-emerald-800/80 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-200 border border-emerald-700">
+                Gerbang Pelayanan Resmi
+              </span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
+              Selamat Datang di Portal Terpadu SIPETA
+            </h2>
+            <p className="mt-3 text-sm text-emerald-100/90 leading-relaxed max-w-3xl">
+              Layanan digital terpadu bagi Orang Tua/Wali Santri, Asatidz, Bendahara, Pengelola Kepesantrenan, dan Pimpinan Pondok Pesantren Modern Abu Manshur Cirebon.
+            </p>
+            <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="rounded-xl bg-white/10 p-3.5 backdrop-blur border border-white/10">
+                <Wallet className="h-5 w-5 text-emerald-300 mb-1.5" />
+                <p className="font-bold">Keuangan &amp; SPP</p>
+                <p className="text-[11px] text-emerald-200">Cicilan &amp; 1 Rekening BSI</p>
+              </div>
+              <div className="rounded-xl bg-white/10 p-3.5 backdrop-blur border border-white/10">
+                <BookOpen className="h-5 w-5 text-emerald-300 mb-1.5" />
+                <p className="font-bold">Tahfidz &amp; Mengaji</p>
+                <p className="text-[11px] text-emerald-200">Mutaba&apos;ah Harian</p>
+              </div>
+              <div className="rounded-xl bg-white/10 p-3.5 backdrop-blur border border-white/10">
+                <Award className="h-5 w-5 text-emerald-300 mb-1.5" />
+                <p className="font-bold">Prestasi &amp; Disiplin</p>
+                <p className="text-[11px] text-emerald-200">Catatan Pembinaan</p>
+              </div>
+              <div className="rounded-xl bg-white/10 p-3.5 backdrop-blur border border-white/10">
+                <Calendar className="h-5 w-5 text-emerald-300 mb-1.5" />
+                <p className="font-bold">Uang Saku Ledger</p>
+                <p className="text-[11px] text-emerald-200">Wajib Foto Penyerahan</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Bagian Utama: LOGIN (Pusat Pilihan Akses Sesuai Kewenangan) */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
+                  <LogIn className="h-5 w-5" />
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
-                  Selamat Datang di Portal Terpadu SIPETA
-                </h2>
-                <p className="mt-3 text-sm text-emerald-100/90 leading-relaxed">
-                  Layanan terpadu bagi Orang Tua/Wali Santri, Asatidz, Bendahara, Pengelola Kepesantrenan, dan Pimpinan Pondok Pesantren Modern Abu Manshur Cirebon.
-                </p>
-                <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="rounded-xl bg-white/10 p-3 backdrop-blur border border-white/10">
-                    <Wallet className="h-5 w-5 text-emerald-300 mb-1" />
-                    <p className="font-bold">Keuangan &amp; SPP</p>
-                    <p className="text-[11px] text-emerald-200">Cicilan &amp; 1 Rekening BSI</p>
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
+                    Login — Gerbang Akses Layanan Terpadu
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Silakan pilih pintu masuk portal pelayanan sesuai dengan peran dan kewenangan resmi Anda:
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {portalsList.map((portal) => {
+                const Icon = portal.icon;
+                return (
+                  <Link
+                    key={portal.role}
+                    href={portal.url}
+                    className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-5 hover:bg-emerald-50/60 hover:border-emerald-300 hover:shadow-md transition-all group relative overflow-hidden"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-sm group-hover:scale-105 transition">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 border border-slate-200 shadow-2xs">
+                          {portal.badge}
+                        </span>
+                      </div>
+
+                      <h4 className="text-sm font-extrabold text-slate-900 group-hover:text-emerald-950 transition">
+                        {portal.title}
+                      </h4>
+                      <p className="mt-1 text-[11px] font-semibold text-emerald-800">
+                        {portal.identifier}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                        {portal.desc}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-200/80 flex items-center justify-between text-xs font-bold text-emerald-800 group-hover:text-emerald-950">
+                      <span>Buka Halaman Masuk</span>
+                      <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition text-emerald-700" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Simulasi Dev Only jika diizinkan */}
+            {isDemoAllowed && (
+              <div className="rounded-xl bg-amber-50 p-4 border border-amber-200 text-xs mt-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-amber-900 flex items-center gap-1.5">
+                      <KeyRound className="h-4 w-4 text-amber-700" />
+                      Mode Simulasi Pengujian (Development Standalone):
+                    </p>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      Pilih role untuk mencoba simulasi alur kerja lokal tanpa autentikasi Supabase.
+                    </p>
                   </div>
-                  <div className="rounded-xl bg-white/10 p-3 backdrop-blur border border-white/10">
-                    <BookOpen className="h-5 w-5 text-emerald-300 mb-1" />
-                    <p className="font-bold">Tahfidz &amp; Mengaji</p>
-                    <p className="text-[11px] text-emerald-200">Mutaba&apos;ah Harian</p>
-                  </div>
-                  <div className="rounded-xl bg-white/10 p-3 backdrop-blur border border-white/10">
-                    <Award className="h-5 w-5 text-emerald-300 mb-1" />
-                    <p className="font-bold">Prestasi &amp; Disiplin</p>
-                    <p className="text-[11px] text-emerald-200">Catatan Pembinaan</p>
-                  </div>
-                  <div className="rounded-xl bg-white/10 p-3 backdrop-blur border border-white/10">
-                    <Calendar className="h-5 w-5 text-emerald-300 mb-1" />
-                    <p className="font-bold">Uang Saku Ledger</p>
-                    <p className="text-[11px] text-emerald-200">Wajib Foto Penyerahan</p>
+                  <div className="flex items-center gap-2">
+                    <select
+                      aria-label="Pilih Role Demo"
+                      value={selectedDemoRole}
+                      onChange={(e) => setSelectedDemoRole(e.target.value as UserRole)}
+                      className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none"
+                    >
+                      <option value="wali">Wali Santri (Hafidz)</option>
+                      <option value="bendahara">Bendahara (Hj. Siti Aminah)</option>
+                      <option value="admin">Admin (H. Ahmad Dahlan)</option>
+                      <option value="pengelola">Pengelola (Ust. Abdullah)</option>
+                      <option value="superadmin">Superadmin (Kyai Abu Manshur)</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => enterDemoMode(selectedDemoRole)}
+                      className="rounded-lg bg-amber-800 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-amber-900 transition shrink-0"
+                    >
+                      Buka Simulasi
+                    </button>
                   </div>
                 </div>
               </div>
+            )}
+          </section>
 
-              {/* Pintu Masuk Mandiri Berdasarkan Role */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-sm font-extrabold text-slate-900">
-                    Pilih Pintu Masuk Sesuai Kewenangan
-                  </h3>
-                  <span className="text-xs font-semibold text-emerald-800">5 Pintu Masuk</span>
+          {/* Papan Pengumuman Resmi Pesantren */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <Megaphone className="h-5 w-5" />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {portalsList.map((p) => (
-                    <Link
-                      key={p.role}
-                      href={p.url}
-                      className="flex flex-col justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 transition group"
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Pengumuman Resmi Pesantren
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Informasi, agenda, dan maklumat terbaru Pondok Pesantren Modern Abu Manshur
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold text-slate-500">
+                {publishedAnnouncements.length} Informasi Publik
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {publishedAnnouncements.length === 0 ? (
+                <p className="text-xs text-slate-500 italic py-6 text-center">
+                  Belum ada pengumuman publik saat ini.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {publishedAnnouncements.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`rounded-xl border p-4 transition flex flex-col justify-between ${
+                        item.is_penting
+                          ? "border-amber-300 bg-amber-50/60"
+                          : "border-slate-200 bg-slate-50/60"
+                      }`}
                     >
                       <div>
-                        <span className="text-xs font-bold text-slate-900 group-hover:text-emerald-950 flex items-center justify-between">
-                          <span>{p.title}</span>
-                          <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-emerald-700 transition" />
-                        </span>
-                        <p className="mt-1 text-[11px] text-slate-500 leading-normal">
-                          {p.desc}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              {/* Papan Pengumuman Resmi */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Info className="h-5 w-5 text-emerald-800" />
-                    <h3 className="text-base font-extrabold text-slate-900">
-                      Pengumuman Resmi Pesantren
-                    </h3>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-500">
-                    {publishedAnnouncements.length} Informasi
-                  </span>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {publishedAnnouncements.length === 0 ? (
-                    <p className="text-xs text-slate-500 italic py-4 text-center">
-                      Belum ada pengumuman publik saat ini.
-                    </p>
-                  ) : (
-                    publishedAnnouncements.slice(0, 3).map((item) => (
-                      <div
-                        key={item.id}
-                        className={`rounded-xl border p-4 transition ${
-                          item.is_penting
-                            ? "border-amber-300 bg-amber-50/60"
-                            : "border-slate-200 bg-slate-50/60"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2 mb-2">
                           <span
                             className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
                               item.is_penting
@@ -431,173 +551,30 @@ export default function SipetaHomePage() {
                             {formatTanggal(item.tanggal_publikasi)}
                           </span>
                         </div>
-                        <h4 className="mt-2 text-sm font-bold text-slate-900">
+                        <h4 className="text-sm font-bold text-slate-900">
                           {item.judul}
                         </h4>
-                        <p className="mt-1 text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                        <p className="mt-1.5 text-xs text-slate-600 line-clamp-3 leading-relaxed">
                           {item.isi}
                         </p>
                       </div>
-                    ))
-                  )}
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
-
-            {/* Kolom Kanan: Card Login Cepat Masuk ke Sistem */}
-            <div className="lg:col-span-5 space-y-6">
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-md">
-                <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 shrink-0">
-                    <Lock className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-extrabold text-slate-900">
-                      Masuk ke Sistem
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Gunakan username atau akun resmi untuk mengakses ruang kerja
-                    </p>
-                  </div>
-                </div>
-
-                {loginError && (
-                  <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 flex items-start gap-2.5">
-                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-600" />
-                    <div className="leading-relaxed">
-                      <p className="font-bold">Gagal Masuk</p>
-                      <p>{loginError}</p>
-                    </div>
-                  </div>
-                )}
-
-                <form onSubmit={handlePublicLogin} className="mt-5 space-y-4">
-                  <div>
-                    <label
-                      htmlFor="input-identifier-login"
-                      className="block text-xs font-bold text-slate-700 mb-1.5"
-                    >
-                      Username / NIS / Email Superadmin
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                      <input
-                        id="input-identifier-login"
-                        type="text"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        required
-                        placeholder="contoh: 202401001 atau username petugas"
-                        value={loginIdentifier}
-                        onChange={(e) => setLoginIdentifier(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none min-h-[44px]"
-                      />
-                    </div>
-                    <p className="mt-1 text-[11px] text-slate-500 leading-normal">
-                      Wali Santri masuk menggunakan <strong>NIS</strong>. Petugas internal masuk menggunakan <strong>username</strong>.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="input-password-login"
-                      className="block text-xs font-bold text-slate-700 mb-1.5"
-                    >
-                      Kata Sandi
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                      <input
-                        id="input-password-login"
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none min-h-[44px]"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loginLoading}
-                    className="w-full rounded-xl bg-emerald-800 py-3 px-4 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 transition flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px] cursor-pointer"
-                  >
-                    {loginLoading ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        <span>Memverifikasi Akun...</span>
-                      </>
-                    ) : (
-                      <>
-                        <LogIn className="h-4 w-4" />
-                        <span>Masuk ke SIPETA</span>
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                {/* Demo Switcher HANYA di lingkungan development tanpa Supabase */}
-                {isDemoAllowed && (
-                  <div className="mt-6 pt-5 border-t border-slate-100">
-                    <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200">
-                      <p className="text-[11px] font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-                        <KeyRound className="h-3.5 w-3.5 text-slate-500" />
-                        Mode Simulasi Pengujian (Dev Only):
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <select
-                          aria-label="Pilih Role Demo"
-                          value={selectedDemoRole}
-                          onChange={(e) => setSelectedDemoRole(e.target.value as UserRole)}
-                          className="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-bold text-slate-800 focus:outline-none"
-                        >
-                          <option value="wali">Wali Santri (Hafidz)</option>
-                          <option value="bendahara">Bendahara (Hj. Siti Aminah)</option>
-                          <option value="admin">Admin (H. Ahmad Dahlan)</option>
-                          <option value="pengelola">Pengelola (Ust. Abdullah)</option>
-                          <option value="superadmin">Superadmin (Kyai Abu Manshur)</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => enterDemoMode(selectedDemoRole)}
-                          className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 transition shrink-0"
-                        >
-                          Buka Demo
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500 justify-center">
-                  <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0" />
-                  <span>Sesi terenkripsi &amp; dilindungi hak akses role resmi</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          </section>
         </main>
 
-        {/* Footer Publik */}
-        <footer className="border-t border-slate-200 bg-white py-4 text-xs text-slate-500">
-          <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 sm:flex-row sm:px-6">
-            <div className="flex items-center gap-2.5">
-              <img
-                src="/images/logo-abu-manshur.png"
-                alt="Logo PP Modern Abu Manshur"
-                className="h-6 w-6 object-contain shrink-0"
-              />
-              <span>
-                <strong>SIPETA Pondok Pesantren Modern Abu Manshur</strong> • Plered - Cirebon
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-[11px]">
-              <span>v1.0 Produksi</span>
-              <span>• Hak Cipta Dilindungi Pesantren</span>
-            </div>
+        {/* Footer Bersih */}
+        <footer className="border-t border-slate-200 bg-white py-6 text-xs text-slate-500 text-center">
+          <div className="mx-auto max-w-7xl px-4 space-y-1">
+            <p className="font-semibold text-slate-800">
+              SIPETA — Sistem Informasi Pelayanan Terpadu Pondok Pesantren Modern Abu Manshur
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Jl. Nyi Ageng Serang, Sindangmekar, Dukupuntang / Plered, Cirebon, Jawa Barat
+            </p>
           </div>
         </footer>
       </div>
@@ -755,22 +732,11 @@ export default function SipetaHomePage() {
         <div className="pt-3 border-t border-white/10 space-y-2">
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("profile");
-              setMobileNavOpen(false);
-            }}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-800/80 hover:bg-emerald-800 py-2.5 text-xs font-bold text-white transition min-h-[42px]"
-          >
-            <UserCheck className="h-4 w-4" />
-            <span>Profil Saya</span>
-          </button>
-          <button
-            type="button"
             onClick={handleLogout}
             disabled={logoutLoading}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 py-2.5 text-xs font-bold text-white transition min-h-[42px]"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 py-2.5 text-xs font-bold text-white transition min-h-[44px]"
           >
-            <LogOut className="h-4 w-4" />
+            {logoutLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             <span>Keluar</span>
           </button>
         </div>
@@ -913,53 +879,18 @@ export default function SipetaHomePage() {
 
         {/* Action Buttons Desktop Sidebar Footer */}
         <div className="pt-3 border-t border-white/10 space-y-2">
-          {!sidebarCollapsed ? (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab("profile")}
-                className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${
-                  activeTab === "profile"
-                    ? "bg-white text-emerald-950 border-white"
-                    : "border-white/15 bg-white/5 text-emerald-200 hover:bg-white/10 hover:text-white"
-                }`}
-                title="Buka Profil Saya"
-              >
-                <UserCheck className="h-3.5 w-3.5" />
-                <span>Profil</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={logoutLoading}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-500/20 py-2 text-xs font-bold text-rose-200 hover:bg-rose-500/30 hover:text-white transition"
-                title="Keluar dari akun"
-              >
-                {logoutLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
-                <span>Keluar</span>
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab("profile")}
-                className="p-2.5 rounded-xl border border-white/15 bg-white/5 text-emerald-200 hover:bg-white/10 hover:text-white transition"
-                title="Profil Saya"
-              >
-                <UserCheck className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={logoutLoading}
-                className="p-2.5 rounded-xl border border-rose-400/20 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition"
-                title="Keluar"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={logoutLoading}
+            className={`w-full flex items-center rounded-xl border border-rose-400/20 bg-rose-500/20 py-2.5 text-xs font-bold text-rose-200 hover:bg-rose-500/30 hover:text-white transition ${
+              sidebarCollapsed ? "justify-center p-2.5" : "justify-center gap-2 px-3"
+            }`}
+            title="Keluar dari akun"
+          >
+            {logoutLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+            {!sidebarCollapsed && <span>Keluar</span>}
+          </button>
 
           {/* Toggle Expand/Collapse Sidebar Desktop Button */}
           <button

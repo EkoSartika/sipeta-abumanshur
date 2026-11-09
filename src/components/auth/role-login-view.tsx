@@ -8,19 +8,15 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
-  Landmark,
   Lock,
   LogIn,
   Mail,
   RefreshCw,
-  Shield,
   ShieldCheck,
   User,
   Users,
-  Wallet,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
-import { getRoleLabel } from "@/lib/utils/format";
 import type { UserRole } from "@/types/database";
 
 interface RoleLoginViewProps {
@@ -79,14 +75,6 @@ export function RoleLoginView({
       setLoading(false);
     }
   };
-
-  const rolePortals: { role: UserRole; label: string; href: string; icon: React.ElementType }[] = [
-    { role: "wali", label: "Orang Tua / Wali Santri", href: "/login", icon: Users },
-    { role: "admin", label: "Admin Administrasi", href: "/admin/login", icon: User },
-    { role: "bendahara", label: "Bendahara Pesantren", href: "/bendahara/login", icon: Wallet },
-    { role: "pengelola", label: "Pengelola Kepesantrenan", href: "/pengelola/login", icon: Landmark },
-    { role: "superadmin", label: "Superadmin (Pimpinan)", href: "/superadmin/login", icon: Shield },
-  ];
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -242,33 +230,6 @@ export function RoleLoginView({
             <div className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-slate-500 text-center">
               <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0" />
               <span>Sesi terenkripsi &amp; terlindungi hak akses role resmi</span>
-            </div>
-          </div>
-
-          {/* Navigasi Pintu Masuk Role Lain */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
-            <p className="text-xs font-extrabold text-slate-800">
-              Pintu Masuk Portal Lainnya:
-            </p>
-            <div className="grid grid-cols-1 gap-2">
-              {rolePortals
-                .filter((p) => p.role !== expectedRole)
-                .map((portal) => {
-                  const Icon = portal.icon;
-                  return (
-                    <Link
-                      key={portal.role}
-                      href={portal.href}
-                      className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200 transition"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Icon className="h-4 w-4 text-emerald-700" />
-                        <span>{portal.label}</span>
-                      </div>
-                      <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
-                    </Link>
-                  );
-                })}
             </div>
           </div>
         </div>
