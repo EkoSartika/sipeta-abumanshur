@@ -8,7 +8,9 @@ export type UserRole =
   | "admin"
   | "bendahara"
   | "pengelola"
-  | "wali";
+  | "wali"
+  | "tu"
+  | "asatidz";
 
 export type StatusSantri =
   | "AKTIF"

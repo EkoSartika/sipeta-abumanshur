@@ -137,7 +137,7 @@ export function PengelolaPortal({
     "Evaluasi pembinaan lanjutan selesai dengan hasil sangat baik."
   );
   const [alasanUpdateDisiplin, setAlasanUpdateDisiplin] = useState(
-    "Verifikasi akhir pembinaan oleh Pengelola Kepesantrenan"
+    "Verifikasi akhir pembinaan oleh Asatidz / Pembina Asrama"
   );
 
   // State Manajemen Master Kategori Pelanggaran
@@ -268,16 +268,16 @@ export function PengelolaPortal({
 
   return (
     <div className="space-y-6">
-      {/* Header Pengelola Kepesantrenan (Bab 3.4 PRD) */}
+      {/* Header Asatidz (Bab 3.4 PRD) */}
       <div className="rounded-2xl bg-gradient-to-r from-indigo-950 via-emerald-900 to-teal-950 p-5 text-white shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold">
-              Portal Pengelola Kepesantrenan (Mengaji, Tahfidz, Prestasi, & Kedisiplinan)
+              Portal Asatidz (Mengaji, Tahfidz, Prestasi, &amp; Kedisiplinan)
             </h2>
             <p className="mt-0.5 text-xs text-emerald-100/90">
-              Sesuai Bab 3.4 PRD: Pengelola mencatat perkembangan ibadah, tahfidz, prestasi, serta
-              pembinaan santri, dan tidak memiliki akses ke rincian transaksi keuangan.
+              Pondok Pesantren Modern Abu Manshur: Asatidz mencatat perkembangan ibadah, tahfidz Al-Qur&apos;an,
+              prestasi santri, serta pembinaan kedisiplinan asrama.
             </p>
           </div>
           <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
@@ -1502,4 +1502,7 @@ export function PengelolaPortal({
     </div>
   );
 }
+
+export const AsatidzPortal = PengelolaPortal;
+export type AsatidzTab = PengelolaTab;
 

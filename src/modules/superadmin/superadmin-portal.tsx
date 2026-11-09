@@ -800,10 +800,10 @@ export function SuperadminPortal({
 
                       <button
                         type="button"
-                        disabled={isSuperadminSelf}
+                        disabled={isSuperadminSelf || u.role === "superadmin"}
                         onClick={() => handleToggleActive(u)}
                         className={`inline-flex items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-[11px] font-bold transition min-h-[44px] touch-manipulation cursor-pointer ${
-                          isSuperadminSelf
+                          isSuperadminSelf || u.role === "superadmin"
                             ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
                             : u.is_active
                             ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
@@ -825,9 +825,11 @@ export function SuperadminPortal({
 
                       <button
                         type="button"
-                        disabled={isSuperadminSelf || isLastSuperadmin}
+                        disabled={isSuperadminSelf || isLastSuperadmin || u.role === "superadmin"}
                         title={
-                          isSuperadminSelf
+                          u.role === "superadmin"
+                            ? "Akun Superadmin dilindungi sistem dan tidak dapat dihapus"
+                            : isSuperadminSelf
                             ? "Tidak dapat menghapus akun sendiri"
                             : isLastSuperadmin
                             ? "Akun Superadmin terakhir tidak dapat dihapus"
@@ -835,7 +837,7 @@ export function SuperadminPortal({
                         }
                         onClick={() => setDeleteModalUser(u)}
                         className={`inline-flex items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-[11px] font-bold transition min-h-[44px] touch-manipulation cursor-pointer ${
-                          isSuperadminSelf || isLastSuperadmin
+                          isSuperadminSelf || isLastSuperadmin || u.role === "superadmin"
                             ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
                             : "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100"
                         }`}
@@ -962,9 +964,11 @@ export function SuperadminPortal({
                               {/* Toggle Active Button */}
                               <button
                                 type="button"
-                                disabled={isSuperadminSelf}
+                                disabled={isSuperadminSelf || u.role === "superadmin"}
                                 title={
-                                  isSuperadminSelf
+                                  u.role === "superadmin"
+                                    ? "Akun Superadmin tidak dapat dinonaktifkan"
+                                    : isSuperadminSelf
                                     ? "Tidak dapat menonaktifkan akun sendiri"
                                     : u.is_active
                                     ? "Nonaktifkan akun"
@@ -972,7 +976,7 @@ export function SuperadminPortal({
                                 }
                                 onClick={() => handleToggleActive(u)}
                                 className={`rounded-lg border px-2.5 py-1 text-xs font-semibold min-h-[36px] ${
-                                  isSuperadminSelf
+                                  isSuperadminSelf || u.role === "superadmin"
                                     ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
                                     : u.is_active
                                     ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
@@ -985,9 +989,11 @@ export function SuperadminPortal({
                               {/* Hapus Akun Button */}
                               <button
                                 type="button"
-                                disabled={isSuperadminSelf || isLastSuperadmin}
+                                disabled={isSuperadminSelf || isLastSuperadmin || u.role === "superadmin"}
                                 title={
-                                  isSuperadminSelf
+                                  u.role === "superadmin"
+                                    ? "Akun Superadmin dilindungi sistem dan tidak dapat dihapus"
+                                    : isSuperadminSelf
                                     ? "Tidak dapat menghapus akun sendiri"
                                     : isLastSuperadmin
                                     ? "Akun Superadmin terakhir tidak dapat dihapus"
@@ -995,7 +1001,7 @@ export function SuperadminPortal({
                                 }
                                 onClick={() => setDeleteModalUser(u)}
                                 className={`rounded-lg border px-2.5 py-1 text-xs font-semibold min-h-[36px] ${
-                                  isSuperadminSelf || isLastSuperadmin
+                                  isSuperadminSelf || isLastSuperadmin || u.role === "superadmin"
                                     ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
                                     : "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100"
                                 }`}
@@ -1069,12 +1075,13 @@ export function SuperadminPortal({
                   }}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
                 >
-                  <option value="admin">Admin Administrasi Pesantren</option>
+                  <option value="admin">Pengasuh Pondok (Admin)</option>
+                  <option value="tu">Tata Usaha (TU)</option>
                   <option value="bendahara">Bendahara Pesantren</option>
-                  <option value="pengelola">Pengelola Kepesantrenan &amp; Asrama</option>
+                  <option value="pengelola">Asatidz (Kepesantrenan &amp; Pembina)</option>
                 </select>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Sesuai kebijakan: Superadmin hanya membuat akun petugas internal (Admin, Bendahara, Pengelola). Akun Wali dibuat otomatis oleh Admin melalui NIS Santri.
+                  Sesuai kebijakan: Superadmin hanya membuat akun petugas internal (Pengasuh, TU, Bendahara, Asatidz). Akun Wali dibuat otomatis melalui NIS Santri. Akun Superadmin tambahan tidak diizinkan.
                 </p>
               </div>
 
@@ -1361,18 +1368,21 @@ export function SuperadminPortal({
                   <label className="block font-bold text-slate-700 mb-1">Role Pengguna</label>
                   <select
                     disabled={
-                      manageModalUser.id === currentUser?.id || manageModalUser.role === "wali"
+                      manageModalUser.id === currentUser?.id ||
+                      manageModalUser.role === "wali" ||
+                      manageModalUser.role === "superadmin"
                     }
                     value={manageRole}
                     onChange={(e) => setManageRole(e.target.value as UserRole)}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px] disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     {manageModalUser.role === "superadmin" && (
-                      <option value="superadmin">Superadmin Pesantren</option>
+                      <option value="superadmin">Superadmin (Terkunci &amp; Permanen)</option>
                     )}
-                    <option value="admin">Admin Administrasi</option>
+                    <option value="admin">Pengasuh Pondok (Admin)</option>
+                    <option value="tu">Tata Usaha (TU)</option>
                     <option value="bendahara">Bendahara Pesantren</option>
-                    <option value="pengelola">Pengelola Kepesantrenan</option>
+                    <option value="pengelola">Asatidz</option>
                     {manageModalUser.role === "wali" && (
                       <option value="wali">Orang Tua / Wali Santri</option>
                     )}
@@ -1382,7 +1392,9 @@ export function SuperadminPortal({
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Status Keaktifan</label>
                   <select
-                    disabled={manageModalUser.id === currentUser?.id}
+                    disabled={
+                      manageModalUser.id === currentUser?.id || manageModalUser.role === "superadmin"
+                    }
                     value={manageIsActive ? "active" : "inactive"}
                     onChange={(e) => setManageIsActive(e.target.value === "active")}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px] disabled:bg-slate-100 disabled:text-slate-500"

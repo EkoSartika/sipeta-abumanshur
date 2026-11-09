@@ -50,21 +50,25 @@ describe("1. Domain Configuration & Permanent Redirect", () => {
 });
 
 describe("2. Role Login URL & Label Mapping", () => {
-  const roles: UserRole[] = ["superadmin", "admin", "bendahara", "pengelola", "wali"];
+  const roles: UserRole[] = ["superadmin", "admin", "bendahara", "pengelola", "wali", "tu", "asatidz"];
 
   it("harus memiliki rute login khusus terisolasi untuk setiap role", () => {
     expect(getRoleLoginUrl("superadmin")).toBe("/superadmin/login");
     expect(getRoleLoginUrl("admin")).toBe("/admin/login");
     expect(getRoleLoginUrl("bendahara")).toBe("/bendahara/login");
-    expect(getRoleLoginUrl("pengelola")).toBe("/pengelola/login");
+    expect(getRoleLoginUrl("pengelola")).toBe("/asatidz/login");
+    expect(getRoleLoginUrl("asatidz")).toBe("/asatidz/login");
+    expect(getRoleLoginUrl("tu")).toBe("/tu/login");
     expect(getRoleLoginUrl("wali")).toBe("/login");
   });
 
   it("harus memiliki label resmi bahasa Indonesia yang tepat", () => {
     expect(getRoleLabel("superadmin")).toBe("Superadmin");
-    expect(getRoleLabel("admin")).toBe("Admin Administrasi");
+    expect(getRoleLabel("admin")).toBe("Pengasuh Pondok");
     expect(getRoleLabel("bendahara")).toBe("Bendahara Pesantren");
-    expect(getRoleLabel("pengelola")).toBe("Pengelola Kepesantrenan");
+    expect(getRoleLabel("pengelola")).toBe("Asatidz");
+    expect(getRoleLabel("asatidz")).toBe("Asatidz");
+    expect(getRoleLabel("tu")).toBe("Tata Usaha (TU)");
     expect(getRoleLabel("wali")).toBe("Orang Tua / Wali Santri");
   });
 });

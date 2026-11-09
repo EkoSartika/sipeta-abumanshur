@@ -30,7 +30,7 @@ const createUserSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (!val || val.trim() === "" ? "-" : val.trim())),
-  role: z.enum(["superadmin", "admin", "bendahara", "pengelola", "wali"]),
+  role: z.enum(["admin", "tu", "bendahara", "pengelola", "wali", "asatidz"]),
   password: z.string().min(8, "Kata sandi minimal 8 karakter."),
   santri_id: z.string().uuid("ID Santri tidak valid.").optional(),
 });
@@ -55,7 +55,7 @@ const patchUserSchema = z.discriminatedUnion("action", [
       .optional()
       .nullable()
       .transform((val) => (!val || val.trim() === "" ? "-" : val.trim())),
-    role: z.enum(["superadmin", "admin", "bendahara", "pengelola", "wali"]).optional(),
+    role: z.enum(["admin", "tu", "bendahara", "pengelola", "wali", "asatidz"]).optional(),
     is_active: z.boolean().optional(),
     must_change_password: z.boolean().optional(),
   }),
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (payload.role === "superadmin") {
+    if ((payload.role as string) === "superadmin") {
       return NextResponse.json(
         {
           ok: false,
@@ -422,7 +422,7 @@ export async function PATCH(request: NextRequest) {
       // 1. Validasi Proteksi Superadmin Terakhir pada Role & Status Aktif
       if (
         targetUser.role === "superadmin" &&
-        ((payload.role && payload.role !== "superadmin") || payload.is_active === false)
+        ((payload.role && (payload.role as string) !== "superadmin") || payload.is_active === false)
       ) {
         if (callerUser.id === payload.user_id && payload.is_active === false) {
           return NextResponse.json(
@@ -458,6 +458,28 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json(
           { ok: false, message: "Role 'wali' hanya dapat dibuat melalui registrasi santri atau import Excel." },
           { status: 400 }
+        );
+      }
+
+      // Proteksi Superadmin Mutlak (Mandat B):
+      if (payload.role && (payload.role as string) === "superadmin") {
+        return NextResponse.json(
+          { ok: false, message: "Promosi akun menjadi Superadmin dilarang oleh kebijakan keamanan sistem." },
+          { status: 403 }
+        );
+      }
+
+      if (targetUser.role === "superadmin" && payload.role && (payload.role as string) !== "superadmin") {
+        return NextResponse.json(
+          { ok: false, message: "Role Superadmin tidak dapat diubah oleh akun lain." },
+          { status: 403 }
+        );
+      }
+
+      if (targetUser.role === "superadmin" && payload.is_active === false) {
+        return NextResponse.json(
+          { ok: false, message: "Akun Superadmin utama tidak dapat dinonaktifkan." },
+          { status: 403 }
         );
       }
 
@@ -733,20 +755,17 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      // Proteksi 2: Tidak boleh menonaktifkan Superadmin terakhir
-      if (targetUser.role === "superadmin" && !payload.is_active) {
-        const { count: activeSuperadmins } = await adminClient
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "superadmin")
-          .eq("is_active", true);
+      // Proteksi 2: Akun Superadmin mutlak tidak boleh dinonaktifkan
+      const isSuperadminTarget =
+        targetUser.role === "superadmin" ||
+        targetUser.email?.toLowerCase() === "sipetaabumanshur@gmail.com" ||
+        targetUser.username?.toLowerCase() === "superadmin";
 
-        if ((activeSuperadmins ?? 0) <= 1) {
-          return NextResponse.json(
-            { ok: false, message: "Tidak dapat menonaktifkan Superadmin terakhir dalam sistem." },
-            { status: 400 }
-          );
-        }
+      if (isSuperadminTarget && !payload.is_active) {
+        return NextResponse.json(
+          { ok: false, message: "Akun Superadmin tidak dapat dinonaktifkan oleh siapa pun." },
+          { status: 403 }
+        );
       }
 
       const { error: updateErr } = await adminClient
@@ -783,20 +802,20 @@ export async function PATCH(request: NextRequest) {
     // AKSI 3: UPDATE PROFILE
     // =========================================================================
     if (payload.action === "UPDATE_PROFILE") {
-      // Proteksi jika role diubah dari superadmin ke yang lain
-      if (targetUser.role === "superadmin" && payload.role && payload.role !== "superadmin") {
-        const { count: activeSuperadmins } = await adminClient
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "superadmin")
-          .eq("is_active", true);
+      // Proteksi promosi menjadi Superadmin
+      if (payload.role && (payload.role as string) === "superadmin") {
+        return NextResponse.json(
+          { ok: false, message: "Promosi akun menjadi Superadmin dilarang oleh kebijakan keamanan sistem." },
+          { status: 403 }
+        );
+      }
 
-        if ((activeSuperadmins ?? 0) <= 1) {
-          return NextResponse.json(
-            { ok: false, message: "Tidak dapat mengubah role Superadmin terakhir dalam sistem." },
-            { status: 400 }
-          );
-        }
+      // Proteksi perubahan role akun Superadmin
+      if (targetUser.role === "superadmin" && payload.role && (payload.role as string) !== "superadmin") {
+        return NextResponse.json(
+          { ok: false, message: "Role Superadmin tidak dapat diubah oleh akun lain." },
+          { status: 403 }
+        );
       }
 
       const updates: Record<string, any> = {};
@@ -977,38 +996,20 @@ export async function DELETE(request: NextRequest) {
         continue;
       }
 
-      // Proteksi 2: Akun Superadmin utama tidak boleh dihapus
-      const isSuperadminUtama =
+      // Proteksi 2: Akun Superadmin mutlak tidak boleh dihapus (Mandat B)
+      const isSuperadminTarget =
+        targetUser.role === "superadmin" ||
         targetUser.email?.toLowerCase() === "sipetaabumanshur@gmail.com" ||
         targetUser.username?.toLowerCase() === "superadmin";
 
-      if (isSuperadminUtama) {
+      if (isSuperadminTarget) {
         results.push({
           id: userId,
           nama_lengkap: targetUser.nama_lengkap,
           status: "SKIPPED",
-          message: "Keamanan: Akun Superadmin utama pesantren dilindungi sistem dan tidak boleh dihapus.",
+          message: "Keamanan: Akun Superadmin dilindungi sistem dan tidak boleh dihapus.",
         });
         continue;
-      }
-
-      // Proteksi 3: Superadmin terakhir tidak boleh dihapus
-      if (targetUser.role === "superadmin") {
-        const { count: superadminCount } = await adminClient
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "superadmin")
-          .eq("is_active", true);
-
-        if ((superadminCount ?? 0) <= 1) {
-          results.push({
-            id: userId,
-            nama_lengkap: targetUser.nama_lengkap,
-            status: "SKIPPED",
-            message: "Akun Superadmin aktif terakhir tidak boleh dihapus demi kelangsungan akses sistem.",
-          });
-          continue;
-        }
       }
 
       // Periksa Relasi Historis / Transaksi Kritis

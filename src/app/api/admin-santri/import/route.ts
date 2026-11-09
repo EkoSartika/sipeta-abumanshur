@@ -112,12 +112,12 @@ export async function POST(request: NextRequest) {
     if (
       !callerProfile ||
       !callerProfile.is_active ||
-      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin")
+      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin" && callerProfile.role !== "tu")
     ) {
       return NextResponse.json(
         {
           ok: false,
-          message: "Akses ditolak: Hanya Admin atau Superadmin yang berwenang melakukan import data santri.",
+          message: "Akses ditolak: Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang melakukan import data santri.",
         },
         { status: 403 }
       );

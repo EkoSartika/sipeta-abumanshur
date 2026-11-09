@@ -312,3 +312,4 @@ Aplikasi SIPETA dinyatakan **LULUS AUDIT FINAL PASCADEPLOYMENT (100%)** dan siap
    - Admin dapat memasukkan data santri baik satu per satu maupun massal melalui file template Excel. Akun wali santri akan terbit otomatis menggunakan nomor NIS santri.
 4. **Verifikasi Nomor Rekening Resmi:**
    - Sebelum wali melakukan transfer pembayaran, pastikan rekening resmi pesantren telah diperbarui di Portal Admin pada menu **Rekening Pesantren**.
+

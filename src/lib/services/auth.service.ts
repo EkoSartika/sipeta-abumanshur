@@ -190,8 +190,14 @@ export class AuthService {
         };
       }
 
-      // Validasi role di sisi server sesuai halaman portal yang dituju
-      if (expectedRole && profile.role !== expectedRole) {
+      // Validasi role di sisi server sesuai halaman portal yang dituju (dengan kompatibilitas pengelola <=> asatidz)
+      const isRoleMatching =
+        !expectedRole ||
+        profile.role === expectedRole ||
+        ((expectedRole === "asatidz" || expectedRole === "pengelola") &&
+          (profile.role === "pengelola" || profile.role === "asatidz"));
+
+      if (!isRoleMatching) {
         await this.client.auth.signOut();
         const correctPortalName = getRoleLabel(profile.role as UserRole);
         const correctPortalUrl = getRoleLoginUrl(profile.role as UserRole);

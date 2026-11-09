@@ -52,23 +52,27 @@ export function formatWaktuLengkap(dateStr: string): string {
 export function getRoleLabel(role: UserRole): string {
   const labels: Record<UserRole, string> = {
     superadmin: "Superadmin",
-    admin: "Admin Administrasi",
+    admin: "Pengasuh Pondok",
+    tu: "Tata Usaha (TU)",
+    pengelola: "Asatidz",
+    asatidz: "Asatidz",
     bendahara: "Bendahara Pesantren",
-    pengelola: "Pengelola Kepesantrenan",
     wali: "Orang Tua / Wali Santri",
   };
-  return labels[role];
+  return labels[role] ?? "Pengguna";
 }
 
 export function getRoleLoginUrl(role: UserRole): string {
   const routes: Record<UserRole, string> = {
     superadmin: "/superadmin/login",
     admin: "/admin/login",
+    tu: "/tu/login",
+    pengelola: "/asatidz/login",
+    asatidz: "/asatidz/login",
     bendahara: "/bendahara/login",
-    pengelola: "/pengelola/login",
     wali: "/login",
   };
-  return routes[role];
+  return routes[role] ?? "/login";
 }
 
 export function getKebijakanCicilanLabel(

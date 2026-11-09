@@ -54,6 +54,7 @@ import type { UserRole } from "@/types/database";
 import { WaliPortal } from "@/modules/wali/wali-portal";
 import { BendaharaPortal } from "@/modules/bendahara/bendahara-portal";
 import { AdminPortal } from "@/modules/admin/admin-portal";
+import { TuPortal } from "@/modules/tu/tu-portal";
 import { PengelolaPortal } from "@/modules/pengelola/pengelola-portal";
 import { SuperadminPortal, type SuperadminTab } from "@/modules/superadmin/superadmin-portal";
 import { LaporanPortal } from "@/modules/laporan/laporan-portal";
@@ -157,7 +158,7 @@ export default function SipetaHomePage() {
       case "superadmin":
         return [
           { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
-          { id: "users", label: "Manajemen Akun & Role", icon: Users, badge: users.length },
+          { id: "users", label: "Manajemen Akun Staf", icon: Users, badge: users.length },
           { id: "rekening", label: "Rekening Resmi Pesantren", icon: Landmark },
           { id: "audit_log", label: "Jejak Audit / Audit Log", icon: FileText, badge: auditLogs.length },
           { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
@@ -166,12 +167,22 @@ export default function SipetaHomePage() {
 
       case "admin":
         return [
-          { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+          { id: "dashboard", label: "Dashboard Pengawasan", icon: LayoutGrid },
+          { id: "santri_asrama", label: "Pengawasan Santri & Asrama", icon: Users, badge: santriList.length },
+          { id: "keuangan", label: "Pengawasan Keuangan SPP", icon: Wallet },
+          { id: "kepesantrenan", label: "Tahfidz & Kedisiplinan", icon: BookOpen },
+          { id: "pengumuman", label: "Pengumuman Pondok", icon: Megaphone },
+          { id: "audit_log", label: "Jejak Aktivitas Staf", icon: FileText, badge: auditLogs.length },
+          { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
+          { id: "profile", label: "Profil Saya", icon: UserCheck },
+        ];
+
+      case "tu":
+        return [
+          { id: "dashboard", label: "Dashboard TU", icon: LayoutGrid },
           { id: "santri_wali", label: "Data Santri & Akun Wali", icon: Users, badge: santriList.length },
           { id: "tambah_santri", label: "Tambah Data Santri", icon: UserPlus },
           { id: "kelas_kamar", label: "Kelas, Kamar & Penempatan", icon: Building2 },
-          { id: "jenis_dan_tagihan", label: "Jenis Pembayaran & Tagihan", icon: CreditCard },
-          { id: "rekening_pesantren", label: "Rekening Resmi Pesantren", icon: Landmark },
           { id: "pengumuman", label: "Pengumuman Pesantren", icon: Megaphone },
           { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
           { id: "profile", label: "Profil Saya", icon: UserCheck },
@@ -179,7 +190,7 @@ export default function SipetaHomePage() {
 
       case "bendahara":
         return [
-          { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+          { id: "dashboard", label: "Dashboard Bendahara", icon: LayoutGrid },
           {
             id: "verifikasi_pembayaran",
             label: "Verifikasi Pembayaran",
@@ -194,13 +205,18 @@ export default function SipetaHomePage() {
           { id: "penyerahan_saku", label: "Penyerahan Uang Saku", icon: Camera },
           { id: "keuangan_saldo_santri", label: "Keuangan & Saldo Santri", icon: Wallet },
           { id: "rekening_info", label: "Rekening Resmi Pesantren", icon: Landmark },
+          { id: "mengaji", label: "Perkembangan Mengaji (Asatidz)", icon: BookOpen },
+          { id: "tahfidz", label: "Setoran Tahfidz (Asatidz)", icon: Sparkles },
+          { id: "prestasi", label: "Prestasi Santri (Asatidz)", icon: Trophy },
+          { id: "kedisiplinan", label: "Kedisiplinan (Asatidz)", icon: ShieldAlert },
           { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
           { id: "profile", label: "Profil Saya", icon: UserCheck },
         ];
 
       case "pengelola":
+      case "asatidz":
         return [
-          { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+          { id: "dashboard", label: "Dashboard Asatidz", icon: LayoutGrid },
           { id: "mengaji", label: "Perkembangan Mengaji", icon: BookOpen },
           { id: "tahfidz", label: "Setoran Tahfidz Al-Qur'an", icon: Sparkles },
           { id: "prestasi", label: "Prestasi Santri", icon: Trophy },
@@ -278,49 +294,58 @@ export default function SipetaHomePage() {
       icon: React.ElementType;
     }[] = [
       {
-        role: "wali",
-        title: "Orang Tua / Wali Santri",
-        url: "/login",
-        badge: "Wali Santri",
-        identifier: "Masuk dengan NIS Santri",
-        desc: "Layanan informasi tagihan SPP, cicilan biaya, saldo & mutasi uang saku, serta mutaba'ah tahfidz santri.",
-        icon: Users,
+        role: "superadmin",
+        title: "Superadmin (Pembuat SIPETA)",
+        url: "/superadmin/login",
+        badge: "Pembuat Sistem",
+        identifier: "Masuk dengan Akun Resmi",
+        desc: "Pemilik dan pembuat aplikasi: pengelolaan akun staf, penetapan rekening resmi tunggal BSI, dan jejak audit sistem.",
+        icon: Shield,
       },
       {
         role: "admin",
-        title: "Admin Administrasi",
+        title: "Pengasuh Pondok",
         url: "/admin/login",
-        badge: "Staf Internal",
+        badge: "Pimpinan & Pengasuh",
         identifier: "Masuk dengan Username",
-        desc: "Pengelolaan master data santri, akun wali, penempatan kelas & asrama, serta konfigurasi jenis pembayaran.",
+        desc: "Dashboard pengawasan terpadu seluruh santri, kelas, asrama, keuangan SPP, uang saku, capaian tahfidz, dan rekapitulasi operasional pondok.",
         icon: UserCheck,
+      },
+      {
+        role: "tu",
+        title: "Tata Usaha (TU)",
+        url: "/tu/login",
+        badge: "Administrasi Santri",
+        identifier: "Masuk dengan Username",
+        desc: "Administrasi master santri, pembuatan akun wali mandiri (1:1), master kelas, asrama, import/export Excel, dan pemindahan penempatan.",
+        icon: Building2,
+      },
+      {
+        role: "pengelola",
+        title: "Asatidz & Pembina",
+        url: "/asatidz/login",
+        badge: "Kepesantrenan",
+        identifier: "Masuk dengan Username",
+        desc: "Pencatatan mutaba'ah mengaji harian, setoran tahfidz Al-Qur'an, rekam prestasi santri, dan pembinaan kedisiplinan asrama.",
+        icon: BookOpen,
       },
       {
         role: "bendahara",
         title: "Bendahara Pesantren",
         url: "/bendahara/login",
-        badge: "Keuangan",
+        badge: "Keuangan & Asatidz",
         identifier: "Masuk dengan Username",
-        desc: "Verifikasi setoran SPP bank BSI, persetujuan uang saku, pencatatan penyerahan fisik, dan pembukuan ledger.",
+        desc: "Verifikasi setoran SPP bank BSI, persetujuan uang saku, penyerahan fisik, pembukuan ledger immutable, dan integrasi fitur asatidz.",
         icon: Wallet,
       },
       {
-        role: "pengelola",
-        title: "Pengelola Kepesantrenan",
-        url: "/pengelola/login",
-        badge: "Asatidz & Pembina",
-        identifier: "Masuk dengan Username",
-        desc: "Pencatatan mutaba'ah mengaji harian, setoran tahfidz Al-Qur'an, rekam prestasi santri, dan pembinaan kedisiplinan.",
-        icon: BookOpen,
-      },
-      {
-        role: "superadmin",
-        title: "Superadmin (Pimpinan)",
-        url: "/superadmin/login",
-        badge: "Pimpinan & IT",
-        identifier: "Masuk dengan Akun Resmi",
-        desc: "Tata kelola seluruh akun pengguna, penetapan rekening resmi tunggal BSI pesantren, dan pengawasan jejak audit.",
-        icon: Shield,
+        role: "wali",
+        title: "Orang Tua / Wali Santri",
+        url: "/login",
+        badge: "Wali Santri",
+        identifier: "Masuk dengan NIS Santri",
+        desc: "Layanan informasi tagihan SPP, cicilan biaya, saldo & mutasi uang saku, serta mutaba'ah tahfidz santri asuhan.",
+        icon: Users,
       },
     ];
 
@@ -1021,13 +1046,19 @@ export default function SipetaHomePage() {
                   onTabChange={(tab) => setActiveTab(tab)}
                 />
               )}
+              {currentUser.role === "tu" && (
+                <TuPortal
+                  activeTab={activeTab}
+                  onTabChange={(tab) => setActiveTab(tab)}
+                />
+              )}
               {currentUser.role === "admin" && (
                 <AdminPortal
                   activeTab={activeTab}
                   onTabChange={(tab) => setActiveTab(tab)}
                 />
               )}
-              {currentUser.role === "pengelola" && (
+              {(currentUser.role === "pengelola" || (currentUser.role as string) === "asatidz") && (
                 <PengelolaPortal
                   activeTab={activeTab}
                   onTabChange={(tab) => setActiveTab(tab)}

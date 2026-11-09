@@ -29,6 +29,7 @@ import {
 import { SAMPLE_HANDOVER_PHOTO_1 } from "@/lib/store/initial-data";
 import { validateUploadedFile } from "@/lib/supabase/storage";
 import { MediaPreviewModal } from "@/components/ui/media-modal";
+import { AsatidzPortal } from "@/modules/pengelola/pengelola-portal";
 
 export type BendaharaTab =
   | "dashboard"
@@ -38,7 +39,12 @@ export type BendaharaTab =
   | "keuangan_saldo_santri"
   | "saldo_santri"
   | "ledger_koreksi"
-  | "rekening_info";
+  | "rekening_info"
+  | "mengaji"
+  | "tahfidz"
+  | "prestasi"
+  | "kedisiplinan"
+  | "master_kategori_pelanggaran";
 
 export interface BendaharaPortalProps {
   activeTab?: BendaharaTab | string;
@@ -1244,6 +1250,26 @@ export function BendaharaPortal({
               * Otoritas perubahan konfigurasi rekening resmi berada di bawah wewenang <strong>Admin Administrasi</strong> dan <strong>Superadmin</strong>.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          FITUR ASATIDZ TERINTEGRASI UNTUK BENDAHARA
+          Sesuai PRD Bagian F: Bendahara memiliki akses ke seluruh fitur Asatidz
+         ===================================================================== */}
+      {(activeTab === "mengaji" ||
+        activeTab === "tahfidz" ||
+        activeTab === "prestasi" ||
+        activeTab === "kedisiplinan" ||
+        activeTab === "master_kategori_pelanggaran") && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-xs text-amber-900 font-medium">
+            <Info className="h-4 w-4 text-amber-700 shrink-0" />
+            <span>
+              <strong>Integrasi Modul Asatidz &amp; Keuangan:</strong> Sebagai Bendahara, Anda memiliki akses penuh untuk mencatat dan memantau perkembangan mengaji, hafalan tahfidz, prestasi, serta kedisiplinan santri.
+            </span>
+          </div>
+          <AsatidzPortal activeTab={activeTab} onTabChange={onTabChange} />
         </div>
       )}
 

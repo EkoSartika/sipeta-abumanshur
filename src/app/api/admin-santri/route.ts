@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Verifikasi Hak Akses: Superadmin atau Admin
+    // 3. Verifikasi Hak Akses: Superadmin, Admin (Pengasuh), atau TU
     const { data: callerProfile } = await supabase
       .from("profiles")
       .select("role, is_active")
@@ -109,10 +109,10 @@ export async function POST(request: NextRequest) {
     if (
       !callerProfile ||
       !callerProfile.is_active ||
-      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin")
+      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin" && callerProfile.role !== "tu")
     ) {
       return NextResponse.json(
-        { ok: false, message: "Akses ditolak: Hanya Admin atau Superadmin yang berwenang mendaftarkan santri." },
+        { ok: false, message: "Akses ditolak: Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang mendaftarkan santri." },
         { status: 403 }
       );
     }
@@ -349,7 +349,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // 2. Verifikasi Hak Akses: Superadmin atau Admin
+    // 2. Verifikasi Hak Akses: Superadmin, Admin (Pengasuh), atau TU
     const { data: callerProfile } = await supabase
       .from("profiles")
       .select("role, is_active")
@@ -359,10 +359,10 @@ export async function DELETE(request: NextRequest) {
     if (
       !callerProfile ||
       !callerProfile.is_active ||
-      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin")
+      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin" && callerProfile.role !== "tu")
     ) {
       return NextResponse.json(
-        { ok: false, message: "Akses ditolak: Hanya Admin atau Superadmin yang berwenang menghapus data santri." },
+        { ok: false, message: "Akses ditolak: Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menghapus data santri." },
         { status: 403 }
       );
     }

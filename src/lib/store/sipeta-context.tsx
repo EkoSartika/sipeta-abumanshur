@@ -1447,8 +1447,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   // ============================================================================
 
   const createSantriWithWali: SipetaContextValue["createSantriWithWali"] = async (payload) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Admin atau Superadmin yang dapat mendaftarkan santri." };
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang dapat mendaftarkan santri." };
     }
     const cleanNis = payload.nis.trim();
     if (santriList.some((s) => s.nis === cleanNis)) {
@@ -1574,8 +1574,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const importSantriBatch: SipetaContextValue["importSantriBatch"] = async (rows) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang melakukan import data santri." };
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang melakukan import data santri." };
     }
 
     if (authMode === "supabase") {
@@ -1736,8 +1736,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteSantriBatch: SipetaContextValue["deleteSantriBatch"] = async (santriIds) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang menghapus data santri." };
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menghapus data santri." };
     }
     if (!santriIds || santriIds.length === 0) {
       return { ok: false, message: "Pilih setidaknya 1 santri untuk dihapus." };
@@ -1838,7 +1838,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const moveSantriPlacement: SipetaContextValue["moveSantriPlacement"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Tidak memiliki akses memindahkan kelas/kamar santri." };
     }
     const target = santriList.find((s) => s.id === payload.santri_id);
@@ -1889,7 +1889,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateStatusSantri: SipetaContextValue["updateStatusSantri"] = (santriId, statusBaru) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Tidak memiliki hak akses." };
     }
     const target = santriList.find((s) => s.id === santriId);
@@ -1913,7 +1913,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createKelas: SipetaContextValue["createKelas"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Tidak memiliki hak akses." };
     }
     const item: Kelas = { ...payload, id: `kls-${Date.now()}`, is_active: true };
@@ -1923,8 +1923,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateKelas: SipetaContextValue["updateKelas"] = (id, payload) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang memperbarui kelas." };
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang memperbarui kelas." };
     }
     const target = kelasList.find((k) => k.id === id);
     if (!target) return { ok: false, message: "Kelas tidak ditemukan." };
@@ -1939,8 +1939,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteKelas: SipetaContextValue["deleteKelas"] = (id) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang menghapus kelas." };
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menghapus kelas." };
     }
     const target = kelasList.find((k) => k.id === id);
     if (!target) return { ok: false, message: "Kelas tidak ditemukan." };
@@ -1963,7 +1963,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createKamar: SipetaContextValue["createKamar"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Tidak memiliki hak akses." };
     }
     const item: Kamar = { ...payload, id: `kmr-${Date.now()}`, is_active: true };
@@ -1973,8 +1973,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateKamar: SipetaContextValue["updateKamar"] = (id, payload) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang memperbarui kamar." };
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang memperbarui kamar." };
     }
     const target = kamarList.find((k) => k.id === id);
     if (!target) return { ok: false, message: "Kamar asrama tidak ditemukan." };
@@ -1989,8 +1989,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteKamar: SipetaContextValue["deleteKamar"] = (id) => {
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Admin atau Superadmin yang berwenang menghapus kamar." };
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menghapus kamar." };
     }
     const target = kamarList.find((k) => k.id === id);
     if (!target) return { ok: false, message: "Kamar asrama tidak ditemukan." };
