@@ -11,8 +11,10 @@ import {
   CheckCircle2,
   ChevronRight,
   Database,
+  FileText,
   Info,
   KeyRound,
+  Landmark,
   LayoutGrid,
   Lock,
   LogIn,
@@ -25,6 +27,7 @@ import {
   ShieldCheck,
   User,
   UserCheck,
+  Users,
   Wallet,
   X,
 } from "lucide-react";
@@ -35,7 +38,7 @@ import { WaliPortal } from "@/modules/wali/wali-portal";
 import { BendaharaPortal } from "@/modules/bendahara/bendahara-portal";
 import { AdminPortal } from "@/modules/admin/admin-portal";
 import { PengelolaPortal } from "@/modules/pengelola/pengelola-portal";
-import { SuperadminPortal } from "@/modules/superadmin/superadmin-portal";
+import { SuperadminPortal, type SuperadminTab } from "@/modules/superadmin/superadmin-portal";
 import { LaporanPortal } from "@/modules/laporan/laporan-portal";
 import { MustChangePasswordModal } from "@/components/ui/must-change-password-modal";
 
@@ -46,6 +49,7 @@ export default function SipetaHomePage() {
     authMode,
     authLoading,
     users,
+    auditLogs,
     switchActiveUser,
     resetDemoData,
     connectionStatus,
@@ -60,6 +64,7 @@ export default function SipetaHomePage() {
   } = useSipeta();
 
   const [viewMode, setViewMode] = useState<"portal" | "laporan">("portal");
+  const [superadminTab, setSuperadminTab] = useState<SuperadminTab>("users");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -531,43 +536,148 @@ export default function SipetaHomePage() {
 
           {/* Navigation Items Mobile */}
           <nav className="space-y-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode("portal");
-                setMobileNavOpen(false);
-              }}
-              className={`w-full flex items-center justify-between rounded-xl px-3.5 py-3 text-xs font-bold transition min-h-[44px] ${
-                viewMode === "portal"
-                  ? "bg-white text-emerald-950 shadow-md"
-                  : "text-emerald-100 hover:bg-white/10"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <LayoutGrid className="h-4 w-4 shrink-0" />
-                <span>Ruang Kerja ({getRoleLabel(currentUser.role)})</span>
-              </div>
-              <ChevronRight className="h-4 w-4 opacity-70" />
-            </button>
+            {currentUser.role === "superadmin" ? (
+              <>
+                {/* 1. Manajemen Akun & Role */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("portal");
+                    setSuperadminTab("users");
+                    setMobileNavOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[44px] ${
+                    viewMode === "portal" && superadminTab === "users"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className="h-4 w-4 shrink-0" />
+                    <span>Manajemen Akun &amp; Role</span>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      viewMode === "portal" && superadminTab === "users"
+                        ? "bg-emerald-100 text-emerald-950"
+                        : "bg-white/15 text-white"
+                    }`}
+                  >
+                    {users.length}
+                  </span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode("laporan");
-                setMobileNavOpen(false);
-              }}
-              className={`w-full flex items-center justify-between rounded-xl px-3.5 py-3 text-xs font-bold transition min-h-[44px] ${
-                viewMode === "laporan"
-                  ? "bg-white text-emerald-950 shadow-md"
-                  : "text-emerald-100 hover:bg-white/10"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <BarChart3 className="h-4 w-4 shrink-0" />
-                <span>Pusat Laporan &amp; Ekspor</span>
-              </div>
-              <ChevronRight className="h-4 w-4 opacity-70" />
-            </button>
+                {/* 2. Rekening Resmi Pesantren */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("portal");
+                    setSuperadminTab("rekening");
+                    setMobileNavOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[44px] ${
+                    viewMode === "portal" && superadminTab === "rekening"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Landmark className="h-4 w-4 shrink-0" />
+                    <span>Rekening Resmi Pesantren</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-70" />
+                </button>
+
+                {/* 3. Jejak Audit / Audit Log */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("portal");
+                    setSuperadminTab("audit_log");
+                    setMobileNavOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[44px] ${
+                    viewMode === "portal" && superadminTab === "audit_log"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span>Jejak Audit / Audit Log</span>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      viewMode === "portal" && superadminTab === "audit_log"
+                        ? "bg-emerald-100 text-emerald-950"
+                        : "bg-white/15 text-white"
+                    }`}
+                  >
+                    {auditLogs.length}
+                  </span>
+                </button>
+
+                {/* 4. Pusat Laporan & Analitik */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("laporan");
+                    setMobileNavOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[44px] ${
+                    viewMode === "laporan"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart3 className="h-4 w-4 shrink-0" />
+                    <span>Pusat Laporan &amp; Analitik</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-70" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("portal");
+                    setMobileNavOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-3 text-xs font-bold transition min-h-[44px] ${
+                    viewMode === "portal"
+                      ? "bg-white text-emerald-950 shadow-md"
+                      : "text-emerald-100 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutGrid className="h-4 w-4 shrink-0" />
+                    <span>Ruang Kerja ({getRoleLabel(currentUser.role)})</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-70" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("laporan");
+                    setMobileNavOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-3 text-xs font-bold transition min-h-[44px] ${
+                    viewMode === "laporan"
+                      ? "bg-white text-emerald-950 shadow-md"
+                      : "text-emerald-100 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart3 className="h-4 w-4 shrink-0" />
+                    <span>Pusat Laporan &amp; Analitik</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-70" />
+                </button>
+              </>
+            )}
           </nav>
 
           {/* Role Switcher Demo Mobile */}
@@ -597,34 +707,22 @@ export default function SipetaHomePage() {
           )}
         </div>
 
-        {/* Footer Mobile Drawer */}
-        <div className="pt-4 border-t border-white/10 space-y-2">
-          {isLiveSupabase && (
+        {/* Footer Mobile Drawer (Hanya aksi Reset jika mode demo, Refresh dan Logout sudah ada di header) */}
+        {authMode === "demo" && (
+          <div className="pt-4 border-t border-white/10">
             <button
               type="button"
-              onClick={handleManualRefresh}
-              disabled={isRefreshing}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-900/50 py-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-900 transition"
+              onClick={() => {
+                resetDemoData();
+                setMobileNavOpen(false);
+              }}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 transition min-h-[44px]"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-              <span>Refresh Data Supabase</span>
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Reset Data Simulasi</span>
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={logoutLoading}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600/90 py-2.5 text-xs font-bold text-white hover:bg-rose-700 transition"
-          >
-            {logoutLoading ? (
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <LogOut className="h-3.5 w-3.5" />
-            )}
-            <span>Keluar Sesi</span>
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Modern Desktop Permanent Sidebar */}
@@ -682,39 +780,161 @@ export default function SipetaHomePage() {
           {/* Main Navigation Menu */}
           <div className="space-y-1">
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80">
-              Navigasi Utama
+              {currentUser.role === "superadmin" ? "Navigasi Superadmin" : "Navigasi Utama"}
             </p>
-            <button
-              type="button"
-              onClick={() => setViewMode("portal")}
-              className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
-                viewMode === "portal"
-                  ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                  : "text-emerald-100 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <LayoutGrid className="h-4 w-4 shrink-0 text-emerald-700" />
-                <span>Ruang Kerja {getRoleLabel(currentUser.role)}</span>
-              </div>
-              <ChevronRight className="h-4 w-4 opacity-60" />
-            </button>
 
-            <button
-              type="button"
-              onClick={() => setViewMode("laporan")}
-              className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
-                viewMode === "laporan"
-                  ? "bg-white text-emerald-950 shadow-md font-extrabold"
-                  : "text-emerald-100 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <BarChart3 className="h-4 w-4 shrink-0 text-emerald-700" />
-                <span>Pusat Laporan &amp; Analitik</span>
-              </div>
-              <ChevronRight className="h-4 w-4 opacity-60" />
-            </button>
+            {currentUser.role === "superadmin" ? (
+              <>
+                {/* 1. Manajemen Akun & Role */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("portal");
+                    setSuperadminTab("users");
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
+                    viewMode === "portal" && superadminTab === "users"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users
+                      className={`h-4 w-4 shrink-0 ${
+                        viewMode === "portal" && superadminTab === "users"
+                          ? "text-emerald-800"
+                          : "text-emerald-300"
+                      }`}
+                    />
+                    <span>Manajemen Akun &amp; Role</span>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      viewMode === "portal" && superadminTab === "users"
+                        ? "bg-emerald-100 text-emerald-950"
+                        : "bg-white/15 text-white"
+                    }`}
+                  >
+                    {users.length}
+                  </span>
+                </button>
+
+                {/* 2. Rekening Resmi Pesantren */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("portal");
+                    setSuperadminTab("rekening");
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
+                    viewMode === "portal" && superadminTab === "rekening"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Landmark
+                      className={`h-4 w-4 shrink-0 ${
+                        viewMode === "portal" && superadminTab === "rekening"
+                          ? "text-emerald-800"
+                          : "text-emerald-300"
+                      }`}
+                    />
+                    <span>Rekening Resmi Pesantren</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                </button>
+
+                {/* 3. Jejak Audit / Audit Log */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("portal");
+                    setSuperadminTab("audit_log");
+                  }}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
+                    viewMode === "portal" && superadminTab === "audit_log"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText
+                      className={`h-4 w-4 shrink-0 ${
+                        viewMode === "portal" && superadminTab === "audit_log"
+                          ? "text-emerald-800"
+                          : "text-emerald-300"
+                      }`}
+                    />
+                    <span>Jejak Audit / Audit Log</span>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      viewMode === "portal" && superadminTab === "audit_log"
+                        ? "bg-emerald-100 text-emerald-950"
+                        : "bg-white/15 text-white"
+                    }`}
+                  >
+                    {auditLogs.length}
+                  </span>
+                </button>
+
+                {/* 4. Pusat Laporan & Analitik */}
+                <button
+                  type="button"
+                  onClick={() => setViewMode("laporan")}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
+                    viewMode === "laporan"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart3
+                      className={`h-4 w-4 shrink-0 ${
+                        viewMode === "laporan" ? "text-emerald-800" : "text-emerald-300"
+                      }`}
+                    />
+                    <span>Pusat Laporan &amp; Analitik</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("portal")}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
+                    viewMode === "portal"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutGrid className="h-4 w-4 shrink-0 text-emerald-700" />
+                    <span>Ruang Kerja {getRoleLabel(currentUser.role)}</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode("laporan")}
+                  className={`w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition min-h-[42px] ${
+                    viewMode === "laporan"
+                      ? "bg-white text-emerald-950 shadow-md font-extrabold"
+                      : "text-emerald-100 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart3 className="h-4 w-4 shrink-0 text-emerald-700" />
+                    <span>Pusat Laporan &amp; Analitik</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                </button>
+              </>
+            )}
           </div>
 
           {/* Demo Role Switcher (Desktop) */}
@@ -743,21 +963,9 @@ export default function SipetaHomePage() {
           )}
         </div>
 
-        {/* Action Buttons Desktop */}
-        <div className="pt-4 border-t border-white/10 space-y-2">
-          {isLiveSupabase && (
-            <button
-              type="button"
-              onClick={handleManualRefresh}
-              disabled={isRefreshing}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-900/50 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-900 transition"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-              <span>Refresh Data Supabase</span>
-            </button>
-          )}
-
-          {authMode === "demo" && (
+        {/* Action Buttons Desktop (Hanya tombol Reset jika mode simulasi demo, Refresh dan Logout ada di header) */}
+        {authMode === "demo" && (
+          <div className="pt-4 border-t border-white/10">
             <button
               type="button"
               onClick={resetDemoData}
@@ -766,22 +974,8 @@ export default function SipetaHomePage() {
               <RotateCcw className="h-3.5 w-3.5" />
               <span>Reset Data Simulasi</span>
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={logoutLoading}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600/90 py-2.5 text-xs font-bold text-white hover:bg-rose-700 transition shadow-sm"
-          >
-            {logoutLoading ? (
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <LogOut className="h-3.5 w-3.5" />
-            )}
-            <span>Keluar Akun</span>
-          </button>
-        </div>
+          </div>
+        )}
       </aside>
 
       {/* Main Content Area (With lg:pl-72 Desktop Offset) */}
@@ -805,6 +999,12 @@ export default function SipetaHomePage() {
                 <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
                   {viewMode === "laporan"
                     ? "Pusat Laporan & Analitik"
+                    : currentUser.role === "superadmin"
+                    ? superadminTab === "users"
+                      ? "Manajemen Akun & Role"
+                      : superadminTab === "rekening"
+                      ? "Rekening Resmi Pesantren"
+                      : "Jejak Audit / Audit Log"
                     : `Ruang Kerja ${getRoleLabel(currentUser.role)}`}
                 </h2>
                 <p className="text-[11px] text-slate-500 hidden sm:block">
@@ -814,7 +1014,23 @@ export default function SipetaHomePage() {
             </div>
 
             {/* Right Header Badges & Actions */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* Refresh Data Supabase Button */}
+              {isLiveSupabase && (
+                <button
+                  type="button"
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs disabled:opacity-50"
+                  title="Refresh data dari Supabase"
+                >
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 text-emerald-700 ${isRefreshing ? "animate-spin" : ""}`}
+                  />
+                  <span className="hidden sm:inline">Refresh Data</span>
+                </button>
+              )}
+
               {/* Supabase Connection Pill */}
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
@@ -867,11 +1083,15 @@ export default function SipetaHomePage() {
                 type="button"
                 onClick={handleLogout}
                 disabled={logoutLoading}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition"
                 title="Keluar dari akun"
               >
-                <LogOut className="h-3.5 w-3.5" />
-                <span>Keluar</span>
+                {logoutLoading ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <LogOut className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline">Keluar</span>
               </button>
             </div>
           </div>
@@ -887,7 +1107,12 @@ export default function SipetaHomePage() {
               {currentUser.role === "bendahara" && <BendaharaPortal />}
               {currentUser.role === "admin" && <AdminPortal />}
               {currentUser.role === "pengelola" && <PengelolaPortal />}
-              {currentUser.role === "superadmin" && <SuperadminPortal />}
+              {currentUser.role === "superadmin" && (
+                <SuperadminPortal
+                  activeTab={superadminTab}
+                  onTabChange={setSuperadminTab}
+                />
+              )}
             </>
           )}
         </main>
