@@ -112,3 +112,4 @@ Duration    2.49s
 ### 3. Production Build (`npm run build`)
 - **Status:** Berhasil mengompilasi seluruh 21 rute (halaman portal dan endpoint API).
 - Tidak ada error sintaks, SSR, atau type mismatch.
+

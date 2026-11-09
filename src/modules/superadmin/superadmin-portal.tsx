@@ -86,6 +86,7 @@ export function SuperadminPortal({
   const [usernameUser, setUsernameUser] = useState("");
   const [teleponUser, setTeleponUser] = useState("");
   const [roleUser, setRoleUser] = useState<UserRole>("admin");
+  const [santriUser, setSantriUser] = useState("");
   const [passwordUser, setPasswordUser] = useState("");
   const [passwordConfirmUser, setPasswordConfirmUser] = useState("");
   const [createSubmitting, setCreateSubmitting] = useState(false);
@@ -129,12 +130,12 @@ export function SuperadminPortal({
   // Filtered Pengguna
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      const q = searchQuery.toLowerCase().trim();
+      const q = (searchQuery ?? "").toLowerCase().trim();
       const matchSearch =
         !q ||
-        u.nama_lengkap.toLowerCase().includes(q) ||
-        (u.username && u.username.toLowerCase().includes(q)) ||
-        u.email.toLowerCase().includes(q);
+        (u.nama_lengkap ? u.nama_lengkap.toLowerCase().includes(q) : false) ||
+        (u.username ? u.username.toLowerCase().includes(q) : false) ||
+        (u.email ? u.email.toLowerCase().includes(q) : false);
 
       const matchRole = roleFilter === "all" || u.role === roleFilter;
       const matchStatus =
@@ -161,6 +162,7 @@ export function SuperadminPortal({
     setUsernameUser("");
     setTeleponUser("");
     setRoleUser("admin");
+    setSantriUser("");
     setPasswordUser("");
     setPasswordConfirmUser("");
     setFeedback(null);
@@ -204,7 +206,7 @@ export function SuperadminPortal({
       return;
     }
 
-    if (users.some((u) => u.username?.toLowerCase() === cleanUser)) {
+    if (users.some((u) => u.username && u.username.toLowerCase() === cleanUser.toLowerCase())) {
       setFeedback({
         ok: false,
         text: `Username '@${cleanUser}' sudah digunakan oleh pengguna lain. Silakan pilih username yang berbeda.`,
@@ -220,6 +222,7 @@ export function SuperadminPortal({
         password: passwordUser,
         no_telepon: teleponUser.trim() || "-",
         role: roleUser,
+        santri_id: roleUser === "wali" && santriUser ? santriUser : undefined,
       });
 
       setFeedback({ ok: res.ok, text: res.message });
@@ -228,6 +231,7 @@ export function SuperadminPortal({
         setNamaUser("");
         setUsernameUser("");
         setTeleponUser("");
+        setSantriUser("");
         setPasswordUser("");
         setPasswordConfirmUser("");
       } else {
@@ -289,7 +293,7 @@ export function SuperadminPortal({
         return;
       }
       const isDuplicate = users.some(
-        (u) => u.id !== manageModalUser.id && u.username?.toLowerCase() === cleanUser
+        (u) => u.id !== manageModalUser.id && u.username && u.username.toLowerCase() === cleanUser.toLowerCase()
       );
       if (isDuplicate) {
         setFeedback({
@@ -1092,6 +1096,26 @@ export function SuperadminPortal({
                 </p>
               </div>
 
+              {roleUser === "wali" && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Hubungkan ke Santri <span className="font-normal text-slate-400">(opsional)</span>
+                  </label>
+                  <select
+                    value={santriUser}
+                    onChange={(e) => setSantriUser(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-emerald-600 focus:outline-none min-h-[44px]"
+                  >
+                    <option value="">-- Pilih Santri (Opsional) --</option>
+                    {santriList.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nama_lengkap} (NIS: {s.nis})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
                   Username Akun Pengguna
@@ -1118,7 +1142,7 @@ export function SuperadminPortal({
                   />
                 </div>
                 {usernameUser.length > 0 &&
-                  users.some((u) => u.username?.toLowerCase() === usernameUser.toLowerCase()) && (
+                  users.some((u) => u.username && u.username.toLowerCase() === usernameUser.trim().toLowerCase()) && (
                     <p className="mt-1 text-[11px] font-bold text-rose-600">
                       ⚠️ Username &apos;@{usernameUser}&apos; sudah digunakan oleh akun lain. Silakan pilih username berbeda.
                     </p>

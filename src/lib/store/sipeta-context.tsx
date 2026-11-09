@@ -846,16 +846,26 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: "Hanya Superadmin yang dapat membuat akun pengguna." };
     }
 
-    const normalizedUser = payload.username ? normalizeUsername(payload.username) : undefined;
-    const finalEmail =
-      payload.email ??
-      (normalizedUser ? usernameToInternalEmail(normalizedUser) : "");
-
-    // Validasi lokal untuk mode demo atau pre-check
-    if (normalizedUser && users.some((u) => u.username?.toLowerCase() === normalizedUser.toLowerCase())) {
-      return { ok: false, message: `Username '${normalizedUser}' sudah digunakan oleh akun lain.` };
+    const cleanNama = (payload.nama_lengkap ?? "").trim();
+    if (!cleanNama || cleanNama.length < 3) {
+      return { ok: false, message: "Nama lengkap minimal 3 karakter." };
     }
-    if (finalEmail && users.some((u) => u.email.toLowerCase() === finalEmail.toLowerCase())) {
+
+    const rawUser = payload.username ?? "";
+    const cleanUser = normalizeUsername(rawUser);
+    if (!isValidUsername(cleanUser)) {
+      return { ok: false, message: "Username harus 3-30 karakter alfanumerik (huruf kecil, angka, titik, strip, garis bawah)." };
+    }
+
+    const finalEmail = payload.email
+      ? payload.email.trim().toLowerCase()
+      : (cleanUser ? usernameToInternalEmail(cleanUser) : "");
+
+    // Validasi lokal untuk mode demo atau pre-check yang aman dari undefined
+    if (cleanUser && users.some((u) => u.username && u.username.toLowerCase() === cleanUser.toLowerCase())) {
+      return { ok: false, message: `Username '${cleanUser}' sudah digunakan oleh akun lain.` };
+    }
+    if (finalEmail && users.some((u) => u.email && u.email.toLowerCase() === finalEmail.toLowerCase())) {
       return { ok: false, message: "Email / Username sudah digunakan oleh akun lain." };
     }
 
@@ -872,19 +882,31 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     // Jika sedang dalam mode Supabase terhubung
     if (authMode === "supabase") {
       const res = await authService.createUserAccount({
-        nama_lengkap: payload.nama_lengkap,
-        username: normalizedUser ?? "user",
+        nama_lengkap: cleanNama,
+        username: cleanUser,
         password: payload.password ?? "AbuManshur@123",
-        no_telepon: payload.no_telepon,
+        no_telepon: (payload.no_telepon ?? "").trim() || "-",
         role: payload.role,
         santri_id: payload.santri_id,
       });
 
       if (res.ok) {
         if (res.user) {
+          const userObj: UserProfile = {
+            id: res.user.id,
+            nama_lengkap: res.user.nama_lengkap || cleanNama,
+            username: res.user.username || cleanUser,
+            email: res.user.email || finalEmail,
+            no_telepon: res.user.no_telepon || (payload.no_telepon ?? "").trim() || "-",
+            role: (res.user.role as UserRole) || payload.role,
+            is_active: res.user.is_active ?? true,
+            santri_id: res.user.santri_id || payload.santri_id,
+            must_change_password: res.user.must_change_password ?? false,
+            created_at: res.user.created_at || new Date().toISOString(),
+          };
           setUsers((prev) => {
-            const filtered = prev.filter((u) => u.id !== res.user!.id);
-            return [...filtered, res.user!];
+            const filtered = prev.filter((u) => u.id !== userObj.id && u.username !== userObj.username);
+            return [...filtered, userObj];
           });
         }
         // Pastikan daftar akun dan log audit langsung disinkronisasi dari database
@@ -896,10 +918,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     // Mode Demo / Standalone
     const newUser: UserProfile = {
       id: `usr-${Date.now()}`,
-      nama_lengkap: payload.nama_lengkap,
-      username: normalizedUser,
+      nama_lengkap: cleanNama,
+      username: cleanUser,
       email: finalEmail,
-      no_telepon: payload.no_telepon ?? "-",
+      no_telepon: (payload.no_telepon ?? "").trim() || "-",
       role: payload.role,
       is_active: true,
       santri_id: payload.role === "wali" ? payload.santri_id : undefined,
@@ -1019,7 +1041,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         };
       }
       const isDuplicate = users.some(
-        (u) => u.id !== userId && u.username?.toLowerCase() === cleanUser
+        (u) => u.id !== userId && u.username && u.username.toLowerCase() === cleanUser.toLowerCase()
       );
       if (isDuplicate) {
         return { ok: false, message: `Username '${cleanUser}' sudah digunakan oleh akun lain.` };
@@ -1192,9 +1214,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       transaksiPembayaranList.some(
         (t) =>
           t.wali_user_id === userId ||
-          (t.verified_by_nama && t.verified_by_nama.toLowerCase().includes(target.nama_lengkap.toLowerCase()))
+          (t.verified_by_nama && target?.nama_lengkap && t.verified_by_nama.toLowerCase().includes(target.nama_lengkap.toLowerCase()))
       ) ||
-      mutasiUangSakuList.some((m) => m.petugas_nama?.toLowerCase().includes(target.nama_lengkap.toLowerCase()));
+      mutasiUangSakuList.some((m) => m.petugas_nama && target?.nama_lengkap && m.petugas_nama.toLowerCase().includes(target.nama_lengkap.toLowerCase()));
 
     if (hasHistory) {
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u)));
@@ -1265,7 +1287,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
 
       const hasHistory =
         transaksiPembayaranList.some((t) => t.wali_user_id === uid) ||
-        mutasiUangSakuList.some((m) => m.petugas_nama?.toLowerCase().includes(u.nama_lengkap.toLowerCase()));
+        mutasiUangSakuList.some((m) => m.petugas_nama && u.nama_lengkap && m.petugas_nama.toLowerCase().includes(u.nama_lengkap.toLowerCase()));
 
       if (hasHistory) {
         deactivated++;
@@ -1463,7 +1485,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    if (users.some((u) => u.username?.toLowerCase() === rawUsernameWali)) {
+    if (users.some((u) => u.username && u.username.toLowerCase() === rawUsernameWali.toLowerCase())) {
       return { ok: false, message: `Username wali '@${rawUsernameWali}' sudah digunakan. Pilih username lain.` };
     }
 

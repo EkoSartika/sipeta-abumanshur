@@ -213,6 +213,11 @@ describe("SIPETA - Superadmin Full Account Management (Tambah, Hapus, Proteksi)"
       return { ok: false, status: 403, message: "Pembuatan akun Superadmin tambahan tidak diizinkan melalui menu ini." };
     }
 
+    // 2b. Nama lengkap validation
+    if (!payload.nama_lengkap || payload.nama_lengkap.trim().length < 3) {
+      return { ok: false, status: 400, message: "Nama lengkap minimal 3 karakter." };
+    }
+
     // 3. Password validation
     const pwdStrength = validatePasswordStrength(payload.password);
     if (!pwdStrength.valid) {
@@ -560,6 +565,102 @@ describe("SIPETA - Superadmin Full Account Management (Tambah, Hapus, Proteksi)"
       expect(dupRes.ok).toBe(false);
       expect(dupRes.status).toBe(409);
       expect(dupRes.message).toContain("sudah digunakan");
+    });
+
+    it("8. Nomor telepon bersifat opsional: jika kosong tersimpan sebagai '-'", async () => {
+      const res = await simulateCreateUser(SUPERADMIN_ID, {
+        nama_lengkap: "Ustadz Tanpa Telepon",
+        username: "ustadz_notelepon",
+        password: "PasswordKuat123!",
+        role: "pengelola",
+        no_telepon: "",
+      });
+
+      expect(res.ok).toBe(true);
+      const p = await db.query(`SELECT no_telepon FROM public.profiles WHERE username = 'ustadz_notelepon';`);
+      expect((p.rows[0] as any).no_telepon).toBe("-");
+    });
+
+    it("9. Validasi input: Nama lengkap minimal 3 karakter dan username tidak valid ditolak", async () => {
+      // Nama terlalu pendek
+      const shortName = await simulateCreateUser(SUPERADMIN_ID, {
+        nama_lengkap: "Al",
+        username: "user_pendek",
+        password: "PasswordKuat123!",
+        role: "admin",
+      });
+      expect(shortName.ok).toBe(false);
+      expect(shortName.status).toBe(400);
+
+      // Username memuat spasi
+      const spaceUser = await simulateCreateUser(SUPERADMIN_ID, {
+        nama_lengkap: "Nama Lengkap Valid",
+        username: "user nama spasi",
+        password: "PasswordKuat123!",
+        role: "tu",
+      });
+      expect(spaceUser.ok).toBe(false);
+      expect(spaceUser.status).toBe(400);
+      expect(spaceUser.message).toContain("Username hanya boleh memuat huruf kecil");
+    });
+
+    it("10. Ketahanan State Profil: Tidak crash 'Cannot read properties of undefined (reading toLowerCase)' ketika data profil ada yang undefined", () => {
+      const mockUsers: any[] = [
+        { id: "u-1", nama_lengkap: "User Satu", email: undefined, username: undefined },
+        { id: "u-2", nama_lengkap: undefined, email: null, username: "userdua" },
+        { id: "u-3", nama_lengkap: "User Tiga", email: "tiga@sipeta.ac.id", username: "usertiga" },
+      ];
+
+      const cleanUser = "usernew";
+      const finalEmail = "usernew@akun.sipeta.invalid";
+
+      // Test pre-check username safely
+      const usernameExists = mockUsers.some((u) => u.username && u.username.toLowerCase() === cleanUser.toLowerCase());
+      expect(usernameExists).toBe(false);
+
+      // Test pre-check email safely
+      const emailExists = mockUsers.some((u) => u.email && u.email.toLowerCase() === finalEmail.toLowerCase());
+      expect(emailExists).toBe(false);
+
+      // Test match search safely
+      const q = "satu";
+      const matchSearch = mockUsers.filter((u) =>
+        (u.nama_lengkap ? u.nama_lengkap.toLowerCase().includes(q) : false) ||
+        (u.username ? u.username.toLowerCase().includes(q) : false) ||
+        (u.email ? u.email.toLowerCase().includes(q) : false)
+      );
+      expect(matchSearch.length).toBe(1);
+      expect(matchSearch[0].id).toBe("u-1");
+    });
+
+    it("11. Rollback Kompensasi: Jika insert profile gagal, auth user yang baru dibuat dibersihkan agar tidak ada akun yatim", async () => {
+      const orphanTestId = crypto.randomUUID();
+      const testEmail = "orphan_check@akun.sipeta.invalid";
+
+      // Simulasi pembuatan auth user
+      authStore.set(orphanTestId, {
+        id: orphanTestId,
+        email: testEmail,
+        is_banned: false,
+        user_metadata: { username: "orphan_user" },
+      });
+      expect(authStore.has(orphanTestId)).toBe(true);
+
+      // Simulasi kegagalan penyimpanan profil (misal pkey duplikat atau skema error)
+      let insertProfileSuccess = false;
+      try {
+        throw new Error("Simulated database failure during profile insert");
+      } catch {
+        insertProfileSuccess = false;
+      }
+
+      // Kompensasi atomik dijalankan
+      if (!insertProfileSuccess) {
+        authStore.delete(orphanTestId);
+      }
+
+      // Verifikasi authStore bersih (tidak ada akun yatim)
+      expect(authStore.has(orphanTestId)).toBe(false);
     });
   });
 

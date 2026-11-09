@@ -36,7 +36,12 @@ const createUserSchema = z.object({
     .transform((val) => (!val || val.trim() === "" ? "-" : val.trim())),
   role: z.enum(["admin", "tu", "bendahara", "pengelola", "wali", "asatidz"]),
   password: z.string().min(8, "Kata sandi minimal 8 karakter."),
-  santri_id: z.string().uuid("ID Santri tidak valid.").optional(),
+  santri_id: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => (!val || val.trim() === "" ? undefined : val.trim()))
+    .pipe(z.string().uuid("ID Santri tidak valid.").optional()),
 });
 
 const patchUserSchema = z.discriminatedUnion("action", [
@@ -336,9 +341,11 @@ export async function POST(request: NextRequest) {
         id: newUserId,
         username: finalUsername,
         nama_lengkap: payload.nama_lengkap,
+        email: finalEmail,
         role: payload.role,
-        no_telepon: payload.no_telepon,
+        no_telepon: payload.no_telepon || "-",
         is_active: true,
+        santri_id: payload.santri_id,
       },
     });
   } catch (err: unknown) {
