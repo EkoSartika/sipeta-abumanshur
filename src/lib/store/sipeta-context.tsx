@@ -1882,6 +1882,17 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       { kelas_lama_id: target.kelas_id, kamar_lama_id: target.kamar_id }
     );
 
+    if (isSupabaseConfigured()) {
+      administrasiService
+        .moveSantriPlacement(
+          payload.santri_id,
+          payload.kelas_baru_id,
+          payload.kamar_baru_id,
+          payload.keterangan
+        )
+        .catch(console.error);
+    }
+
     return {
       ok: true,
       message: `Penempatan ${target.nama_lengkap} berhasil diperbarui dan dicatat ke riwayat.`,
@@ -1906,6 +1917,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       undefined,
       { status: target.status }
     );
+
+    if (isSupabaseConfigured()) {
+      administrasiService.updateStatusSantri(santriId, statusBaru).catch(console.error);
+    }
     return {
       ok: true,
       message: `Status santri ${target.nama_lengkap} diubah menjadi ${statusBaru}.`,
