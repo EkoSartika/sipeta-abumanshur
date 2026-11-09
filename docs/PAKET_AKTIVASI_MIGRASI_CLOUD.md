@@ -162,3 +162,4 @@ Seluruh migrasi dibungkus dalam blok atomik `BEGIN ... COMMIT` sehingga kegagala
   ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS chk_profiles_username_format;
   ALTER TABLE public.profiles DROP COLUMN IF EXISTS username;
   ```
+

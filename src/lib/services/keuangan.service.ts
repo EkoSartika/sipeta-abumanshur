@@ -244,7 +244,11 @@ export class KeuanganService {
 
     const { data, error } = await query;
     if (error) throw new Error(`Gagal memuat riwayat transaksi: ${error.message}`);
-    return (data as TransaksiPembayaran[]) ?? [];
+    return ((data as any[]) ?? []).map((row) => ({
+      ...row,
+      bukti_transfer_url: row.bukti_transfer_url || row.bukti_transfer_path || "",
+      bukti_transfer_path: row.bukti_transfer_path || row.bukti_transfer_url || "",
+    })) as TransaksiPembayaran[];
   }
 
   // --------------------------------------------------------------------------
@@ -289,7 +293,11 @@ export class KeuanganService {
 
     const { data, error } = await query;
     if (error) throw new Error(`Gagal memuat pengajuan top-up: ${error.message}`);
-    return (data as PengajuanUangSaku[]) ?? [];
+    return ((data as any[]) ?? []).map((row) => ({
+      ...row,
+      bukti_transfer_url: row.bukti_transfer_url || row.bukti_transfer_path || "",
+      bukti_transfer_path: row.bukti_transfer_path || row.bukti_transfer_url || "",
+    })) as PengajuanUangSaku[];
   }
 
   async submitTopupUangSaku(params: SubmitTopupParams): Promise<{

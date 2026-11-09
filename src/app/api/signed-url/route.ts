@@ -142,27 +142,38 @@ export async function POST(request: NextRequest) {
     }
 
     // b. Wali Santri HANYA berhak mengakses dokumen yang terkait dengan santrinya
+    // atau dokumen edaran/publik pada dokumentasi-kepesantrenan
     if (profile.role === "wali") {
-      const { data: wali } = await supabase
-        .from("wali_santri")
-        .select("santri_id")
-        .eq("user_id", profile.id)
-        .single();
+      const isGeneralDokumen =
+        body.bucket === "dokumentasi-kepesantrenan" &&
+        (cleanPath.startsWith("umum/") ||
+          cleanPath.startsWith("publik/") ||
+          cleanPath.startsWith("pengumuman/") ||
+          cleanPath.startsWith("edaran/") ||
+          cleanPath.startsWith("arsip/"));
 
-      if (!wali || !wali.santri_id) {
-        return NextResponse.json(
-          { error: "Akses ditolak: Profil wali tidak terhubung dengan data santri sah." },
-          { status: 403 }
-        );
-      }
+      if (!isGeneralDokumen) {
+        const { data: wali } = await supabase
+          .from("wali_santri")
+          .select("santri_id")
+          .eq("user_id", profile.id)
+          .single();
 
-      // Validasi kepemilikan path: file wajib berada di folder santri ID atau diawali dengan santri ID
-      const expectedPrefix = wali.santri_id;
-      if (!cleanPath.startsWith(expectedPrefix) && !cleanPath.includes(expectedPrefix)) {
-        return NextResponse.json(
-          { error: "Akses ditolak: Anda tidak memiliki wewenang untuk melihat dokumen santri lain." },
-          { status: 403 }
-        );
+        if (!wali || !wali.santri_id) {
+          return NextResponse.json(
+            { error: "Akses ditolak: Profil wali tidak terhubung dengan data santri sah." },
+            { status: 403 }
+          );
+        }
+
+        // Validasi kepemilikan path: file wajib berada di folder santri ID atau diawali dengan santri ID
+        const expectedPrefix = wali.santri_id;
+        if (!cleanPath.startsWith(expectedPrefix) && !cleanPath.includes(expectedPrefix)) {
+          return NextResponse.json(
+            { error: "Akses ditolak: Anda tidak memiliki wewenang untuk melihat dokumen santri lain." },
+            { status: 403 }
+          );
+        }
       }
     }
 

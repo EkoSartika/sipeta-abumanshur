@@ -99,3 +99,4 @@ Agar tidak terjadi benturan relasi data (Foreign Key Dependency), pengisian data
 - [ ] Pastikan kolom NIS pada file Excel santri bertipe TEXT.
 - [ ] Jalankan tombol **Validasi File** (Dry-run) sebelum menekan tombol **Eksekusi Import**.
 - [ ] Pastikan tidak ada data santri dummy/fiktif yang tertinggal di produksi.
+
