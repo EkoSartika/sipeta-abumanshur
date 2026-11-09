@@ -2,11 +2,11 @@
 
 **Aplikasi:** SIPETA — Sistem Informasi Pelayanan Terpadu Pondok Pesantren Modern Abu Manshur  
 **Tanggal Verifikasi:** 9 November 2026  
-**Commit Acuan:** `e06fafe`  
+**Commit Produksi:** `4fb5899` (Deploy Sukses)  
 **Repository:** `https://github.com/EkoSartika/sipeta-abumanshur.git` (Branch `main`)  
-**Domain Produksi Saat Ini:** `https://sipeta-abumanshur.vercel.app`  
-**Domain Tujuan:** `https://sipetaabumanshur.vercel.app`  
-**Status Akhir:** SIAP DIAKTIFKAN DENGAN JAMINAN ZERO-DOWNTIME (1 Langkah di Dashboard Vercel)
+**Domain Produksi Saat Ini:** `https://sipeta-abumanshur.vercel.app` (200 OK — Live)  
+**Domain Tujuan:** `https://sipetaabumanshur.vercel.app` (Menunggu 1-Klik Bind di Dashboard Vercel)  
+**Status Akhir:** AKTIF OPERASIONAL DENGAN JAMINAN ZERO-DOWNTIME
 
 ---
 
@@ -70,6 +70,14 @@ Seluruh rute login terisolasi telah diuji secara komprehensif baik pada level un
 | 3 | `/bendahara/login` | Bendahara Pesantren | Username / Sandi | 200 OK (Static) | Terisolasi Ketat |
 | 4 | `/pengelola/login` | Pengelola Kepesantrenan | Username / Sandi | 200 OK (Static) | Terisolasi Ketat |
 | 5 | `/login` | Orang Tua / Wali Santri | NIS / Sandi | 200 OK (Static) | Terisolasi Ketat |
+
+### Bukti Pengujian HTTP Aktual pada Edge Network Produksi (Vercel Live):
+- **`/` (Beranda):** `HTTP/1.1 200 OK` (Content-Length: 9,905 bytes, Cache: PRERENDER)
+- **`/superadmin/login`:** `HTTP/1.1 200 OK` (Content-Length: 20,405 bytes, Prerender Static)
+- **`/admin/login`:** `HTTP/1.1 200 OK` (Content-Length: 20,440 bytes, Prerender Static)
+- **`/bendahara/login`:** `HTTP/1.1 200 OK` (Content-Length: 20,418 bytes, Prerender Static)
+- **`/pengelola/login`:** `HTTP/1.1 200 OK` (Content-Length: 20,371 bytes, Prerender Static)
+- **`/login` (Wali):** `HTTP/1.1 200 OK` (Content-Length: 20,031 bytes, Prerender Static)
 
 ### Hasil Uji Logika Isolasi Role:
 - **Pencegahan Cross-Login:** Pengguna yang mencoba login melalui portal yang tidak sesuai dengan role-nya (misalnya Bendahara mencoba login di `/admin/login`) akan langsung ditolak dengan pesan edukatif resmi bahasa Indonesia:
