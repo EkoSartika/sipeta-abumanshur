@@ -1781,8 +1781,9 @@ export function SuperadminPortal({
             </h4>
             {auditLogs.filter(
               (l) =>
-                l.jenis_objek === "rekening_pesantren" ||
-                l.aktivitas.includes("REKENING")
+                l &&
+                (l.jenis_objek === "rekening_pesantren" ||
+                  (l.aktivitas || "").includes("REKENING"))
             ).length === 0 ? (
               <p className="text-xs text-slate-400 italic">
                 Belum ada rekaman perubahan konfigurasi rekening resmi.
@@ -1792,8 +1793,9 @@ export function SuperadminPortal({
                 {auditLogs
                   .filter(
                     (l) =>
-                      l.jenis_objek === "rekening_pesantren" ||
-                      l.aktivitas.includes("REKENING")
+                      l &&
+                      (l.jenis_objek === "rekening_pesantren" ||
+                        (l.aktivitas || "").includes("REKENING"))
                   )
                   .map((log) => (
                     <div

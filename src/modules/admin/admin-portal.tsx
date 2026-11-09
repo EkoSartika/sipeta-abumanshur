@@ -168,9 +168,11 @@ export function AdminPortal({
   // Santri yang difilter
   const filteredSantri = useMemo(() => {
     return santriList.filter((s) => {
-      const matchQuery =
-        s.nama_lengkap.toLowerCase().includes(santriSearch.toLowerCase()) ||
-        s.nis.includes(santriSearch);
+      if (!s) return false;
+      const q = (santriSearch || "").toLowerCase().trim();
+      const nama = (s.nama_lengkap || "").toLowerCase();
+      const nis = s.nis || "";
+      const matchQuery = !q || nama.includes(q) || nis.includes(santriSearch);
       const matchKelas = filterKelas === "all" || s.kelas_id === filterKelas;
       const matchKamar = filterKamar === "all" || s.kamar_id === filterKamar;
       const matchStatus = filterStatus === "all" || s.status === filterStatus;
@@ -181,13 +183,15 @@ export function AdminPortal({
   // Audit logs yang difilter
   const filteredAuditLogs = useMemo(() => {
     return auditLogs.filter((log) => {
+      if (!log) return false;
       const matchAktivitas = auditFilterAktivitas === "all" || log.aktivitas === auditFilterAktivitas;
       const matchRole = auditFilterRole === "all" || log.user_role === auditFilterRole;
+      const q = (auditSearch || "").toLowerCase().trim();
       const matchSearch =
-        auditSearch === "" ||
-        (log.aktivitas && log.aktivitas.toLowerCase().includes(auditSearch.toLowerCase())) ||
-        (log.alasan_perubahan && log.alasan_perubahan.toLowerCase().includes(auditSearch.toLowerCase())) ||
-        (log.objek_id && log.objek_id.toLowerCase().includes(auditSearch.toLowerCase()));
+        !q ||
+        (log.aktivitas && log.aktivitas.toLowerCase().includes(q)) ||
+        (log.alasan_perubahan && log.alasan_perubahan.toLowerCase().includes(q)) ||
+        (log.objek_id && log.objek_id.toLowerCase().includes(q));
       return matchAktivitas && matchRole && matchSearch;
     });
   }, [auditLogs, auditFilterAktivitas, auditFilterRole, auditSearch]);

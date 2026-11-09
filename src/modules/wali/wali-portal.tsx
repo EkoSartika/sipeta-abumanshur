@@ -34,10 +34,10 @@ import {
   getStatusTagihanBadge,
   getStatusTransaksiBadge,
 } from "@/lib/utils/format";
-import { SAMPLE_TRANSFER_PROOF_1 } from "@/lib/store/initial-data";
+import { SAMPLE_TRANSFER_PROOF_1, INITIAL_SANTRI } from "@/lib/store/initial-data";
 import { validateUploadedFile } from "@/lib/supabase/storage";
 import { MediaPreviewModal } from "@/components/ui/media-modal";
-import type { TransaksiPembayaran } from "@/types/database";
+import type { TransaksiPembayaran, Santri } from "@/types/database";
 
 export type WaliTab =
   | "dashboard"
@@ -169,13 +169,17 @@ export function WaliPortal({
   const [uploadFilename, setUploadFilename] = useState("bukti-transfer-susulan.jpg");
 
   // Relasi 1:1 Akun Orang Tua -> Hanya melihat 1 santri yang terhubung
-  const santri = useMemo(() => {
+  const santri: Santri = useMemo(() => {
     const targetId = currentUser?.santri_id ?? "snt-001";
-    return santriList.find((s) => s.id === targetId) ?? santriList[0]!;
+    return (
+      santriList.find((s) => s.id === targetId) ??
+      santriList[0] ??
+      INITIAL_SANTRI[0]!
+    );
   }, [currentUser?.santri_id, santriList]);
 
-  const kelas = kelasList.find((k) => k.id === santri.kelas_id);
-  const kamar = kamarList.find((k) => k.id === santri.kamar_id);
+  const kelas = santri.kelas_id ? kelasList.find((k) => k.id === santri.kelas_id) : undefined;
+  const kamar = santri.kamar_id ? kamarList.find((k) => k.id === santri.kamar_id) : undefined;
   const saldoSaku = getSaldoSantri(santri.id);
 
   // Filter seluruh data eksklusif untuk santri yang terhubung (Isolasi Data Lintas Santri)

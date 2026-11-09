@@ -26,10 +26,11 @@ import {
   getStatusTagihanBadge,
   getStatusTransaksiBadge,
 } from "@/lib/utils/format";
-import { SAMPLE_HANDOVER_PHOTO_1 } from "@/lib/store/initial-data";
+import { SAMPLE_HANDOVER_PHOTO_1, INITIAL_SANTRI } from "@/lib/store/initial-data";
 import { validateUploadedFile } from "@/lib/supabase/storage";
 import { MediaPreviewModal } from "@/components/ui/media-modal";
 import { AsatidzPortal } from "@/modules/pengelola/pengelola-portal";
+import type { Santri } from "@/types/database";
 
 export type BendaharaTab =
   | "dashboard"
@@ -121,7 +122,10 @@ export function BendaharaPortal({
     [pengajuanUangSakuList]
   );
 
-  const selectedSantri = santriList.find((s) => s.id === selectedSantriId) ?? santriList[0]!;
+  const selectedSantri: Santri =
+    santriList.find((s) => s.id === selectedSantriId) ??
+    santriList[0] ??
+    INITIAL_SANTRI[0]!;
   const saldoSelectedSantri = getSaldoSantri(selectedSantri.id);
 
   const getSantriName = (id: string) => {

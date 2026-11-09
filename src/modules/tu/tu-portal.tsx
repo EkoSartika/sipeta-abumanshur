@@ -166,9 +166,11 @@ export function TuPortal({
   // Filtered Santri List
   const filteredSantri = useMemo(() => {
     return santriList.filter((s) => {
-      const matchQuery =
-        s.nama_lengkap.toLowerCase().includes(santriSearch.toLowerCase()) ||
-        s.nis.includes(santriSearch);
+      if (!s) return false;
+      const q = (santriSearch || "").toLowerCase().trim();
+      const nama = (s.nama_lengkap || "").toLowerCase();
+      const nis = s.nis || "";
+      const matchQuery = !q || nama.includes(q) || nis.includes(santriSearch);
       const matchKelas = filterKelas === "all" || s.kelas_id === filterKelas;
       const matchKamar = filterKamar === "all" || s.kamar_id === filterKamar;
       const matchStatus = filterStatus === "all" || s.status === filterStatus;

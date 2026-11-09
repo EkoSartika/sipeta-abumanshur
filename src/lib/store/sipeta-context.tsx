@@ -447,26 +447,28 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         authService.getAllProfiles(),
       ]);
 
-      if (rekeningRes.status === "fulfilled" && rekeningRes.value) setRekeningResmi(rekeningRes.value);
-      if (kelasRes.status === "fulfilled" && kelasRes.value) setKelasList(kelasRes.value);
-      if (kamarRes.status === "fulfilled" && kamarRes.value) setKamarList(kamarRes.value);
-      if (santriRes.status === "fulfilled" && santriRes.value) setSantriList(santriRes.value);
-      if (waliRes.status === "fulfilled" && waliRes.value) setWaliList(waliRes.value);
-      if (jenisRes.status === "fulfilled" && jenisRes.value) setJenisPembayaranList(jenisRes.value);
-      if (tagihanRes.status === "fulfilled" && tagihanRes.value) setTagihanList(tagihanRes.value);
-      if (transaksiRes.status === "fulfilled" && transaksiRes.value) setTransaksiPembayaranList(transaksiRes.value);
-      if (topupRes.status === "fulfilled" && topupRes.value) setPengajuanUangSakuList(topupRes.value);
-      if (mengajiRes.status === "fulfilled" && mengajiRes.value) setMengajiList(mengajiRes.value);
-      if (tahfidzRes.status === "fulfilled" && tahfidzRes.value) setTahfidzList(tahfidzRes.value);
-      if (prestasiRes.status === "fulfilled" && prestasiRes.value) setPrestasiList(prestasiRes.value);
-      if (kedisiplinanRes.status === "fulfilled" && kedisiplinanRes.value) setKedisiplinanList(kedisiplinanRes.value);
-      if (kategoriPelanggaranRes.status === "fulfilled" && kategoriPelanggaranRes.value && kategoriPelanggaranRes.value.length > 0) {
+      if (rekeningRes.status === "fulfilled" && rekeningRes.value) {
+        setRekeningResmi((prev) => ({ ...prev, ...rekeningRes.value }));
+      }
+      if (kelasRes.status === "fulfilled" && Array.isArray(kelasRes.value)) setKelasList(kelasRes.value);
+      if (kamarRes.status === "fulfilled" && Array.isArray(kamarRes.value)) setKamarList(kamarRes.value);
+      if (santriRes.status === "fulfilled" && Array.isArray(santriRes.value)) setSantriList(santriRes.value);
+      if (waliRes.status === "fulfilled" && Array.isArray(waliRes.value)) setWaliList(waliRes.value);
+      if (jenisRes.status === "fulfilled" && Array.isArray(jenisRes.value)) setJenisPembayaranList(jenisRes.value);
+      if (tagihanRes.status === "fulfilled" && Array.isArray(tagihanRes.value)) setTagihanList(tagihanRes.value);
+      if (transaksiRes.status === "fulfilled" && Array.isArray(transaksiRes.value)) setTransaksiPembayaranList(transaksiRes.value);
+      if (topupRes.status === "fulfilled" && Array.isArray(topupRes.value)) setPengajuanUangSakuList(topupRes.value);
+      if (mengajiRes.status === "fulfilled" && Array.isArray(mengajiRes.value)) setMengajiList(mengajiRes.value);
+      if (tahfidzRes.status === "fulfilled" && Array.isArray(tahfidzRes.value)) setTahfidzList(tahfidzRes.value);
+      if (prestasiRes.status === "fulfilled" && Array.isArray(prestasiRes.value)) setPrestasiList(prestasiRes.value);
+      if (kedisiplinanRes.status === "fulfilled" && Array.isArray(kedisiplinanRes.value)) setKedisiplinanList(kedisiplinanRes.value);
+      if (kategoriPelanggaranRes.status === "fulfilled" && Array.isArray(kategoriPelanggaranRes.value) && kategoriPelanggaranRes.value.length > 0) {
         setMasterPelanggaranList(kategoriPelanggaranRes.value);
       }
-      if (pengumumanRes.status === "fulfilled" && pengumumanRes.value) setPengumumanList(pengumumanRes.value);
-      if (notifikasiRes.status === "fulfilled" && notifikasiRes.value) setNotifikasiList(notifikasiRes.value);
-      if (fetchedUsersRes.status === "fulfilled" && fetchedUsersRes.value && fetchedUsersRes.value.length > 0) {
-        setUsers(fetchedUsersRes.value.filter((u) => !u.id.startsWith("usr-")));
+      if (pengumumanRes.status === "fulfilled" && Array.isArray(pengumumanRes.value)) setPengumumanList(pengumumanRes.value);
+      if (notifikasiRes.status === "fulfilled" && Array.isArray(notifikasiRes.value)) setNotifikasiList(notifikasiRes.value);
+      if (fetchedUsersRes.status === "fulfilled" && Array.isArray(fetchedUsersRes.value) && fetchedUsersRes.value.length > 0) {
+        setUsers(fetchedUsersRes.value.filter((u) => u && !u.id.startsWith("usr-")));
       }
     } catch (e) {
       console.warn("Sinkronisasi Supabase ditunda/offline:", e);
@@ -517,15 +519,24 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
               setCurrentUserId(profile.id);
               setIsAuthenticated(true);
               setAuthMode("supabase");
+              await refreshFromSupabase();
             } else {
               // Belum ada sesi auth Supabase atau akun tidak aktif
               setCurrentUser(null);
               setCurrentUserId(null);
               setIsAuthenticated(false);
               setAuthMode("unauthenticated");
+              // Ambil data publik (pengumuman) secara aman tanpa memanggil API terproteksi
+              try {
+                const pubAnnouncements = await administrasiService.getPengumumanList();
+                if (isMounted && Array.isArray(pubAnnouncements) && pubAnnouncements.length > 0) {
+                  setPengumumanList(pubAnnouncements);
+                }
+              } catch {
+                // Gunakan default INITIAL_PENGUMUMAN
+              }
             }
           }
-          await refreshFromSupabase();
         } else {
           setConnectionStatus("demo");
           setIsLiveSupabase(false);
@@ -642,35 +653,44 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   };
 
-  // Hydrate data operasional dari localStorage saat client mount (tanpa memulihkan sesi login otomatis)
+  // Hydrate data operasional dari localStorage saat client mount (HANYA saat offline/demo tanpa Supabase)
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.users) setUsers(parsed.users);
-        if (parsed.rekeningResmi) setRekeningResmi(parsed.rekeningResmi);
-        if (parsed.kelasList) setKelasList(parsed.kelasList);
-        if (parsed.kamarList) setKamarList(parsed.kamarList);
-        if (parsed.santriList) setSantriList(parsed.santriList);
-        if (parsed.waliList) setWaliList(parsed.waliList);
-        if (parsed.riwayatPenempatan) setRiwayatPenempatan(parsed.riwayatPenempatan);
-        if (parsed.jenisPembayaranList) setJenisPembayaranList(parsed.jenisPembayaranList);
-        if (parsed.tagihanList) setTagihanList(parsed.tagihanList);
-        if (parsed.riwayatPenyesuaianTagihan)
-          setRiwayatPenyesuaianTagihan(parsed.riwayatPenyesuaianTagihan);
-        if (parsed.keranjang) setKeranjang(parsed.keranjang);
-        if (parsed.transaksiPembayaranList)
-          setTransaksiPembayaranList(parsed.transaksiPembayaranList);
-        if (parsed.pengajuanUangSakuList) setPengajuanUangSakuList(parsed.pengajuanUangSakuList);
-        if (parsed.mutasiUangSakuList) setMutasiUangSakuList(parsed.mutasiUangSakuList);
-        if (parsed.mengajiList) setMengajiList(parsed.mengajiList);
-        if (parsed.tahfidzList) setTahfidzList(parsed.tahfidzList);
-        if (parsed.prestasiList) setPrestasiList(parsed.prestasiList);
-        if (parsed.kedisiplinanList) setKedisiplinanList(parsed.kedisiplinanList);
-        if (parsed.pengumumanList) setPengumumanList(parsed.pengumumanList);
-        if (parsed.notifikasiList) setNotifikasiList(parsed.notifikasiList);
-        if (parsed.auditLogs) setAuditLogs(parsed.auditLogs);
+      if (isSupabaseConfigured()) {
+        // Pada mode Supabase aktif, bersihkan cache data lama agar tidak merusak state produksi
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.removeItem(STORAGE_KEY);
+        }
+      } else {
+        const saved = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.users)) setUsers(parsed.users);
+          if (parsed.rekeningResmi && typeof parsed.rekeningResmi === "object") {
+            setRekeningResmi((prev) => ({ ...prev, ...parsed.rekeningResmi }));
+          }
+          if (Array.isArray(parsed.kelasList)) setKelasList(parsed.kelasList);
+          if (Array.isArray(parsed.kamarList)) setKamarList(parsed.kamarList);
+          if (Array.isArray(parsed.santriList)) setSantriList(parsed.santriList);
+          if (Array.isArray(parsed.waliList)) setWaliList(parsed.waliList);
+          if (Array.isArray(parsed.riwayatPenempatan)) setRiwayatPenempatan(parsed.riwayatPenempatan);
+          if (Array.isArray(parsed.jenisPembayaranList)) setJenisPembayaranList(parsed.jenisPembayaranList);
+          if (Array.isArray(parsed.tagihanList)) setTagihanList(parsed.tagihanList);
+          if (Array.isArray(parsed.riwayatPenyesuaianTagihan))
+            setRiwayatPenyesuaianTagihan(parsed.riwayatPenyesuaianTagihan);
+          if (Array.isArray(parsed.keranjang)) setKeranjang(parsed.keranjang);
+          if (Array.isArray(parsed.transaksiPembayaranList))
+            setTransaksiPembayaranList(parsed.transaksiPembayaranList);
+          if (Array.isArray(parsed.pengajuanUangSakuList)) setPengajuanUangSakuList(parsed.pengajuanUangSakuList);
+          if (Array.isArray(parsed.mutasiUangSakuList)) setMutasiUangSakuList(parsed.mutasiUangSakuList);
+          if (Array.isArray(parsed.mengajiList)) setMengajiList(parsed.mengajiList);
+          if (Array.isArray(parsed.tahfidzList)) setTahfidzList(parsed.tahfidzList);
+          if (Array.isArray(parsed.prestasiList)) setPrestasiList(parsed.prestasiList);
+          if (Array.isArray(parsed.kedisiplinanList)) setKedisiplinanList(parsed.kedisiplinanList);
+          if (Array.isArray(parsed.pengumumanList)) setPengumumanList(parsed.pengumumanList);
+          if (Array.isArray(parsed.notifikasiList)) setNotifikasiList(parsed.notifikasiList);
+          if (Array.isArray(parsed.auditLogs)) setAuditLogs(parsed.auditLogs);
+        }
       }
     } catch {
       // Gunakan initial state jika gagal membaca localStorage
