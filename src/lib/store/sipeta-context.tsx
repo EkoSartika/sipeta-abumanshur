@@ -88,7 +88,7 @@ import {
   kepesantrenanService,
   notifikasiService,
 } from "@/lib/services";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import {
   isValidUsername,
   normalizeUsername,
@@ -622,6 +622,54 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  // Real-time synchronization untuk Profil Pesantren & Tahun Pelajaran ke seluruh role & perangkat
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const client = createSupabaseBrowserClient();
+      const channel = client
+        .channel("sipeta-profil-realtime")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "profil_pesantren" },
+          (payload: { new?: unknown }) => {
+            if (payload.new && typeof payload.new === "object") {
+              setProfilPesantren((prev) => ({
+                ...prev,
+                ...(payload.new as ProfilPesantren),
+              }));
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "tahun_ajaran" },
+          async () => {
+            try {
+              const list = await administrasiService.getTahunAjaranList();
+              if (Array.isArray(list) && list.length > 0) {
+                setTahunAjaranList(list);
+                const activeTA = list.find((t) => t.is_active);
+                if (activeTA) {
+                  setProfilPesantren((prev) => ({
+                    ...prev,
+                    tahun_pelajaran_aktif: activeTA.nama,
+                  }));
+                }
+              }
+            } catch {}
+          }
+        )
+        .subscribe();
+
+      return () => {
+        try {
+          client.removeChannel(channel);
+        } catch {}
+      };
+    } catch {}
   }, []);
 
   const loginWithSupabase = async (
@@ -1454,7 +1502,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         };
       }
       if (isSupabaseConfigured()) {
-        administrasiService.setActiveTahunAjaran(activeTahunAjaranId).catch(console.error);
+        const taRes = await administrasiService.setActiveTahunAjaran(activeTahunAjaranId);
+        if (!taRes.ok) {
+          console.warn("Gagal sinkronisasi tahun ajaran aktif ke Supabase:", taRes.message);
+        }
       }
     }
 
@@ -1467,7 +1518,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     } catch {}
 
     if (isSupabaseConfigured()) {
-      administrasiService.updateProfilPesantren(updatedProfil).catch(console.error);
+      const dbRes = await administrasiService.updateProfilPesantren(updatedProfil);
+      if (!dbRes.ok) {
+        console.warn("Gagal menyimpan profil pesantren ke Supabase:", dbRes.message);
+      }
     }
 
     appendAuditLog(
