@@ -298,16 +298,15 @@ export async function POST(request: NextRequest) {
 
         createdAuthUserId = authCreated.user.id;
 
-        // C. Buat Profile Wali di public.profiles dengan must_change_password = TRUE
+        // C. Buat Profile Wali di public.profiles dengan must_change_password = TRUE (tanpa santri_id karena relasi 1:1 di public.wali_santri)
         const { error: profErr } = await adminClient.from("profiles").insert({
           id: createdAuthUserId,
-          nama_lengkap: `${r.nama_wali.trim()} (Wali ${cleanNama})`,
+          nama_lengkap: r.nama_wali.trim(),
           username: cleanNis,
           email: syntheticEmail,
           no_telepon: r.no_telepon_wali.trim(),
           role: "wali",
           is_active: true,
-          santri_id: createdSantriId,
           must_change_password: true,
         });
 
@@ -343,16 +342,24 @@ export async function POST(request: NextRequest) {
         waliCreatedCount++;
       } catch (err: unknown) {
         // Rollback atomik untuk baris ini jika sempat membuat entitas
+        if (createdSantriId) {
+          try {
+            await adminClient.from("wali_santri").delete().eq("santri_id", createdSantriId);
+          } catch {}
+        }
         if (createdAuthUserId) {
           try {
-            await adminClient.auth.admin.deleteUser(createdAuthUserId);
+            await adminClient.from("wali_santri").delete().eq("user_id", createdAuthUserId);
             await adminClient.from("profiles").delete().eq("id", createdAuthUserId);
+            await adminClient.auth.admin.deleteUser(createdAuthUserId);
           } catch {
             // ignore rollback cleanup error
           }
         }
         if (createdSantriId) {
           try {
+            await adminClient.from("riwayat_penempatan_santri").delete().eq("santri_id", createdSantriId);
+            await adminClient.from("saldo_uang_saku").delete().eq("santri_id", createdSantriId);
             await adminClient.from("santri").delete().eq("id", createdSantriId);
           } catch {
             // ignore rollback cleanup error

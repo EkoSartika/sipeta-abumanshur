@@ -6,8 +6,13 @@
 // ============================================================================
 
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  packWaliAlamatWithFamilyMetadata,
+  unpackWaliSantriRecord,
+} from "@/lib/utils/family-metadata";
 import type {
   AuditLogItem,
+  IdentitasKeluargaSantri,
   JenisPembayaran,
   Kamar,
   Kelas,
@@ -543,7 +548,8 @@ export class AdministrasiService {
   async getWaliList(): Promise<WaliSantri[]> {
     if (!isSupabaseConfigured()) return [];
     const { data } = await this.client.from("wali_santri").select("*");
-    return (data as WaliSantri[]) ?? [];
+    if (!data) return [];
+    return (data as Record<string, any>[]).map((row) => unpackWaliSantriRecord(row));
   }
 
   async getRiwayatPenempatanList(santriId?: string): Promise<RiwayatPenempatanSantri[]> {

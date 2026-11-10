@@ -178,7 +178,7 @@ export function TuPortal({
   const [filterKamar, setFilterKamar] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
 
-  // Form Registrasi Santri Baru + Akun Wali
+  // Form Registrasi Santri Baru + Identitas Keluarga (Ayah, Ibu, Wali Opsional, & Penanggung Jawab Akun 1:1)
   const [nis, setNis] = useState("202607101");
   const [namaSantri, setNamaSantri] = useState("");
   const [tempatLahir, setTempatLahir] = useState("Cirebon");
@@ -187,10 +187,40 @@ export function TuPortal({
   const [alamatSantri, setAlamatSantri] = useState("");
   const [kelasIdSantri, setKelasIdSantri] = useState(kelasList[0]?.id ?? "");
   const [kamarIdSantri, setKamarIdSantri] = useState(kamarList[0]?.id ?? "");
-  const [namaWali, setNamaWali] = useState("");
-  const [hubunganWali, setHubunganWali] = useState<"Ayah" | "Ibu" | "Wali">("Ayah");
-  const [teleponWali, setTeleponWali] = useState("");
+
+  // A. Data Ayah (Nama Lengkap WAJIB, No HP & Pekerjaan Opsional)
+  const [namaAyah, setNamaAyah] = useState("");
+  const [noHpAyah, setNoHpAyah] = useState("");
+  const [pekerjaanAyah, setPekerjaanAyah] = useState("");
+
+  // B. Data Ibu (Nama Lengkap WAJIB, No HP & Pekerjaan Opsional)
+  const [namaIbu, setNamaIbu] = useState("");
+  const [noHpIbu, setNoHpIbu] = useState("");
+  const [pekerjaanIbu, setPekerjaanIbu] = useState("");
+
+  // C. Data Wali (Opsional — boleh dikosongkan jika tidak ada wali terpisah)
+  const [namaWaliOpsional, setNamaWaliOpsional] = useState("");
+  const [hubunganWaliDetail, setHubunganWaliDetail] = useState("");
+  const [noHpWaliOpsional, setNoHpWaliOpsional] = useState("");
+
+  // Pilihan Penanggung Jawab Akun (Ayah, Ibu, atau Wali)
+  const [penanggungJawabAkun, setPenanggungJawabAkun] = useState<"Ayah" | "Ibu" | "Wali">("Ayah");
   const [registerSubmitting, setRegisterSubmitting] = useState(false);
+
+  const isWaliOpsionalComplete = useMemo(() => {
+    return (
+      namaWaliOpsional.trim().length >= 3 &&
+      hubunganWaliDetail.trim().length >= 2 &&
+      noHpWaliOpsional.trim().length >= 6
+    );
+  }, [namaWaliOpsional, hubunganWaliDetail, noHpWaliOpsional]);
+
+  const isWaliOpsionalPartiallyFilled = useMemo(() => {
+    const anyFilled = Boolean(
+      namaWaliOpsional.trim() || hubunganWaliDetail.trim() || noHpWaliOpsional.trim()
+    );
+    return anyFilled && !isWaliOpsionalComplete;
+  }, [namaWaliOpsional, hubunganWaliDetail, noHpWaliOpsional, isWaliOpsionalComplete]);
 
   // State Pemindahan Kelas & Kamar Santri
   const [moveSantriId, setMoveSantriId] = useState("");
@@ -608,8 +638,43 @@ export function TuPortal({
   // Handle Submit Registrasi Santri Baru
   const handleRegisterSantri = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nis.trim() || !namaSantri.trim() || !namaWali.trim() || !teleponWali.trim()) {
-      setFeedback({ ok: false, text: "Harap lengkapi semua kolom wajib bertanda bintang (*)." });
+    if (!nis.trim() || !namaSantri.trim()) {
+      setFeedback({
+        ok: false,
+        text: "Nomor Induk Santri (NIS) dan Nama Lengkap Santri wajib diisi.",
+      });
+      return;
+    }
+
+    if (namaAyah.trim().length < 3) {
+      setFeedback({
+        ok: false,
+        text: "Nama lengkap ayah wajib diisi (minimal 3 karakter).",
+      });
+      return;
+    }
+
+    if (namaIbu.trim().length < 3) {
+      setFeedback({
+        ok: false,
+        text: "Nama lengkap ibu wajib diisi (minimal 3 karakter).",
+      });
+      return;
+    }
+
+    if (isWaliOpsionalPartiallyFilled) {
+      setFeedback({
+        ok: false,
+        text: "Data Wali belum lengkap: harap isi Nama Lengkap Wali, Hubungan dengan Santri, dan Nomor HP Wali secara lengkap, atau kosongkan seluruh bagian Data Wali jika wali tidak ada.",
+      });
+      return;
+    }
+
+    if (penanggungJawabAkun === "Wali" && !isWaliOpsionalComplete) {
+      setFeedback({
+        ok: false,
+        text: "Pilihan Penanggung Jawab Akun 'Wali' hanya valid jika Data Wali (Nama Lengkap Wali, Hubungan dengan Santri, dan Nomor HP Wali) diisi lengkap.",
+      });
       return;
     }
 
@@ -637,6 +702,20 @@ export function TuPortal({
       return;
     }
 
+    const namaAkunTerpilih =
+      penanggungJawabAkun === "Ayah"
+        ? namaAyah.trim()
+        : penanggungJawabAkun === "Ibu"
+        ? namaIbu.trim()
+        : namaWaliOpsional.trim();
+
+    const teleponAkunTerpilih =
+      penanggungJawabAkun === "Ayah"
+        ? noHpAyah.trim() || noHpIbu.trim() || noHpWaliOpsional.trim() || "-"
+        : penanggungJawabAkun === "Ibu"
+        ? noHpIbu.trim() || noHpAyah.trim() || noHpWaliOpsional.trim() || "-"
+        : noHpWaliOpsional.trim() || "-";
+
     setRegisterSubmitting(true);
     try {
       const res = await createSantriWithWali({
@@ -650,9 +729,19 @@ export function TuPortal({
         tahun_ajaran_id: activeTa.id,
         kelas_id: validKelasId,
         kamar_id: validKamarId,
-        nama_wali: namaWali.trim(),
-        hubungan_wali: hubunganWali,
-        telepon_wali: teleponWali.trim(),
+        nama_ayah: namaAyah.trim(),
+        no_hp_ayah: noHpAyah.trim(),
+        pekerjaan_ayah: pekerjaanAyah.trim(),
+        nama_ibu: namaIbu.trim(),
+        no_hp_ibu: noHpIbu.trim(),
+        pekerjaan_ibu: pekerjaanIbu.trim(),
+        nama_wali_opsional: isWaliOpsionalComplete ? namaWaliOpsional.trim() : "",
+        hubungan_wali_detail: isWaliOpsionalComplete ? hubunganWaliDetail.trim() : "",
+        no_hp_wali_opsional: isWaliOpsionalComplete ? noHpWaliOpsional.trim() : "",
+        penanggung_jawab: penanggungJawabAkun,
+        nama_wali: namaAkunTerpilih,
+        hubungan_wali: penanggungJawabAkun,
+        telepon_wali: teleponAkunTerpilih,
         username_wali: nis.trim(),
         password_wali: nis.trim(),
       });
@@ -660,8 +749,16 @@ export function TuPortal({
       setFeedback({ ok: res.ok, text: res.message });
       if (res.ok) {
         setNamaSantri("");
-        setNamaWali("");
-        setTeleponWali("");
+        setNamaAyah("");
+        setNoHpAyah("");
+        setPekerjaanAyah("");
+        setNamaIbu("");
+        setNoHpIbu("");
+        setPekerjaanIbu("");
+        setNamaWaliOpsional("");
+        setHubunganWaliDetail("");
+        setNoHpWaliOpsional("");
+        setPenanggungJawabAkun("Ayah");
         setAlamatSantri("");
         const nextNum = parseInt(nis.slice(-3) || "100") + 1;
         setNis(`202607${nextNum.toString().padStart(3, "0")}`);
@@ -1420,71 +1517,271 @@ export function TuPortal({
                     </div>
                   </div>
 
-                  {/* Data Wali */}
+                  {/* Data Orang Tua / Wali & Penanggung Jawab Akun */}
                   <div className="space-y-4">
                     <h4 className="font-extrabold text-xs text-blue-900 uppercase tracking-wider">
                       2. Identitas Orang Tua / Wali
                     </h4>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Nama Lengkap Orang Tua / Wali *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="contoh: H. Syarif Hidayatullah"
-                        value={namaWali}
-                        onChange={(e) => setNamaWali(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[42px]"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* A. Data Ayah */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+                      <span className="block text-xs font-extrabold text-slate-900">
+                        A. Data Ayah
+                      </span>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Hubungan Wali *
-                        </label>
-                        <select
-                          value={hubunganWali}
-                          onChange={(e) => setHubunganWali(e.target.value as "Ayah" | "Ibu" | "Wali")}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 min-h-[42px]"
+                        <label
+                          htmlFor="reg-nama-ayah"
+                          className="block text-xs font-bold text-slate-700 mb-1"
                         >
-                          <option value="Ayah">Ayah Kandung</option>
-                          <option value="Ibu">Ibu Kandung</option>
-                          <option value="Wali">Wali / Keluarga</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Nomor Telepon / WhatsApp *
+                          Nama Lengkap Ayah *
                         </label>
                         <input
-                          type="tel"
+                          id="reg-nama-ayah"
+                          type="text"
                           required
-                          placeholder="contoh: 081234567890"
-                          value={teleponWali}
-                          onChange={(e) => setTeleponWali(e.target.value)}
-                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 min-h-[42px]"
+                          placeholder="contoh: H. Syarif Hidayatullah"
+                          value={namaAyah}
+                          onChange={(e) => setNamaAyah(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
                         />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label
+                            htmlFor="reg-hp-ayah"
+                            className="block text-xs font-semibold text-slate-700 mb-1"
+                          >
+                            Nomor HP Ayah (Opsional)
+                          </label>
+                          <input
+                            id="reg-hp-ayah"
+                            type="tel"
+                            placeholder="contoh: 081234567890"
+                            value={noHpAyah}
+                            onChange={(e) => setNoHpAyah(e.target.value)}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 min-h-[40px]"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="reg-pekerjaan-ayah"
+                            className="block text-xs font-semibold text-slate-700 mb-1"
+                          >
+                            Pekerjaan Ayah (Opsional)
+                          </label>
+                          <input
+                            id="reg-pekerjaan-ayah"
+                            type="text"
+                            placeholder="contoh: Wiraswasta / ASN"
+                            value={pekerjaanAyah}
+                            onChange={(e) => setPekerjaanAyah(e.target.value)}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 min-h-[40px]"
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-2 mt-2">
-                      <span className="block text-xs font-bold text-slate-800">
-                        Kredensial Login Wali Otomatis:
+                    {/* B. Data Ibu */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+                      <span className="block text-xs font-extrabold text-slate-900">
+                        B. Data Ibu
                       </span>
-                      <div className="flex items-center justify-between text-xs text-slate-600">
-                        <span>Username:</span>
-                        <strong className="font-mono text-blue-900">{nis || "Sesuai NIS"}</strong>
+                      <div>
+                        <label
+                          htmlFor="reg-nama-ibu"
+                          className="block text-xs font-bold text-slate-700 mb-1"
+                        >
+                          Nama Lengkap Ibu *
+                        </label>
+                        <input
+                          id="reg-nama-ibu"
+                          type="text"
+                          required
+                          placeholder="contoh: Hj. Siti Fatimah"
+                          value={namaIbu}
+                          onChange={(e) => setNamaIbu(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                        />
                       </div>
-                      <div className="flex items-center justify-between text-xs text-slate-600">
-                        <span>Kata Sandi Awal:</span>
-                        <strong className="font-mono text-blue-900">{nis || "Sesuai NIS"}</strong>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label
+                            htmlFor="reg-hp-ibu"
+                            className="block text-xs font-semibold text-slate-700 mb-1"
+                          >
+                            Nomor HP Ibu (Opsional)
+                          </label>
+                          <input
+                            id="reg-hp-ibu"
+                            type="tel"
+                            placeholder="contoh: 081398765432"
+                            value={noHpIbu}
+                            onChange={(e) => setNoHpIbu(e.target.value)}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 min-h-[40px]"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="reg-pekerjaan-ibu"
+                            className="block text-xs font-semibold text-slate-700 mb-1"
+                          >
+                            Pekerjaan Ibu (Opsional)
+                          </label>
+                          <input
+                            id="reg-pekerjaan-ibu"
+                            type="text"
+                            placeholder="contoh: Ibu Rumah Tangga / Guru"
+                            value={pekerjaanIbu}
+                            onChange={(e) => setPekerjaanIbu(e.target.value)}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 min-h-[40px]"
+                          />
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        * Wali santri wajib mengganti kata sandi awal saat login pertama kali.
-                      </p>
+                    </div>
+
+                    {/* C. Data Wali (Opsional) */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="block text-xs font-extrabold text-slate-900">
+                          C. Data Wali (Opsional)
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          Kosongkan jika tidak ada wali terpisah
+                        </span>
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="reg-nama-wali"
+                          className="block text-xs font-semibold text-slate-700 mb-1"
+                        >
+                          Nama Lengkap Wali
+                        </label>
+                        <input
+                          id="reg-nama-wali"
+                          type="text"
+                          placeholder="contoh: H. Ridwan Kamil"
+                          value={namaWaliOpsional}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNamaWaliOpsional(val);
+                            if (
+                              penanggungJawabAkun === "Wali" &&
+                              val.trim().length < 3
+                            ) {
+                              setPenanggungJawabAkun("Ayah");
+                            }
+                          }}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label
+                            htmlFor="reg-hubungan-wali"
+                            className="block text-xs font-semibold text-slate-700 mb-1"
+                          >
+                            Hubungan dengan Santri
+                          </label>
+                          <input
+                            id="reg-hubungan-wali"
+                            type="text"
+                            placeholder="contoh: Paman / Kakek / Kakak"
+                            value={hubunganWaliDetail}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setHubunganWaliDetail(val);
+                              if (
+                                penanggungJawabAkun === "Wali" &&
+                                val.trim().length < 2
+                              ) {
+                                setPenanggungJawabAkun("Ayah");
+                              }
+                            }}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 min-h-[40px]"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="reg-hp-wali"
+                            className="block text-xs font-semibold text-slate-700 mb-1"
+                          >
+                            Nomor HP Wali
+                          </label>
+                          <input
+                            id="reg-hp-wali"
+                            type="tel"
+                            placeholder="contoh: 081511223344"
+                            value={noHpWaliOpsional}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNoHpWaliOpsional(val);
+                              if (
+                                penanggungJawabAkun === "Wali" &&
+                                val.trim().length < 6
+                              ) {
+                                setPenanggungJawabAkun("Ayah");
+                              }
+                            }}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 min-h-[40px]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Penanggung Jawab Akun Portal Wali (1:1) */}
+                    <div className="rounded-xl bg-blue-50/60 border border-blue-200 p-4 space-y-3">
+                      <div>
+                        <label
+                          htmlFor="reg-penanggung-jawab"
+                          className="block text-xs font-extrabold text-blue-950 mb-1"
+                        >
+                          Penanggung Jawab Akun Portal Orang Tua/Wali (1:1) *
+                        </label>
+                        <select
+                          id="reg-penanggung-jawab"
+                          value={penanggungJawabAkun}
+                          onChange={(e) =>
+                            setPenanggungJawabAkun(e.target.value as "Ayah" | "Ibu" | "Wali")
+                          }
+                          className="w-full rounded-xl border border-blue-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 min-h-[40px]"
+                        >
+                          <option value="Ayah">
+                            Ayah ({namaAyah.trim() || "Nama Ayah"})
+                          </option>
+                          <option value="Ibu">
+                            Ibu ({namaIbu.trim() || "Nama Ibu"})
+                          </option>
+                          <option value="Wali" disabled={!isWaliOpsionalComplete}>
+                            Wali ({isWaliOpsionalComplete ? namaWaliOpsional.trim() : "Isi Data Wali lengkap untuk memilih Wali"})
+                          </option>
+                        </select>
+                      </div>
+
+                      <div className="rounded-lg bg-white border border-blue-100 p-3 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span>Identitas Santri (Relasi 1:1):</span>
+                          <strong className="text-slate-900">
+                            {namaSantri.trim() || "-"} ({nis.trim() || "-"})
+                          </strong>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span>Nama Akun Wali ({penanggungJawabAkun}):</span>
+                          <strong className="text-blue-900">
+                            {penanggungJawabAkun === "Ayah"
+                              ? namaAyah.trim() || "-"
+                              : penanggungJawabAkun === "Ibu"
+                              ? namaIbu.trim() || "-"
+                              : namaWaliOpsional.trim() || "-"}
+                          </strong>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span>Username &amp; Sandi Awal:</span>
+                          <strong className="font-mono text-blue-900">{nis || "Sesuai NIS"}</strong>
+                        </div>
+                        <p className="text-[11px] text-slate-500 pt-1">
+                          * Wajib mengganti kata sandi awal saat login pertama. Data Ayah, Ibu, dan Wali tetap tersimpan terpisah.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1705,7 +2002,23 @@ export function TuPortal({
                             <div className="text-[10px] text-slate-400">{km?.nama_kamar || "-"}</div>
                           </td>
                           <td className="py-3 px-3 font-medium text-slate-800">
-                            {w?.nama_lengkap || <span className="text-amber-700 italic">Belum ada</span>}
+                            {w ? (
+                              <div>
+                                <div className="font-bold text-slate-900">
+                                  {w.nama_lengkap}{" "}
+                                  <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
+                                    {w.penanggung_jawab || w.hubungan}
+                                  </span>
+                                </div>
+                                {(w.nama_ayah || w.nama_ibu) && (
+                                  <div className="text-[10px] text-slate-500 mt-0.5">
+                                    Ayah: {w.nama_ayah || "-"} • Ibu: {w.nama_ibu || "-"}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-amber-700 italic">Belum ada</span>
+                            )}
                           </td>
                           <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
                             {w?.no_telepon || "-"}
@@ -5214,6 +5527,119 @@ export function TuPortal({
       )}
 
       {/* Detail Modal Santri */}
+      {detailSantri && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Detail Data Santri &amp; Identitas Keluarga
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {detailSantri.nama_lengkap} (NIS: {detailSantri.nis})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailSantri(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {(() => {
+              const k = kelasList.find((x) => x.id === detailSantri.kelas_id);
+              const km = kamarList.find((x) => x.id === detailSantri.kamar_id);
+              const w = waliList.find((x) => x.santri_id === detailSantri.id);
+              return (
+                <div className="space-y-4 text-xs">
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 grid grid-cols-2 gap-2.5">
+                    <div>
+                      <span className="text-slate-400 block">Nama Santri:</span>
+                      <strong className="text-slate-900">{detailSantri.nama_lengkap}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">NIS:</span>
+                      <strong className="font-mono text-slate-900">{detailSantri.nis}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Kelas &amp; Kamar:</span>
+                      <strong className="text-slate-800">
+                        {k?.nama_kelas || "-"} • {km?.nama_kamar || "-"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Tempat, Tgl Lahir:</span>
+                      <strong className="text-slate-800">
+                        {detailSantri.tempat_lahir}, {formatTanggal(detailSantri.tanggal_lahir)}
+                      </strong>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-slate-400 block">Alamat Santri:</span>
+                      <strong className="text-slate-800">{detailSantri.alamat || "-"}</strong>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <span className="font-extrabold text-slate-900">
+                        Identitas Orang Tua &amp; Wali
+                      </span>
+                      {w && (
+                        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-bold text-blue-900">
+                          Penanggung Jawab Akun: {w.penanggung_jawab || w.hubungan} ({w.nama_lengkap})
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-slate-50 p-2.5">
+                        <span className="font-bold text-slate-700 block">Data Ayah</span>
+                        <p className="text-slate-900 font-semibold mt-0.5">
+                          {w?.nama_ayah || (w?.hubungan === "Ayah" ? w.nama_lengkap : "-")}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          HP: {w?.no_hp_ayah || (w?.hubungan === "Ayah" ? w.no_telepon : "-")} • Pekerjaan: {w?.pekerjaan_ayah || "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-2.5">
+                        <span className="font-bold text-slate-700 block">Data Ibu</span>
+                        <p className="text-slate-900 font-semibold mt-0.5">
+                          {w?.nama_ibu || (w?.hubungan === "Ibu" ? w.nama_lengkap : "-")}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          HP: {w?.no_hp_ibu || (w?.hubungan === "Ibu" ? w.no_telepon : "-")} • Pekerjaan: {w?.pekerjaan_ibu || "-"}
+                        </p>
+                      </div>
+                      {(w?.nama_wali || w?.hubungan === "Wali") && (
+                        <div className="rounded-lg bg-slate-50 p-2.5 sm:col-span-2">
+                          <span className="font-bold text-slate-700 block">Data Wali</span>
+                          <p className="text-slate-900 font-semibold mt-0.5">
+                            {w?.nama_wali || w?.nama_lengkap} ({w?.hubungan_wali_detail || "Wali"})
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            HP: {w?.no_hp_wali || w?.no_telepon || "-"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDetailSantri(null)}
+                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

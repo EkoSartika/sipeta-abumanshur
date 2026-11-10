@@ -155,15 +155,53 @@ export interface Santri {
   created_at: string;
 }
 
+export interface IdentitasAyah {
+  nama_lengkap: string;
+  no_telepon?: string;
+  pekerjaan?: string;
+}
+
+export interface IdentitasIbu {
+  nama_lengkap: string;
+  no_telepon?: string;
+  pekerjaan?: string;
+}
+
+export interface IdentitasWaliOpsional {
+  nama_lengkap: string;
+  hubungan: string;
+  no_telepon: string;
+}
+
+export interface IdentitasKeluargaSantri {
+  penanggung_jawab: "Ayah" | "Ibu" | "Wali";
+  santri_id?: string;
+  santri_nis?: string;
+  santri_nama?: string;
+  ayah: IdentitasAyah;
+  ibu: IdentitasIbu;
+  wali?: IdentitasWaliOpsional | null;
+}
+
 export interface WaliSantri {
   id: string;
   user_id: string;
   santri_id: string; // 1:1 Unique Constraint
-  nama_lengkap: string;
-  hubungan: "Ayah" | "Ibu" | "Wali";
+  nama_lengkap: string; // Nama Penanggung Jawab Akun
+  hubungan: "Ayah" | "Ibu" | "Wali"; // Penanggung Jawab Akun
   no_telepon: string;
   email: string;
   alamat: string;
+  penanggung_jawab?: "Ayah" | "Ibu" | "Wali";
+  nama_ayah?: string;
+  no_hp_ayah?: string;
+  pekerjaan_ayah?: string;
+  nama_ibu?: string;
+  no_hp_ibu?: string;
+  pekerjaan_ibu?: string;
+  nama_wali?: string;
+  hubungan_wali_detail?: string;
+  no_hp_wali?: string;
 }
 
 export interface RiwayatPenempatanSantri {

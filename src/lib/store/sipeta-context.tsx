@@ -219,9 +219,19 @@ interface SipetaContextValue {
     tahun_ajaran_id?: string;
     kelas_id: string;
     kamar_id: string;
-    nama_wali: string;
-    hubungan_wali: "Ayah" | "Ibu" | "Wali";
-    telepon_wali: string;
+    nama_ayah?: string;
+    no_hp_ayah?: string;
+    pekerjaan_ayah?: string;
+    nama_ibu?: string;
+    no_hp_ibu?: string;
+    pekerjaan_ibu?: string;
+    nama_wali_opsional?: string;
+    hubungan_wali_detail?: string;
+    no_hp_wali_opsional?: string;
+    penanggung_jawab?: "Ayah" | "Ibu" | "Wali";
+    nama_wali?: string;
+    hubungan_wali?: "Ayah" | "Ibu" | "Wali";
+    telepon_wali?: string;
     username_wali?: string;
     password_wali?: string;
     email_kontak_wali?: string;
@@ -2044,6 +2054,91 @@ export function SipetaProvider({
       return { ok: false, message: `NIS ${cleanNis} sudah terdaftar. NIS harus unik.` };
     }
 
+    // Validasi Identitas Keluarga (Ayah, Ibu, Wali Opsional, & Penanggung Jawab Akun)
+    const hasStructuredFamily =
+      payload.nama_ayah !== undefined ||
+      payload.nama_ibu !== undefined ||
+      payload.penanggung_jawab !== undefined;
+
+    const cleanNamaAyah = (payload.nama_ayah ?? "").trim();
+    const cleanNoHpAyah = (payload.no_hp_ayah ?? "").trim();
+    const cleanPekerjaanAyah = (payload.pekerjaan_ayah ?? "").trim();
+
+    const cleanNamaIbu = (payload.nama_ibu ?? "").trim();
+    const cleanNoHpIbu = (payload.no_hp_ibu ?? "").trim();
+    const cleanPekerjaanIbu = (payload.pekerjaan_ibu ?? "").trim();
+
+    const cleanNamaWaliOps = (payload.nama_wali_opsional ?? "").trim();
+    const cleanHubunganWaliOps = (payload.hubungan_wali_detail ?? "").trim();
+    const cleanNoHpWaliOps = (payload.no_hp_wali_opsional ?? "").trim();
+
+    if (hasStructuredFamily) {
+      if (cleanNamaAyah.length < 3) {
+        return { ok: false, message: "Nama lengkap ayah wajib diisi (minimal 3 karakter)." };
+      }
+      if (cleanNamaIbu.length < 3) {
+        return { ok: false, message: "Nama lengkap ibu wajib diisi (minimal 3 karakter)." };
+      }
+
+      const anyWaliFilled = Boolean(cleanNamaWaliOps || cleanHubunganWaliOps || cleanNoHpWaliOps);
+      const waliComplete =
+        cleanNamaWaliOps.length >= 3 &&
+        cleanHubunganWaliOps.length >= 2 &&
+        cleanNoHpWaliOps.length >= 6;
+
+      if (anyWaliFilled && !waliComplete) {
+        return {
+          ok: false,
+          message:
+            "Data Wali belum lengkap: harap isi Nama Lengkap Wali, Hubungan dengan Santri, dan Nomor HP Wali secara lengkap, atau kosongkan seluruh bagian Data Wali jika wali tidak ada.",
+        };
+      }
+
+      if (payload.penanggung_jawab === "Wali" && !waliComplete) {
+        return {
+          ok: false,
+          message:
+            "Pilihan Penanggung Jawab Akun 'Wali' hanya valid jika Data Wali (Nama Lengkap Wali, Hubungan dengan Santri, dan Nomor HP Wali) diisi lengkap.",
+        };
+      }
+    } else if (!payload.nama_wali || payload.nama_wali.trim().length < 3) {
+      return { ok: false, message: "Identitas orang tua (Data Ayah dan Data Ibu) wajib diisi." };
+    }
+
+    const penanggungJawab: "Ayah" | "Ibu" | "Wali" = hasStructuredFamily
+      ? payload.penanggung_jawab || "Ayah"
+      : payload.hubungan_wali || "Ayah";
+
+    const finalNamaAyah = hasStructuredFamily
+      ? cleanNamaAyah
+      : penanggungJawab === "Ayah"
+      ? (payload.nama_wali ?? "").trim()
+      : "-";
+    const finalNamaIbu = hasStructuredFamily
+      ? cleanNamaIbu
+      : penanggungJawab === "Ibu"
+      ? (payload.nama_wali ?? "").trim()
+      : "-";
+    const finalNamaWali = hasStructuredFamily
+      ? cleanNamaWaliOps
+      : penanggungJawab === "Wali"
+      ? (payload.nama_wali ?? "").trim()
+      : "";
+
+    const namaPenanggungJawab =
+      penanggungJawab === "Ayah"
+        ? finalNamaAyah
+        : penanggungJawab === "Ibu"
+        ? finalNamaIbu
+        : finalNamaWali || (payload.nama_wali ?? "").trim() || finalNamaAyah;
+
+    const teleponPenanggungJawab =
+      penanggungJawab === "Ayah"
+        ? cleanNoHpAyah || cleanNoHpIbu || cleanNoHpWaliOps || (payload.telepon_wali ?? "").trim() || "-"
+        : penanggungJawab === "Ibu"
+        ? cleanNoHpIbu || cleanNoHpAyah || cleanNoHpWaliOps || (payload.telepon_wali ?? "").trim() || "-"
+        : cleanNoHpWaliOps || (payload.telepon_wali ?? "").trim() || cleanNoHpAyah || cleanNoHpIbu || "-";
+
     // Kebijakan Login Wali: Username = NIS, Password Awal = NIS
     const rawUsernameWali = payload.username_wali ? normalizeUsername(payload.username_wali) : cleanNis;
     const initialPassword = payload.password_wali || cleanNis;
@@ -2123,10 +2218,28 @@ export function SipetaProvider({
             tahun_ajaran_id: supabaseTaUuid,
             kelas_id: effectiveKelasId,
             kamar_id: effectiveKamarId,
+            ayah: {
+              nama_lengkap: finalNamaAyah,
+              no_telepon: cleanNoHpAyah,
+              pekerjaan: cleanPekerjaanAyah,
+            },
+            ibu: {
+              nama_lengkap: finalNamaIbu,
+              no_telepon: cleanNoHpIbu,
+              pekerjaan: cleanPekerjaanIbu,
+            },
+            data_wali: finalNamaWali
+              ? {
+                  nama_lengkap: finalNamaWali,
+                  hubungan: cleanHubunganWaliOps || "Wali",
+                  no_telepon: cleanNoHpWaliOps,
+                }
+              : null,
+            penanggung_jawab: penanggungJawab,
             wali: {
-              nama_lengkap: payload.nama_wali,
-              hubungan: payload.hubungan_wali,
-              no_telepon: payload.telepon_wali,
+              nama_lengkap: namaPenanggungJawab,
+              hubungan: penanggungJawab,
+              no_telepon: teleponPenanggungJawab,
               username_wali: rawUsernameWali,
               password_wali: initialPassword,
               email_kontak: emailKontak !== "-" ? emailKontak : undefined,
@@ -2174,10 +2287,10 @@ export function SipetaProvider({
 
     const newWaliUser: UserProfile = {
       id: newWaliUserId,
-      nama_lengkap: `${payload.nama_wali.trim()} (Wali ${payload.nama_lengkap.trim()})`,
+      nama_lengkap: namaPenanggungJawab,
       username: rawUsernameWali,
       email: syntheticWaliEmail,
-      no_telepon: payload.telepon_wali.trim(),
+      no_telepon: teleponPenanggungJawab,
       role: "wali",
       is_active: true,
       santri_id: newSantriId,
@@ -2189,11 +2302,21 @@ export function SipetaProvider({
       id: `wali-${Date.now()}`,
       user_id: newWaliUserId,
       santri_id: newSantriId,
-      nama_lengkap: payload.nama_wali.trim(),
-      hubungan: payload.hubungan_wali,
-      no_telepon: payload.telepon_wali.trim(),
+      nama_lengkap: namaPenanggungJawab,
+      hubungan: penanggungJawab,
+      no_telepon: teleponPenanggungJawab,
       email: emailKontak,
       alamat: payload.alamat.trim(),
+      penanggung_jawab: penanggungJawab,
+      nama_ayah: finalNamaAyah,
+      no_hp_ayah: cleanNoHpAyah || (penanggungJawab === "Ayah" ? teleponPenanggungJawab : "-"),
+      pekerjaan_ayah: cleanPekerjaanAyah || "-",
+      nama_ibu: finalNamaIbu,
+      no_hp_ibu: cleanNoHpIbu || (penanggungJawab === "Ibu" ? teleponPenanggungJawab : "-"),
+      pekerjaan_ibu: cleanPekerjaanIbu || "-",
+      nama_wali: finalNamaWali || undefined,
+      hubungan_wali_detail: finalNamaWali ? cleanHubunganWaliOps || "Wali" : undefined,
+      no_hp_wali: finalNamaWali ? cleanNoHpWaliOps || teleponPenanggungJawab : undefined,
     };
 
     setSantriList((prev) => [...prev, newSantri]);
@@ -2205,12 +2328,12 @@ export function SipetaProvider({
       "santri",
       newSantriId,
       { santri: newSantri, wali: newWaliRecord },
-      `Registrasi santri baru ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) & akun wali @${rawUsernameWali}`
+      `Registrasi santri baru ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) & akun wali '${namaPenanggungJawab}' (${penanggungJawab}, @${rawUsernameWali})`
     );
 
     return {
       ok: true,
-      message: `Santri ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) dan akun wali @${rawUsernameWali} berhasil didaftarkan.`,
+      message: `Santri ${newSantri.nama_lengkap} (NIS: ${newSantri.nis}) dan akun wali '${namaPenanggungJawab}' (${penanggungJawab}, @${rawUsernameWali}) berhasil didaftarkan.`,
     };
   };
 

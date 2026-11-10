@@ -17,6 +17,11 @@ import {
   usernameToInternalEmail,
   validatePasswordStrength,
 } from "@/lib/utils/auth-mapping";
+import {
+  isDataWaliLengkap,
+  packWaliAlamatWithFamilyMetadata,
+} from "@/lib/utils/family-metadata";
+import type { IdentitasKeluargaSantri } from "@/types/database";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,14 +36,39 @@ const registerSantriSchema = z.object({
   tahun_ajaran_id: z.string().optional(),
   kelas_id: z.string().min(1, "Kelas wajib dipilih."),
   kamar_id: z.string().min(1, "Kamar asrama wajib dipilih."),
-  wali: z.object({
-    nama_lengkap: z.string().min(3, "Nama wali minimal 3 karakter."),
-    hubungan: z.enum(["Ayah", "Ibu", "Wali"]),
-    no_telepon: z.string().min(8, "Nomor telepon wali minimal 8 digit."),
-    username_wali: z.string().optional(),
-    password_wali: z.string().optional(),
-    email_kontak: z.string().email("Format email kontak tidak valid.").optional().or(z.literal("")),
-  }),
+  ayah: z
+    .object({
+      nama_lengkap: z.string().optional().or(z.literal("")),
+      no_telepon: z.string().optional().or(z.literal("")),
+      pekerjaan: z.string().optional().or(z.literal("")),
+    })
+    .optional(),
+  ibu: z
+    .object({
+      nama_lengkap: z.string().optional().or(z.literal("")),
+      no_telepon: z.string().optional().or(z.literal("")),
+      pekerjaan: z.string().optional().or(z.literal("")),
+    })
+    .optional(),
+  data_wali: z
+    .object({
+      nama_lengkap: z.string().optional().or(z.literal("")),
+      hubungan: z.string().optional().or(z.literal("")),
+      no_telepon: z.string().optional().or(z.literal("")),
+    })
+    .optional()
+    .nullable(),
+  penanggung_jawab: z.enum(["Ayah", "Ibu", "Wali"]).optional(),
+  wali: z
+    .object({
+      nama_lengkap: z.string().optional().or(z.literal("")),
+      hubungan: z.enum(["Ayah", "Ibu", "Wali"]).optional(),
+      no_telepon: z.string().optional().or(z.literal("")),
+      username_wali: z.string().optional(),
+      password_wali: z.string().optional(),
+      email_kontak: z.string().email("Format email kontak tidak valid.").optional().or(z.literal("")),
+    })
+    .optional(),
 });
 
 const deleteSantriSchema = z.object({
@@ -59,10 +89,107 @@ export async function POST(request: NextRequest) {
 
     const payload = validation.data;
 
+    // Validasi Identitas Orang Tua / Wali & Penanggung Jawab Akun
+    const hasStructuredFamily = Boolean(payload.ayah || payload.ibu || payload.penanggung_jawab);
+    const rawNamaAyah = payload.ayah?.nama_lengkap?.trim() || "";
+    const rawNoHpAyah = payload.ayah?.no_telepon?.trim() || "";
+    const rawPekerjaanAyah = payload.ayah?.pekerjaan?.trim() || "";
+
+    const rawNamaIbu = payload.ibu?.nama_lengkap?.trim() || "";
+    const rawNoHpIbu = payload.ibu?.no_telepon?.trim() || "";
+    const rawPekerjaanIbu = payload.ibu?.pekerjaan?.trim() || "";
+
+    const rawNamaWaliOps = payload.data_wali?.nama_lengkap?.trim() || "";
+    const rawHubunganWaliOps = payload.data_wali?.hubungan?.trim() || "";
+    const rawNoHpWaliOps = payload.data_wali?.no_telepon?.trim() || "";
+
+    if (hasStructuredFamily) {
+      if (rawNamaAyah.length < 3) {
+        return NextResponse.json(
+          { ok: false, message: "Nama lengkap ayah wajib diisi (minimal 3 karakter)." },
+          { status: 400 }
+        );
+      }
+      if (rawNamaIbu.length < 3) {
+        return NextResponse.json(
+          { ok: false, message: "Nama lengkap ibu wajib diisi (minimal 3 karakter)." },
+          { status: 400 }
+        );
+      }
+
+      const anyWaliFieldFilled = Boolean(rawNamaWaliOps || rawHubunganWaliOps || rawNoHpWaliOps);
+      const waliLengkap = isDataWaliLengkap({
+        nama_lengkap: rawNamaWaliOps,
+        hubungan: rawHubunganWaliOps,
+        no_telepon: rawNoHpWaliOps,
+      });
+
+      if (anyWaliFieldFilled && !waliLengkap) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message:
+              "Data Wali belum lengkap: harap isi Nama Lengkap Wali, Hubungan dengan Santri, dan Nomor HP Wali secara lengkap, atau kosongkan seluruh bagian Data Wali jika wali tidak ada.",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (payload.penanggung_jawab === "Wali" && !waliLengkap) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message:
+              "Pilihan Penanggung Jawab Akun 'Wali' hanya valid jika Data Wali (Nama Lengkap Wali, Hubungan dengan Santri, dan Nomor HP Wali) diisi lengkap.",
+          },
+          { status: 400 }
+        );
+      }
+    } else if (!payload.wali?.nama_lengkap || payload.wali.nama_lengkap.trim().length < 3) {
+      return NextResponse.json(
+        { ok: false, message: "Identitas orang tua (Data Ayah dan Data Ibu) wajib diisi." },
+        { status: 400 }
+      );
+    }
+
+    const penanggungJawab: "Ayah" | "Ibu" | "Wali" = hasStructuredFamily
+      ? payload.penanggung_jawab || "Ayah"
+      : payload.wali?.hubungan || "Ayah";
+
+    const namaAyahFinal = hasStructuredFamily
+      ? rawNamaAyah
+      : penanggungJawab === "Ayah"
+      ? payload.wali?.nama_lengkap?.trim() || "-"
+      : "-";
+    const namaIbuFinal = hasStructuredFamily
+      ? rawNamaIbu
+      : penanggungJawab === "Ibu"
+      ? payload.wali?.nama_lengkap?.trim() || "-"
+      : "-";
+    const namaWaliFinal = hasStructuredFamily
+      ? rawNamaWaliOps
+      : penanggungJawab === "Wali"
+      ? payload.wali?.nama_lengkap?.trim() || ""
+      : "";
+
+    const namaPenanggungJawab =
+      penanggungJawab === "Ayah"
+        ? namaAyahFinal
+        : penanggungJawab === "Ibu"
+        ? namaIbuFinal
+        : namaWaliFinal || payload.wali?.nama_lengkap?.trim() || namaAyahFinal;
+
+    const noTeleponPenanggungJawab =
+      penanggungJawab === "Ayah"
+        ? rawNoHpAyah || rawNoHpIbu || rawNoHpWaliOps || payload.wali?.no_telepon?.trim() || "-"
+        : penanggungJawab === "Ibu"
+        ? rawNoHpIbu || rawNoHpAyah || rawNoHpWaliOps || payload.wali?.no_telepon?.trim() || "-"
+        : rawNoHpWaliOps || payload.wali?.no_telepon?.trim() || rawNoHpAyah || rawNoHpIbu || "-";
+
     // 1. Kebijakan Akun Wali Otomatis: Username = NIS, Password Awal = NIS
     const cleanNis = payload.nis.trim();
-    const cleanUsername = normalizeUsername(payload.wali.username_wali || cleanNis);
-    const initialPassword = payload.wali.password_wali || cleanNis;
+    const cleanUsername = normalizeUsername(payload.wali?.username_wali || cleanNis);
+    const initialPassword = payload.wali?.password_wali || cleanNis;
 
     if (!isValidUsername(cleanUsername)) {
       return NextResponse.json(
@@ -76,14 +203,39 @@ export async function POST(request: NextRequest) {
 
     const syntheticEmail = usernameToInternalEmail(cleanUsername);
 
+    const identitasKeluarga: IdentitasKeluargaSantri = {
+      penanggung_jawab: penanggungJawab,
+      santri_nis: cleanNis,
+      santri_nama: payload.nama_lengkap.trim(),
+      ayah: {
+        nama_lengkap: namaAyahFinal,
+        no_telepon: rawNoHpAyah || (penanggungJawab === "Ayah" ? noTeleponPenanggungJawab : "-"),
+        pekerjaan: rawPekerjaanAyah || "-",
+      },
+      ibu: {
+        nama_lengkap: namaIbuFinal,
+        no_telepon: rawNoHpIbu || (penanggungJawab === "Ibu" ? noTeleponPenanggungJawab : "-"),
+        pekerjaan: rawPekerjaanIbu || "-",
+      },
+      wali: namaWaliFinal
+        ? {
+            nama_lengkap: namaWaliFinal,
+            hubungan: rawHubunganWaliOps || "Wali",
+            no_telepon: rawNoHpWaliOps || noTeleponPenanggungJawab,
+          }
+        : null,
+    };
+
     // Mode Simulasi jika project Supabase belum dihubungkan
     if (!isSupabaseConfigured()) {
       return NextResponse.json({
         ok: true,
-        message: `Santri ${payload.nama_lengkap} (NIS: ${payload.nis}) dan akun wali @${cleanUsername} berhasil didaftarkan (Mode Demo Standalone).`,
+        message: `Santri ${payload.nama_lengkap} (NIS: ${payload.nis}) dan akun wali '${namaPenanggungJawab}' (@${cleanUsername}) berhasil didaftarkan (Mode Demo Standalone).`,
         data: {
           santri_id: `snt-demo-${Date.now()}`,
           wali_username: cleanUsername,
+          penanggung_jawab: penanggungJawab,
+          nama_akun_wali: namaPenanggungJawab,
         },
       });
     }
@@ -128,18 +280,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Verifikasi Keunikan NIS
+    // 4. Verifikasi Keunikan NIS (dan pembersihan otomatis baris yatim jika ada dari transaksi gagal sebelumnya)
     const { data: existingSantri } = await adminClient
       .from("santri")
       .select("id, nis")
-      .eq("nis", payload.nis.trim())
+      .eq("nis", cleanNis)
       .maybeSingle();
 
     if (existingSantri) {
-      return NextResponse.json(
-        { ok: false, message: `NIS '${payload.nis}' sudah terdaftar dalam sistem. NIS harus unik.` },
-        { status: 409 }
-      );
+      const { data: existingWaliRel } = await adminClient
+        .from("wali_santri")
+        .select("id")
+        .eq("santri_id", existingSantri.id)
+        .maybeSingle();
+
+      if (existingWaliRel) {
+        return NextResponse.json(
+          { ok: false, message: `NIS '${payload.nis}' sudah terdaftar dalam sistem. NIS harus unik.` },
+          { status: 409 }
+        );
+      }
+
+      // Periksa apakah baris santri tanpa wali_santri ini memiliki transaksi
+      const [{ count: cTgh }, { count: cByr }, { count: cMut }] = await Promise.all([
+        adminClient.from("tagihan").select("id", { count: "exact", head: true }).eq("santri_id", existingSantri.id),
+        adminClient.from("transaksi_pembayaran").select("id", { count: "exact", head: true }).eq("santri_id", existingSantri.id),
+        adminClient.from("mutasi_uang_saku").select("id", { count: "exact", head: true }).eq("santri_id", existingSantri.id),
+      ]);
+
+      if ((cTgh ?? 0) === 0 && (cByr ?? 0) === 0 && (cMut ?? 0) === 0) {
+        // Bersihkan baris santri yatim dari percobaan gagal sebelumnya agar pendaftaran ulang berjalan bersih
+        await adminClient.from("riwayat_penempatan_santri").delete().eq("santri_id", existingSantri.id);
+        await adminClient.from("saldo_uang_saku").delete().eq("santri_id", existingSantri.id);
+        await adminClient.from("santri").delete().eq("id", existingSantri.id);
+      } else {
+        return NextResponse.json(
+          { ok: false, message: `NIS '${payload.nis}' sudah terdaftar dalam sistem. NIS harus unik.` },
+          { status: 409 }
+        );
+      }
     }
 
     // 5. Verifikasi Keunikan Username Wali
@@ -227,7 +406,7 @@ export async function POST(request: NextRequest) {
       const { data: santriResult, error: santriErr } = await adminClient
         .from("santri")
         .insert({
-          nis: payload.nis.trim(),
+          nis: cleanNis,
           nama_lengkap: payload.nama_lengkap.trim(),
           tempat_lahir: payload.tempat_lahir.trim(),
           tanggal_lahir: payload.tanggal_lahir,
@@ -247,6 +426,7 @@ export async function POST(request: NextRequest) {
       }
 
       createdSantriId = santriResult.id;
+      identitasKeluarga.santri_id = createdSantriId || undefined;
 
       // Tahap B: Buat Akun Auth Supabase untuk Wali (Username = NIS, Password Awal = NIS)
       const { data: authCreated, error: authErr } = await adminClient.auth.admin.createUser({
@@ -254,10 +434,14 @@ export async function POST(request: NextRequest) {
         password: initialPassword,
         email_confirm: true,
         user_metadata: {
-          nama_lengkap: payload.wali.nama_lengkap,
+          nama_lengkap: namaPenanggungJawab,
           username: cleanUsername,
           role: "wali",
           santri_id: createdSantriId,
+          santri_nis: cleanNis,
+          santri_nama: payload.nama_lengkap.trim(),
+          penanggung_jawab: penanggungJawab,
+          identitas_keluarga: identitasKeluarga,
           must_change_password: true,
         },
       });
@@ -268,16 +452,15 @@ export async function POST(request: NextRequest) {
 
       createdAuthUserId = authCreated.user.id;
 
-      // Tahap C: Buat profil wali di public.profiles dengan must_change_password = true
+      // Tahap C: Buat profil wali di public.profiles (TANPA kolom santri_id karena relasi 1:1 disimpan resmi di public.wali_santri)
       const { error: profileErr } = await adminClient.from("profiles").insert({
         id: createdAuthUserId,
-        nama_lengkap: `${payload.wali.nama_lengkap.trim()} (Wali ${payload.nama_lengkap.trim()})`,
+        nama_lengkap: namaPenanggungJawab,
         username: cleanUsername,
         email: syntheticEmail,
-        no_telepon: payload.wali.no_telepon.trim(),
+        no_telepon: noTeleponPenanggungJawab,
         role: "wali",
         is_active: true,
-        santri_id: createdSantriId,
         must_change_password: true,
       });
 
@@ -285,15 +468,16 @@ export async function POST(request: NextRequest) {
         throw new Error(`Gagal membuat profil wali: ${profileErr.message}`);
       }
 
-      // Tahap D: Hubungkan relasi 1:1 di public.wali_santri
+      // Tahap D: Hubungkan relasi 1:1 di public.wali_santri + simpan identitas keluarga lengkap (Ayah, Ibu, Wali, Penanggung Jawab)
+      const packedAlamat = packWaliAlamatWithFamilyMetadata(payload.alamat.trim(), identitasKeluarga);
       const { error: waliRelErr } = await adminClient.from("wali_santri").insert({
         user_id: createdAuthUserId,
         santri_id: createdSantriId,
-        nama_lengkap: payload.wali.nama_lengkap.trim(),
-        hubungan: payload.wali.hubungan,
-        no_telepon: payload.wali.no_telepon.trim(),
-        email: payload.wali.email_kontak ? payload.wali.email_kontak.trim() : syntheticEmail,
-        alamat: payload.alamat.trim(),
+        nama_lengkap: namaPenanggungJawab,
+        hubungan: penanggungJawab,
+        no_telepon: noTeleponPenanggungJawab,
+        email: payload.wali?.email_kontak ? payload.wali.email_kontak.trim() : syntheticEmail,
+        alamat: packedAlamat,
       });
 
       if (waliRelErr) {
@@ -328,28 +512,40 @@ export async function POST(request: NextRequest) {
         jenis_objek: "santri",
         objek_id: createdSantriId,
         data_sesudah: {
-          nis: payload.nis,
-          nama_lengkap: payload.nama_lengkap,
+          nis: cleanNis,
+          nama_lengkap: payload.nama_lengkap.trim(),
           wali_username: cleanUsername,
+          penanggung_jawab_akun: penanggungJawab,
+          nama_akun_wali: namaPenanggungJawab,
+          identitas_keluarga: identitasKeluarga,
           kelas_id: payload.kelas_id,
           kamar_id: payload.kamar_id,
         },
-        alasan_perubahan: "Registrasi santri baru dan pembuatan akun wali (1:1) melalui server endpoint",
+        alasan_perubahan: `Registrasi santri baru (${payload.nama_lengkap.trim()} - NIS: ${cleanNis}) dan pembuatan akun wali 1:1 (Penanggung Jawab: ${penanggungJawab} - ${namaPenanggungJawab})`,
       });
 
       return NextResponse.json({
         ok: true,
-        message: `Santri ${payload.nama_lengkap} (NIS: ${payload.nis}) dan Akun Wali '@${cleanUsername}' berhasil didaftarkan secara atomik.`,
+        message: `Santri ${payload.nama_lengkap.trim()} (NIS: ${cleanNis}) dan Akun Wali '${namaPenanggungJawab}' (${penanggungJawab}, Username: '@${cleanUsername}') berhasil didaftarkan secara atomik.`,
         data: {
           santri_id: createdSantriId,
           wali_username: cleanUsername,
           wali_user_id: createdAuthUserId,
+          penanggung_jawab: penanggungJawab,
+          nama_akun_wali: namaPenanggungJawab,
         },
       });
     } catch (txError: any) {
-      // MEKANISME ROLLBACK AMAN JIKA TERJADI KEGAGALAN DI TENGAH PROSES
+      // MEKANISME ROLLBACK AMAN & MENYELURUH JIKA TERJADI KEGAGALAN DI TENGAH PROSES
+      if (createdSantriId) {
+        try {
+          await adminClient.from("wali_santri").delete().eq("santri_id", createdSantriId);
+        } catch {}
+      }
+
       if (createdAuthUserId) {
         try {
+          await adminClient.from("wali_santri").delete().eq("user_id", createdAuthUserId);
           await adminClient.from("profiles").delete().eq("id", createdAuthUserId);
           await adminClient.auth.admin.deleteUser(createdAuthUserId);
         } catch (rollbackAuthErr) {
@@ -359,6 +555,9 @@ export async function POST(request: NextRequest) {
 
       if (createdSantriId) {
         try {
+          // Hapus tabel anak yang dibuat oleh trigger trg_after_santri_insert (terutama saldo_uang_saku yang memiliki ON DELETE RESTRICT)
+          await adminClient.from("riwayat_penempatan_santri").delete().eq("santri_id", createdSantriId);
+          await adminClient.from("saldo_uang_saku").delete().eq("santri_id", createdSantriId);
           await adminClient.from("santri").delete().eq("id", createdSantriId);
         } catch (rollbackSantriErr) {
           console.error("Rollback Santri Error:", rollbackSantriErr);
@@ -542,8 +741,9 @@ export async function DELETE(request: NextRequest) {
           } catch {}
         }
 
-        // 2. Hapus riwayat penempatan santri
+        // 2. Hapus riwayat penempatan santri & saldo uang saku awal
         await adminClient.from("riwayat_penempatan_santri").delete().eq("santri_id", santriId);
+        await adminClient.from("saldo_uang_saku").delete().eq("santri_id", santriId);
 
         // 3. Hapus baris santri
         await adminClient.from("santri").delete().eq("id", santriId);

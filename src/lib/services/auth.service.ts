@@ -51,13 +51,17 @@ export class AuthService {
       }
 
       let santriId: string | undefined = undefined;
+      let displayNama = profile.nama_lengkap;
+      let displayTelepon = profile.no_telepon ?? "-";
       if (profile.role === "wali") {
         const { data: wali } = await this.client
           .from("wali_santri")
-          .select("santri_id")
+          .select("santri_id, nama_lengkap, no_telepon")
           .eq("user_id", profile.id)
           .single();
         santriId = wali?.santri_id;
+        if (wali?.nama_lengkap) displayNama = wali.nama_lengkap;
+        if (wali?.no_telepon) displayTelepon = wali.no_telepon;
       }
 
       const cleanUsername = extractUsername(profile.email, profile.username);
@@ -66,8 +70,8 @@ export class AuthService {
         id: profile.id,
         email: profile.email,
         username: cleanUsername,
-        nama_lengkap: profile.nama_lengkap,
-        no_telepon: profile.no_telepon ?? "-",
+        nama_lengkap: displayNama,
+        no_telepon: displayTelepon,
         role: profile.role as UserRole,
         is_active: profile.is_active,
         santri_id: santriId,
@@ -208,13 +212,17 @@ export class AuthService {
       }
 
       let santriId: string | undefined = undefined;
+      let displayNama = profile.nama_lengkap;
+      let displayTelepon = profile.no_telepon ?? "-";
       if (profile.role === "wali") {
         const { data: wali } = await this.client
           .from("wali_santri")
-          .select("santri_id")
+          .select("santri_id, nama_lengkap, no_telepon")
           .eq("user_id", profile.id)
           .single();
         santriId = wali?.santri_id;
+        if (wali?.nama_lengkap) displayNama = wali.nama_lengkap;
+        if (wali?.no_telepon) displayTelepon = wali.no_telepon;
       }
 
       const cleanUsername = username ?? extractUsername(profile.email, profile.username);
@@ -223,8 +231,8 @@ export class AuthService {
         id: profile.id,
         email: profile.email,
         username: cleanUsername,
-        nama_lengkap: profile.nama_lengkap,
-        no_telepon: profile.no_telepon ?? "-",
+        nama_lengkap: displayNama,
+        no_telepon: displayTelepon,
         role: profile.role as UserRole,
         is_active: profile.is_active,
         santri_id: santriId,
@@ -235,7 +243,7 @@ export class AuthService {
       return {
         ok: true,
         user: userProfile,
-        message: `Selamat datang, ${profile.nama_lengkap} (${profile.role}).`,
+        message: `Selamat datang, ${displayNama} (${profile.role}).`,
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

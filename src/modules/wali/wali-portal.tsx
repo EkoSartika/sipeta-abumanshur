@@ -216,6 +216,23 @@ export function WaliPortal({
   const kamar = santri.kamar_id ? kamarList.find((k) => k.id === santri.kamar_id) : undefined;
   const saldoSaku = getSaldoSantri(santri.id);
 
+  const waliRecord = useMemo(() => {
+    return (
+      waliList.find((w) => currentUser?.id && w.user_id === currentUser.id) ||
+      waliList.find((w) => currentUser?.santri_id && w.santri_id === currentUser.santri_id) ||
+      waliList.find((w) => w.santri_id === santri.id)
+    );
+  }, [waliList, currentUser?.id, currentUser?.santri_id, santri.id]);
+
+  const namaPenanggungJawab =
+    waliRecord?.nama_lengkap ||
+    currentUser?.nama_lengkap?.replace(/\s*\(Wali.*\)/i, "") ||
+    "-";
+  const peranPenanggungJawab =
+    waliRecord?.penanggung_jawab || waliRecord?.hubungan || "Wali";
+  const teleponPenanggungJawab =
+    waliRecord?.no_telepon || currentUser?.no_telepon || "-";
+
   // Filter seluruh data eksklusif untuk santri yang terhubung (Isolasi Data Lintas Santri)
   const myTagihan = useMemo(
     () => tagihanList.filter((t) => t.santri_id === santri.id && t.is_active),
@@ -386,7 +403,7 @@ export function WaliPortal({
                   Status: {santriBadge.label}
                 </span>
                 <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs text-emerald-100">
-                  Relasi 1:1 Akun Wali Terverifikasi
+                  Akun {peranPenanggungJawab}: {namaPenanggungJawab}
                 </span>
               </div>
               <h2 className="mt-1.5 text-xl sm:text-2xl font-bold tracking-tight">
@@ -772,17 +789,43 @@ export function WaliPortal({
 
               <div className="space-y-3">
                 <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100">
-                  Informasi Wali &amp; Kontak
+                  Informasi Keluarga &amp; Penanggung Jawab Akun
                 </h4>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <span className="text-slate-500 text-[11px]">Nama Wali:</span>
-                    <p className="font-bold text-slate-800">{currentUser?.nama_lengkap ?? "-"}</p>
+                    <span className="text-slate-500 text-[11px]">Penanggung Jawab Akun ({peranPenanggungJawab}):</span>
+                    <p className="font-bold text-slate-800">{namaPenanggungJawab}</p>
                   </div>
                   <div>
                     <span className="text-slate-500 text-[11px]">No. Telepon / WhatsApp:</span>
-                    <p className="font-bold text-slate-800">{currentUser?.no_telepon ?? "-"}</p>
+                    <p className="font-bold text-slate-800">{teleponPenanggungJawab}</p>
                   </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px]">Data Ayah:</span>
+                    <p className="font-bold text-slate-800">
+                      {waliRecord?.nama_ayah || (peranPenanggungJawab === "Ayah" ? namaPenanggungJawab : "-")}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      HP: {waliRecord?.no_hp_ayah || (peranPenanggungJawab === "Ayah" ? teleponPenanggungJawab : "-")} • Pekerjaan: {waliRecord?.pekerjaan_ayah || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px]">Data Ibu:</span>
+                    <p className="font-bold text-slate-800">
+                      {waliRecord?.nama_ibu || (peranPenanggungJawab === "Ibu" ? namaPenanggungJawab : "-")}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      HP: {waliRecord?.no_hp_ibu || (peranPenanggungJawab === "Ibu" ? teleponPenanggungJawab : "-")} • Pekerjaan: {waliRecord?.pekerjaan_ibu || "-"}
+                    </p>
+                  </div>
+                  {(waliRecord?.nama_wali || peranPenanggungJawab === "Wali") && (
+                    <div className="col-span-2">
+                      <span className="text-slate-500 text-[11px]">Data Wali:</span>
+                      <p className="font-bold text-slate-800">
+                        {waliRecord?.nama_wali || namaPenanggungJawab} ({waliRecord?.hubungan_wali_detail || "Wali"}) • HP: {waliRecord?.no_hp_wali || teleponPenanggungJawab}
+                      </p>
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <span className="text-slate-500 text-[11px]">Alamat Terdaftar:</span>
                     <p className="font-bold text-slate-800">{santri.alamat ?? "-"}</p>
