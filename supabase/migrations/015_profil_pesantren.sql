@@ -3,12 +3,14 @@
 -- Pondok Pesantren Modern Abu Manshur — Cirebon
 -- Dokumen Migration: Penyimpanan Permanen Profil Lembaga, NSPP/NPSN, Alamat,
 -- Kontak Resmi, Pengaturan Tahun Ajaran Aktif, RLS TU, Realtime & Audit Trail
--- Status: FINAL REVIEWED & PREPARED (TIDAK DIJALANKAN KE SUPABASE CLOUD)
+-- Status: FINAL SECURITY GATE REVIEWED & PREPARED (TIDAK DIJALANKAN KE SUPABASE CLOUD)
 -- ============================================================================
 
 BEGIN;
 
--- 1. Buat Tabel public.profil_pesantren (Singleton Pattern)
+-- ----------------------------------------------------------------------------
+-- 1. TABEL PROFIL PESANTREN (Singleton Pattern)
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.profil_pesantren (
     id UUID PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000001'::UUID,
     nama_resmi TEXT NOT NULL DEFAULT 'Pondok Pesantren Modern Abu Manshur',
@@ -35,13 +37,13 @@ CREATE TABLE IF NOT EXISTS public.profil_pesantren (
     CONSTRAINT chk_profil_pesantren_singleton CHECK (id = '00000000-0000-0000-0000-000000000001'::UUID)
 );
 
--- 2. Trigger updated_at otomatis
+-- Trigger updated_at otomatis
 DROP TRIGGER IF EXISTS trg_profil_pesantren_updated_at ON public.profil_pesantren;
 CREATE TRIGGER trg_profil_pesantren_updated_at
 BEFORE UPDATE ON public.profil_pesantren
 FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- 3. Inisialisasi Data Default jika tabel masih kosong (Non-destruktif)
+-- Inisialisasi Data Default jika tabel masih kosong (Non-destruktif: tidak menimpa data yang ada)
 INSERT INTO public.profil_pesantren (
     id, nama_resmi, nspp, npsn, akreditasi, sk_pendirian, alamat,
     kelurahan, kecamatan, kabupaten_kota, provinsi, kode_pos,
@@ -70,17 +72,17 @@ SELECT
     'Pondok Pesantren Modern Abu Manshur berkomitmen mendidik santri berakhlak mulia, unggul dalam ilmu agama (tahfidz & kitab), dan cakap dalam ilmu pengetahuan umum serta bahasa.'
 WHERE NOT EXISTS (SELECT 1 FROM public.profil_pesantren);
 
--- 4. Aktifkan Row Level Security (RLS) pada tabel profil_pesantren
+-- Aktifkan Row Level Security (RLS) pada tabel profil_pesantren
 ALTER TABLE public.profil_pesantren ENABLE ROW LEVEL SECURITY;
 
--- 5. Kebijakan RLS: Baca oleh publik (anon) dan seluruh pengguna terotentikasi
+-- Kebijakan RLS: Baca oleh publik (anon) dan seluruh pengguna terotentikasi
 DROP POLICY IF EXISTS "Profil Pesantren: dapat dibaca oleh seluruh pengguna" ON public.profil_pesantren;
 CREATE POLICY "Profil Pesantren: dapat dibaca oleh seluruh pengguna"
 ON public.profil_pesantren FOR SELECT
 TO anon, authenticated
 USING (true);
 
--- 6. Kebijakan RLS: Tata Usaha (TU), Pengasuh (Admin), dan Superadmin dapat memperbarui
+-- Kebijakan RLS: Tata Usaha (TU), Pengasuh (Admin), dan Superadmin dapat memperbarui profil
 DROP POLICY IF EXISTS "Profil Pesantren: dapat dikelola oleh TU, Admin, dan Superadmin" ON public.profil_pesantren;
 DROP POLICY IF EXISTS "Profil Pesantren: kelola update oleh TU, Admin, Superadmin" ON public.profil_pesantren;
 CREATE POLICY "Profil Pesantren: kelola update oleh TU, Admin, Superadmin"
@@ -99,23 +101,80 @@ WITH CHECK (public.get_my_role() IN ('tu', 'admin', 'superadmin'));
 -- CATATAN KEAMANAN: TIDAK ADA POLICY DELETE pada public.profil_pesantren
 -- Profil pesantren dilindungi dari penghapusan oleh role apa pun via API publik.
 
--- 7. Audit & Koreksi Akses RLS pada public.tahun_ajaran
--- Perbarui policy SELECT agar menyertakan role 'tu' yang diperkenalkan pada migrasi 013
-DROP POLICY IF EXISTS "Master TahunAjaran: baca oleh akun aktif berwenang" ON public.tahun_ajaran;
-CREATE POLICY "Master TahunAjaran: baca oleh akun aktif berwenang"
-ON public.tahun_ajaran FOR SELECT
-TO authenticated
-USING (public.get_my_role() IN ('superadmin', 'admin', 'bendahara', 'pengelola', 'wali', 'tu'));
 
--- Berikan hak UPDATE status is_active pada tahun_ajaran kepada role TU, Admin, dan Superadmin
+-- ----------------------------------------------------------------------------
+-- 2. HARDENING TABEL TAHUN AJARAN & PEMBERSIHAN SELURUH POLICY LAMA
+-- ----------------------------------------------------------------------------
+-- Pastikan indeks unik parsial untuk single active tahun_ajaran tetap aktif
+CREATE UNIQUE INDEX IF NOT EXISTS idx_single_active_tahun_ajaran
+ON public.tahun_ajaran ((is_active))
+WHERE is_active = true;
+
+-- Hapus SEMUA policy lama pada tahun_ajaran guna menghindari kontaminasi izin PERMISSIVE (OR)
+DROP POLICY IF EXISTS "Master Kelas/Kamar/TahunAjaran: baca oleh akun aktif berwenang" ON public.tahun_ajaran;
+DROP POLICY IF EXISTS "Master Kelas/Kamar/TahunAjaran: admin & superadmin kelola" ON public.tahun_ajaran;
+DROP POLICY IF EXISTS "Master TahunAjaran: baca oleh akun aktif berwenang" ON public.tahun_ajaran;
+DROP POLICY IF EXISTS "Master TahunAjaran: admin & superadmin kelola" ON public.tahun_ajaran;
 DROP POLICY IF EXISTS "Master TahunAjaran: TU kelola status aktif" ON public.tahun_ajaran;
-CREATE POLICY "Master TahunAjaran: TU kelola status aktif"
+DROP POLICY IF EXISTS "Tahun Ajaran: dapat dibaca oleh seluruh akun berwenang dan publik" ON public.tahun_ajaran;
+DROP POLICY IF EXISTS "Tahun Ajaran: admin dan superadmin tambah master" ON public.tahun_ajaran;
+DROP POLICY IF EXISTS "Tahun Ajaran: admin dan superadmin ubah data master" ON public.tahun_ajaran;
+DROP POLICY IF EXISTS "Tahun Ajaran: hanya superadmin hapus master" ON public.tahun_ajaran;
+
+-- Policy Baru 1: SELECT diizinkan untuk semua role dan publik (untuk login screen)
+CREATE POLICY "Tahun Ajaran: dapat dibaca oleh seluruh akun berwenang dan publik"
+ON public.tahun_ajaran FOR SELECT
+TO anon, authenticated
+USING (true);
+
+-- Policy Baru 2: INSERT data master baru hanya untuk Admin dan Superadmin
+CREATE POLICY "Tahun Ajaran: admin dan superadmin tambah master"
+ON public.tahun_ajaran FOR INSERT
+TO authenticated
+WITH CHECK (public.get_my_role() IN ('superadmin', 'admin'));
+
+-- Policy Baru 3: UPDATE data master (nama, rentang tanggal) hanya untuk Admin dan Superadmin
+-- Catatan: Perubahan status is_active tetap dijaga ketat oleh trigger di bawah ini.
+CREATE POLICY "Tahun Ajaran: admin dan superadmin ubah data master"
 ON public.tahun_ajaran FOR UPDATE
 TO authenticated
-USING (public.get_my_role() IN ('superadmin', 'admin', 'tu'))
-WITH CHECK (public.get_my_role() IN ('superadmin', 'admin', 'tu'));
+USING (public.get_my_role() IN ('superadmin', 'admin'))
+WITH CHECK (public.get_my_role() IN ('superadmin', 'admin'));
 
--- 8. RPC Atomik: Pengaktifan Tahun Pelajaran Tunggal & Sinkronisasi Profil
+-- Policy Baru 4: DELETE master tahun ajaran hanya untuk Superadmin
+CREATE POLICY "Tahun Ajaran: hanya superadmin hapus master"
+ON public.tahun_ajaran FOR DELETE
+TO authenticated
+USING (public.get_my_role() = 'superadmin');
+
+
+-- ----------------------------------------------------------------------------
+-- 3. TRIGGER GUARD: CEGAH UPDATE LANGSUNG PADA KOLOM IS_ACTIVE
+-- ----------------------------------------------------------------------------
+-- Menjamin bahwa perubahan is_active HANYA bisa terjadi melalui rpc_set_active_tahun_ajaran
+CREATE OR REPLACE FUNCTION public.prevent_direct_tahun_ajaran_active_update()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF (OLD.is_active IS DISTINCT FROM NEW.is_active) AND current_setting('sipeta.allow_tahun_ajaran_switch', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'Akses ditolak: Status aktif tahun pelajaran HANYA dapat diubah melalui rpc_set_active_tahun_ajaran(). UPDATE langsung dilarang.';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_direct_tahun_ajaran_update ON public.tahun_ajaran;
+CREATE TRIGGER trg_guard_direct_tahun_ajaran_update
+BEFORE UPDATE ON public.tahun_ajaran
+FOR EACH ROW EXECUTE FUNCTION public.prevent_direct_tahun_ajaran_active_update();
+
+
+-- ----------------------------------------------------------------------------
+-- 4. RPC ATOMIK: PENGAKTIFAN TAHUN PELAJARAN TUNGGAL
+-- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.rpc_set_active_tahun_ajaran(p_tahun_ajaran_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -126,24 +185,28 @@ DECLARE
     v_role public.user_role;
     v_tahun_nama TEXT;
 BEGIN
+    -- 1. Verifikasi Role Otoritatif: TU, Admin (Pengasuh), dan Superadmin
     v_role := public.get_my_role();
     IF v_role NOT IN ('tu', 'admin', 'superadmin') THEN
-        RAISE EXCEPTION 'Akses ditolak: Hanya Tata Usaha (TU), Pengasuh, atau Superadmin yang berwenang mengaktifkan tahun pelajaran.';
+        RAISE EXCEPTION 'Akses ditolak: Hanya Tata Usaha (TU), Pengasuh (Admin), atau Superadmin yang berwenang mengaktifkan tahun pelajaran.';
     END IF;
 
-    -- Validasi keberadaan tahun ajaran
+    -- 2. Validasi keberadaan tahun ajaran target
     SELECT nama INTO v_tahun_nama FROM public.tahun_ajaran WHERE id = p_tahun_ajaran_id;
     IF v_tahun_nama IS NULL THEN
         RAISE EXCEPTION 'Tahun pelajaran dengan ID % tidak ditemukan.', p_tahun_ajaran_id;
     END IF;
 
-    -- 1. Nonaktifkan semua tahun ajaran lain
+    -- 3. Buka izin sesi lokal transaksi untuk mengizinkan pergantian is_active oleh trigger guard
+    PERFORM set_config('sipeta.allow_tahun_ajaran_switch', 'on', true);
+
+    -- 4. Nonaktifkan semua tahun ajaran lain (transaksi atomik)
     UPDATE public.tahun_ajaran SET is_active = false WHERE is_active = true;
 
-    -- 2. Aktifkan tahun ajaran target
+    -- 5. Aktifkan tahun ajaran target
     UPDATE public.tahun_ajaran SET is_active = true WHERE id = p_tahun_ajaran_id;
 
-    -- 3. Sinkronkan nama tahun ajaran aktif ke tabel profil_pesantren jika ada
+    -- 6. Sinkronkan nama tahun ajaran aktif ke tabel profil_pesantren
     UPDATE public.profil_pesantren
     SET tahun_pelajaran_aktif = v_tahun_nama,
         updated_at = now(),
@@ -159,8 +222,14 @@ BEGIN
 END;
 $$;
 
--- 9. Trigger Audit Logs Otomatis di Level Database (SECURITY DEFINER)
--- Menjamin setiap perubahan profil_pesantren dan status aktif tahun_ajaran selalu tercatat di audit_logs
+-- Pembatasan Hak Eksekusi RPC: Cabut dari PUBLIC, izinkan authenticated
+REVOKE EXECUTE ON FUNCTION public.rpc_set_active_tahun_ajaran(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.rpc_set_active_tahun_ajaran(UUID) TO authenticated;
+
+
+-- ----------------------------------------------------------------------------
+-- 5. TRIGGER AUDIT LOGS DATABASE LEVEL (SECURITY DEFINER)
+-- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.trg_audit_profil_pesantren()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -271,8 +340,10 @@ CREATE TRIGGER trg_audit_tahun_ajaran_logger
 AFTER UPDATE ON public.tahun_ajaran
 FOR EACH ROW EXECUTE FUNCTION public.trg_audit_tahun_ajaran();
 
--- 10. Registrasi Supabase Realtime Publication
--- Mengaktifkan event real-time pada profil_pesantren dan tahun_ajaran ke seluruh browser klien
+
+-- ----------------------------------------------------------------------------
+-- 6. REGISTRASI SUPABASE REALTIME PUBLICATION
+-- ----------------------------------------------------------------------------
 DO $$
 BEGIN
     BEGIN
@@ -285,7 +356,6 @@ BEGIN
     END;
 EXCEPTION
     WHEN undefined_object THEN
-        -- Publication supabase_realtime belum didefinisikan (misal di local mock Postgres), abaikan aman
         NULL;
 END $$;
 

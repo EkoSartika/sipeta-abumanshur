@@ -67,8 +67,11 @@ export class AdministrasiService {
           message: (rpcData as { message?: string })?.message || "Tahun ajaran aktif berhasil diperbarui.",
         };
       }
+      if (rpcError && !rpcError.message.includes("does not exist") && (rpcError as { code?: string }).code !== "PGRST202") {
+        return { ok: false, message: rpcError.message };
+      }
 
-      // 2. Fallback update tabel langsung
+      // 2. Fallback update tabel langsung (hanya jika RPC belum termigrasi di dev)
       await this.client.from("tahun_ajaran").update({ is_active: false }).neq("id", tahunAjaranId);
       const { error } = await this.client
         .from("tahun_ajaran")
