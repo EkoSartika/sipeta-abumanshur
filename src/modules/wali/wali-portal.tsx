@@ -115,6 +115,10 @@ export function WaliPortal({
   // State input nominal cicilan per tagihan
   const [customNominalMap, setCustomNominalMap] = useState<Record<string, string>>({});
 
+  // Loading state untuk mencegah double-submit
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [isSubmittingTopup, setIsSubmittingTopup] = useState(false);
+
   // State form checkout pembayaran
   const [tanggalTransferBayar, setTanggalTransferBayar] = useState(
     new Date().toISOString().slice(0, 10)
@@ -336,28 +340,42 @@ export function WaliPortal({
     setFeedback({ ok: res.ok, text: res.message });
   };
 
-  const handleCheckoutSubmit = (e: React.FormEvent) => {
+  const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = submitCheckoutPembayaran({
-      tanggal_transfer: tanggalTransferBayar,
-      nama_pengirim: namaPengirimBayar,
-      bank_pengirim: bankPengirimBayar,
-      bukti_transfer_url: buktiBayarUrl,
-    });
-    setFeedback({ ok: res.ok, text: res.message });
+    if (isSubmittingPayment) return;
+    setIsSubmittingPayment(true);
+    setFeedback(null);
+    try {
+      const res = await submitCheckoutPembayaran({
+        tanggal_transfer: tanggalTransferBayar,
+        nama_pengirim: namaPengirimBayar,
+        bank_pengirim: bankPengirimBayar,
+        bukti_transfer_url: buktiBayarUrl,
+      });
+      setFeedback({ ok: res.ok, text: res.message });
+    } finally {
+      setIsSubmittingPayment(false);
+    }
   };
 
-  const handleTopupSubmit = (e: React.FormEvent) => {
+  const handleTopupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = submitTopupUangSaku({
-      nominal: Number(nominalTopup),
-      tanggal_transfer: tanggalTopup,
-      nama_pengirim: namaPengirimTopup,
-      bank_pengirim: bankPengirimTopup,
-      bukti_transfer_url: buktiTopupUrl,
-      keterangan: keteranganTopup,
-    });
-    setFeedback({ ok: res.ok, text: res.message });
+    if (isSubmittingTopup) return;
+    setIsSubmittingTopup(true);
+    setFeedback(null);
+    try {
+      const res = await submitTopupUangSaku({
+        nominal: Number(nominalTopup),
+        tanggal_transfer: tanggalTopup,
+        nama_pengirim: namaPengirimTopup,
+        bank_pengirim: bankPengirimTopup,
+        bukti_transfer_url: buktiTopupUrl,
+        keterangan: keteranganTopup,
+      });
+      setFeedback({ ok: res.ok, text: res.message });
+    } finally {
+      setIsSubmittingTopup(false);
+    }
   };
 
   const handleUploadSusulanSubmit = (e: React.FormEvent) => {
@@ -1215,9 +1233,10 @@ export function WaliPortal({
 
                   <button
                     type="submit"
-                    className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white shadow hover:bg-emerald-800 transition"
+                    disabled={isSubmittingPayment}
+                    className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white shadow hover:bg-emerald-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Konfirmasi & Kirim Pengajuan Pembayaran
+                    {isSubmittingPayment ? "Mengirim & Memproses Pembayaran..." : "Konfirmasi & Kirim Pengajuan Pembayaran"}
                   </button>
                 </form>
               )}
@@ -1599,9 +1618,10 @@ export function WaliPortal({
 
                 <button
                   type="submit"
-                  className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-emerald-800"
+                  disabled={isSubmittingTopup}
+                  className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Kirim Pengajuan Uang Saku
+                  {isSubmittingTopup ? "Mengirim Pengajuan..." : "Kirim Pengajuan Uang Saku"}
                 </button>
               </form>
             </div>

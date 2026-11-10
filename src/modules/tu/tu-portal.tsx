@@ -142,6 +142,7 @@ export function TuPortal({
     createKamar,
     updateKamar,
     deleteKamar,
+    refreshFromSupabase,
   } = useSipeta();
 
   const [internalTab, setInternalTab] = useState<TuTab>("dashboard");
@@ -253,6 +254,42 @@ export function TuPortal({
 
   // Detail Santri Modal
   const [detailSantri, setDetailSantri] = useState<Santri | null>(null);
+
+  // ==========================================================================
+  // STATE EDIT, HAPUS & BULK SELEKSI SANTRI (TU)
+  // ==========================================================================
+  const [editSantriModal, setEditSantriModal] = useState<Santri | null>(null);
+  const [editSantriLoading, setEditSantriLoading] = useState(false);
+  const [editNis, setEditNis] = useState("");
+  const [editNama, setEditNama] = useState("");
+  const [editTempatLahir, setEditTempatLahir] = useState("");
+  const [editTanggalLahir, setEditTanggalLahir] = useState("");
+  const [editJenisKelamin, setEditJenisKelamin] = useState<"L" | "P">("L");
+  const [editAlamat, setEditAlamat] = useState("");
+  const [editTahunMasuk, setEditTahunMasuk] = useState<number>(new Date().getFullYear());
+  const [editKelasId, setEditKelasId] = useState("");
+  const [editKamarId, setEditKamarId] = useState("");
+  const [editStatus, setEditStatus] = useState<StatusSantri>("AKTIF");
+  const [editNamaAyah, setEditNamaAyah] = useState("");
+  const [editNoHpAyah, setEditNoHpAyah] = useState("");
+  const [editPekerjaanAyah, setEditPekerjaanAyah] = useState("");
+  const [editNamaIbu, setEditNamaIbu] = useState("");
+  const [editNoHpIbu, setEditNoHpIbu] = useState("");
+  const [editPekerjaanIbu, setEditPekerjaanIbu] = useState("");
+  const [editNamaWali, setEditNamaWali] = useState("");
+  const [editNoHpWali, setEditNoHpWali] = useState("");
+  const [editHubunganWali, setEditHubunganWali] = useState("Wali");
+  const [editPenanggungJawab, setEditPenanggungJawab] = useState<"Ayah" | "Ibu" | "Wali">("Ayah");
+  const [editFeedback, setEditFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Hapus Satuan
+  const [deleteSantriConfirm, setDeleteSantriConfirm] = useState<Santri | null>(null);
+  const [deleteSantriLoading, setDeleteSantriLoading] = useState(false);
+
+  // Bulk Selection & Delete
+  const [selectedSantriIds, setSelectedSantriIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   // ==========================================================================
   // STATE MANAJEMEN PEMBIAYAAN SANTRI (TU)
@@ -502,6 +539,205 @@ export function TuPortal({
       return matchQuery && matchKelas && matchKamar && matchStatus;
     });
   }, [santriList, santriSearch, filterKelas, filterKamar, filterStatus]);
+
+  // ==========================================================================
+  // HANDLERS EDIT, HAPUS & BULK ACTION SANTRI
+  // ==========================================================================
+  const openEditSantriModal = (s: Santri) => {
+    const w = waliList.find((x) => x.santri_id === s.id);
+    setEditSantriModal(s);
+    setEditNis(s.nis || "");
+    setEditNama(s.nama_lengkap || "");
+    setEditTempatLahir(s.tempat_lahir || "");
+    setEditTanggalLahir(s.tanggal_lahir ? s.tanggal_lahir.substring(0, 10) : "");
+    setEditJenisKelamin(s.jenis_kelamin || "L");
+    setEditAlamat(s.alamat || "");
+    setEditTahunMasuk(s.tahun_masuk || new Date().getFullYear());
+    setEditKelasId(s.kelas_id || "");
+    setEditKamarId(s.kamar_id || "");
+    setEditStatus(s.status || "AKTIF");
+
+    setEditNamaAyah(w?.nama_ayah || (w?.hubungan === "Ayah" ? w.nama_lengkap : ""));
+    setEditNoHpAyah(w?.no_hp_ayah || (w?.hubungan === "Ayah" ? w.no_telepon : ""));
+    setEditPekerjaanAyah(w?.pekerjaan_ayah || "");
+    setEditNamaIbu(w?.nama_ibu || (w?.hubungan === "Ibu" ? w.nama_lengkap : ""));
+    setEditNoHpIbu(w?.no_hp_ibu || (w?.hubungan === "Ibu" ? w.no_telepon : ""));
+    setEditPekerjaanIbu(w?.pekerjaan_ibu || "");
+    setEditNamaWali(w?.nama_wali || (w?.hubungan === "Wali" ? w.nama_lengkap : ""));
+    setEditNoHpWali(w?.no_hp_wali || (w?.hubungan === "Wali" ? w.no_telepon : ""));
+    setEditHubunganWali(w?.hubungan_wali_detail || "Wali");
+    setEditPenanggungJawab(w?.penanggung_jawab || w?.hubungan || "Ayah");
+    setEditFeedback(null);
+  };
+
+  const handleSaveEditSantri = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editSantriModal) return;
+    if (!editNis.trim() || !editNama.trim()) {
+      setEditFeedback({ ok: false, text: "NIS dan Nama Lengkap santri wajib diisi." });
+      return;
+    }
+
+    setEditSantriLoading(true);
+    setEditFeedback(null);
+
+    try {
+      const namaWaliAktif =
+        editPenanggungJawab === "Ayah"
+          ? editNamaAyah
+          : editPenanggungJawab === "Ibu"
+          ? editNamaIbu
+          : editNamaWali;
+      const noHpWaliAktif =
+        editPenanggungJawab === "Ayah"
+          ? editNoHpAyah
+          : editPenanggungJawab === "Ibu"
+          ? editNoHpIbu
+          : editNoHpWali;
+
+      const payload = {
+        nis: editNis.trim(),
+        nama_lengkap: editNama.trim(),
+        tempat_lahir: editTempatLahir.trim(),
+        tanggal_lahir: editTanggalLahir || "2010-01-01",
+        jenis_kelamin: editJenisKelamin,
+        alamat: editAlamat.trim(),
+        tahun_masuk: editTahunMasuk,
+        kelas_id: editKelasId || null,
+        kamar_id: editKamarId || null,
+        status: editStatus,
+        penanggung_jawab: editPenanggungJawab,
+        identitas_keluarga: {
+          ayah: {
+            nama_lengkap: editNamaAyah.trim(),
+            no_telepon: editNoHpAyah.trim(),
+            pekerjaan: editPekerjaanAyah.trim(),
+          },
+          ibu: {
+            nama_lengkap: editNamaIbu.trim(),
+            no_telepon: editNoHpIbu.trim(),
+            pekerjaan: editPekerjaanIbu.trim(),
+          },
+          wali: {
+            nama_lengkap: editNamaWali.trim(),
+            no_telepon: editNoHpWali.trim(),
+            hubungan: editHubunganWali.trim() || "Wali",
+          },
+        },
+        wali: {
+          nama_lengkap: namaWaliAktif.trim() || editNama.trim() + " (Wali)",
+          no_telepon: noHpWaliAktif.trim() || "-",
+          hubungan: editPenanggungJawab,
+        },
+      };
+
+      const res = await fetch("/api/admin-santri", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editSantriModal.id, payload }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setEditFeedback({ ok: false, text: data.message || "Gagal memperbarui data santri." });
+        return;
+      }
+
+      await refreshFromSupabase();
+      setFeedback({ ok: true, text: data.message || "Data santri berhasil diperbarui." });
+      setEditSantriModal(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setEditFeedback({ ok: false, text: `Kesalahan: ${msg}` });
+    } finally {
+      setEditSantriLoading(false);
+    }
+  };
+
+  const handleSingleDelete = async () => {
+    if (!deleteSantriConfirm) return;
+    setDeleteSantriLoading(true);
+    try {
+      const res = await fetch("/api/admin-santri", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ santri_ids: [deleteSantriConfirm.id] }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setFeedback({ ok: false, text: data.message || "Gagal menghapus santri." });
+      } else {
+        await refreshFromSupabase();
+        setFeedback({ ok: true, text: data.message });
+        setDeleteSantriConfirm(null);
+        setSelectedSantriIds((prev) => {
+          const next = new Set(prev);
+          next.delete(deleteSantriConfirm.id);
+          return next;
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFeedback({ ok: false, text: `Kesalahan: ${msg}` });
+    } finally {
+      setDeleteSantriLoading(false);
+    }
+  };
+
+  const toggleSelectSantri = (id: string) => {
+    setSelectedSantriIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllSantri = () => {
+    const allFilteredSelected =
+      filteredSantri.length > 0 &&
+      filteredSantri.every((s) => selectedSantriIds.has(s.id));
+
+    setSelectedSantriIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredSantri.forEach((s) => next.delete(s.id));
+      } else {
+        filteredSantri.forEach((s) => next.add(s.id));
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedSantriIds.size === 0) return;
+    setBulkDeleteLoading(true);
+    try {
+      const ids = Array.from(selectedSantriIds);
+      const res = await fetch("/api/admin-santri", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ santri_ids: ids }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setFeedback({ ok: false, text: data.message || "Gagal menghapus santri terpilih." });
+      } else {
+        await refreshFromSupabase();
+        setFeedback({ ok: true, text: data.message });
+        setSelectedSantriIds(new Set());
+        setBulkDeleteModalOpen(false);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFeedback({ ok: false, text: `Kesalahan: ${msg}` });
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
 
   // Handle Pemindahan Santri (Pindah Kelas & Kamar)
   const handleMovePlacement = async (e: React.FormEvent) => {
@@ -1953,12 +2189,55 @@ export function TuPortal({
             </div>
           </div>
 
+          {/* Toolbar Aksi Massal */}
+          {selectedSantriIds.size > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-xs font-bold text-white">
+                  {selectedSantriIds.size}
+                </span>
+                <span className="text-xs font-bold text-emerald-900">
+                  {selectedSantriIds.size} santri dipilih
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSantriIds(new Set())}
+                  className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  Batalkan Pilihan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-700 shadow-sm cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Hapus yang Dipilih ({selectedSantriIds.size})</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Tabel Santri */}
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+              <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredSantri.length > 0 &&
+                          filteredSantri.every((s) => selectedSantriIds.has(s.id))
+                        }
+                        onChange={toggleSelectAllSantri}
+                        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        title="Pilih Semua Santri Terfilter"
+                      />
+                    </th>
                     <th className="py-3 px-3">NIS</th>
                     <th className="py-3 px-3">Nama Santri</th>
                     <th className="py-3 px-3">Kelas &amp; Kamar</th>
@@ -1971,7 +2250,7 @@ export function TuPortal({
                 <tbody className="divide-y divide-slate-100">
                   {filteredSantri.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
                         Tidak ada data santri yang cocok dengan filter.
                       </td>
                     </tr>
@@ -1983,6 +2262,14 @@ export function TuPortal({
 
                       return (
                         <tr key={s.id} className="hover:bg-slate-50">
+                          <td className="py-3 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedSantriIds.has(s.id)}
+                              onChange={() => toggleSelectSantri(s.id)}
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                          </td>
                           <td className="py-3 px-3 font-mono font-bold text-slate-900">{s.nis}</td>
                           <td className="py-3 px-3 font-bold text-slate-900">{s.nama_lengkap}</td>
                           <td className="py-3 px-3 text-slate-600">
@@ -2021,13 +2308,32 @@ export function TuPortal({
                             </span>
                           </td>
                           <td className="py-3 px-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => setDetailSantri(s)}
-                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-50 cursor-pointer"
-                            >
-                              Detail
-                            </button>
+                            <div className="inline-flex items-center gap-1 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setDetailSantri(s)}
+                                className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                                title="Lihat Detail Santri"
+                              >
+                                Detail
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openEditSantriModal(s)}
+                                className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 cursor-pointer"
+                                title="Edit Data Santri & Wali"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteSantriConfirm(s)}
+                                className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
+                                title="Hapus / Nonaktifkan Santri"
+                              >
+                                Hapus
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -5610,6 +5916,483 @@ export function TuPortal({
                 className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL EDIT SANTRI & AKUN WALI
+         ===================================================================== */}
+      {editSantriModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Edit Data Santri &amp; Akun Wali
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Perbarui identitas, penempatan kelas/kamar, serta informasi orang tua / wali santri.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditSantriModal(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {editFeedback && !editFeedback.ok && (
+              <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{editFeedback.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditSantri} className="space-y-4 text-xs">
+              {/* Bagian 1: Identitas Santri */}
+              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+                <h4 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
+                  1. Identitas Santri
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">
+                      NIS (Nomor Induk Santri) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editNis}
+                      onChange={(e) => setEditNis(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">
+                      Nama Lengkap Santri *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editNama}
+                      onChange={(e) => setEditNama(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-bold text-slate-900 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Tempat Lahir</label>
+                    <input
+                      type="text"
+                      value={editTempatLahir}
+                      onChange={(e) => setEditTempatLahir(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Tanggal Lahir</label>
+                    <input
+                      type="date"
+                      value={editTanggalLahir}
+                      onChange={(e) => setEditTanggalLahir(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Jenis Kelamin</label>
+                    <select
+                      value={editJenisKelamin}
+                      onChange={(e) => setEditJenisKelamin(e.target.value as "L" | "P")}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-600"
+                    >
+                      <option value="L">Laki-laki (Santri Putra)</option>
+                      <option value="P">Perempuan (Santri Putri)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Tahun Masuk</label>
+                    <input
+                      type="number"
+                      value={editTahunMasuk}
+                      onChange={(e) => setEditTahunMasuk(Number(e.target.value))}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-600 font-semibold mb-1">Alamat Asal</label>
+                    <textarea
+                      rows={2}
+                      value={editAlamat}
+                      onChange={(e) => setEditAlamat(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bagian 2: Penempatan & Status */}
+              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+                <h4 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
+                  2. Penempatan &amp; Status Akademik
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Kelas</label>
+                    <select
+                      value={editKelasId}
+                      onChange={(e) => setEditKelasId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-600"
+                    >
+                      <option value="">-- Pilih Kelas --</option>
+                      {kelasList.map((k) => (
+                        <option key={k.id} value={k.id}>
+                          {k.nama_kelas}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Kamar Asrama</label>
+                    <select
+                      value={editKamarId}
+                      onChange={(e) => setEditKamarId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-600"
+                    >
+                      <option value="">-- Pilih Kamar --</option>
+                      {kamarList.map((km) => (
+                        <option key={km.id} value={km.id}>
+                          {km.nama_kamar}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1">Status Santri</label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value as StatusSantri)}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold text-slate-800 focus:outline-none focus:border-emerald-600"
+                    >
+                      <option value="AKTIF">AKTIF</option>
+                      <option value="TIDAK_AKTIF">TIDAK AKTIF</option>
+                      <option value="LULUS">LULUS</option>
+                      <option value="PINDAH">PINDAH</option>
+                      <option value="CUTI">CUTI</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bagian 3: Identitas Keluarga & Akun Wali */}
+              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-2 gap-2">
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    3. Identitas Orang Tua / Wali
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500 font-semibold">Penanggung Jawab:</span>
+                    <select
+                      value={editPenanggungJawab}
+                      onChange={(e) => setEditPenanggungJawab(e.target.value as "Ayah" | "Ibu" | "Wali")}
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-[11px] font-bold text-emerald-800"
+                    >
+                      <option value="Ayah">Ayah</option>
+                      <option value="Ibu">Ibu</option>
+                      <option value="Wali">Wali Lainnya</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-slate-200">
+                    <span className="font-bold text-slate-800 block">Data Ayah</span>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-medium">Nama Ayah</label>
+                      <input
+                        type="text"
+                        value={editNamaAyah}
+                        onChange={(e) => setEditNamaAyah(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-medium">No. HP / WA Ayah</label>
+                      <input
+                        type="text"
+                        value={editNoHpAyah}
+                        onChange={(e) => setEditNoHpAyah(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-medium">Pekerjaan Ayah</label>
+                      <input
+                        type="text"
+                        value={editPekerjaanAyah}
+                        onChange={(e) => setEditPekerjaanAyah(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-slate-200">
+                    <span className="font-bold text-slate-800 block">Data Ibu</span>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-medium">Nama Ibu</label>
+                      <input
+                        type="text"
+                        value={editNamaIbu}
+                        onChange={(e) => setEditNamaIbu(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-medium">No. HP / WA Ibu</label>
+                      <input
+                        type="text"
+                        value={editNoHpIbu}
+                        onChange={(e) => setEditNoHpIbu(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-medium">Pekerjaan Ibu</label>
+                      <input
+                        type="text"
+                        value={editPekerjaanIbu}
+                        onChange={(e) => setEditPekerjaanIbu(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {editPenanggungJawab === "Wali" && (
+                    <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-slate-200 sm:col-span-2">
+                      <span className="font-bold text-slate-800 block">Data Wali Khusus</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[11px] text-slate-500 font-medium">Nama Wali</label>
+                          <input
+                            type="text"
+                            value={editNamaWali}
+                            onChange={(e) => setEditNamaWali(e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-500 font-medium">No. HP / WA Wali</label>
+                          <input
+                            type="text"
+                            value={editNoHpWali}
+                            onChange={(e) => setEditNoHpWali(e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-500 font-medium">Hubungan Kerabat</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Paman / Kakek"
+                            value={editHubunganWali}
+                            onChange={(e) => setEditHubunganWali(e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900 bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditSantriModal(null)}
+                  disabled={editSantriLoading}
+                  className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSantriLoading}
+                  className="rounded-xl bg-emerald-700 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-800 shadow cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {editSantriLoading ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-3.5 w-3.5" />
+                      <span>Simpan Perubahan</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL KONFIRMASI HAPUS SATUAN
+         ===================================================================== */}
+      {deleteSantriConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Hapus Data Santri
+                </h3>
+                <p className="text-xs text-slate-500">Konfirmasi tindakan penghapusan</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Nama Santri:</span>
+                <strong className="text-slate-900">{deleteSantriConfirm.nama_lengkap}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">NIS:</span>
+                <strong className="font-mono text-slate-900">{deleteSantriConfirm.nis}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Status Saat Ini:</span>
+                <span className="font-bold text-slate-700">{deleteSantriConfirm.status}</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 shrink-0 text-amber-700" />
+                Perlindungan Data &amp; Riwayat Historis:
+              </p>
+              <p>
+                Jika santri memiliki riwayat keuangan (tagihan, pembayaran, uang saku) atau catatan kepesantrenan (tahfidz, kedisiplinan), santri akan secara aman <strong>dinonaktifkan (Soft Delete)</strong> agar integritas data tetap terjaga.
+              </p>
+              <p>
+                Akun wali santri tidak akan dihapus jika masih terhubung dengan santri lain.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteSantriConfirm(null)}
+                disabled={deleteSantriLoading}
+                className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSingleDelete}
+                disabled={deleteSantriLoading}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {deleteSantriLoading ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Konfirmasi Hapus</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL KONFIRMASI HAPUS MASSAL (BULK DELETE)
+         ===================================================================== */}
+      {bulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Hapus Massal Santri Terpilih
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {selectedSantriIds.size} santri akan diproses secara individual
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+              <span className="text-xs font-bold text-slate-700 block">
+                Daftar Santri yang Dipilih ({selectedSantriIds.size}):
+              </span>
+              <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs">
+                {Array.from(selectedSantriIds).map((id) => {
+                  const s = santriList.find((x) => x.id === id);
+                  return (
+                    <div key={id} className="py-1.5 flex justify-between items-center">
+                      <span className="font-semibold text-slate-900">{s?.nama_lengkap || id}</span>
+                      <span className="font-mono text-slate-500 text-[11px]">NIS: {s?.nis || "-"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-800 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 shrink-0 text-amber-700" />
+                Aturan Penghapusan Massal:
+              </p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>Santri dengan riwayat keuangan atau catatan kepesantrenan otomatis <strong>dinonaktifkan (Soft Delete)</strong>.</li>
+                <li>Hanya santri tanpa riwayat sama sekali yang dihapus permanen.</li>
+                <li>Akun wali yang masih memiliki santri lain tetap aman dan tidak akan dihapus.</li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setBulkDeleteModalOpen(false)}
+                disabled={bulkDeleteLoading}
+                className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteLoading}
+                className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {bulkDeleteLoading ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Memproses Penghapusan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Konfirmasi Hapus ({selectedSantriIds.size})</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

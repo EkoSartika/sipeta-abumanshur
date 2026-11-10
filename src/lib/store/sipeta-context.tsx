@@ -311,7 +311,7 @@ interface SipetaContextValue {
     nama_pengirim: string;
     bank_pengirim: string;
     bukti_transfer_url: string;
-  }) => ActionResponse;
+  }) => Promise<ActionResponse>;
   uploadBuktiTransferPembayaran: (payload: {
     transaksi_id: string;
     tanggal_transfer: string;
@@ -326,7 +326,7 @@ interface SipetaContextValue {
     bank_pengirim: string;
     bukti_transfer_url: string;
     keterangan?: string;
-  }) => ActionResponse;
+  }) => Promise<ActionResponse>;
   markNotifikasiRead: (notifikasiId: string) => void;
   markAllNotifikasiRead: () => void;
 
@@ -335,12 +335,12 @@ interface SipetaContextValue {
     transaksiId: string,
     keputusan: "DISETUJUI" | "DITOLAK",
     catatan: string
-  ) => ActionResponse;
+  ) => Promise<ActionResponse>;
   verifyTopupUangSaku: (
     pengajuanId: string,
     keputusan: "DISETUJUI" | "DITOLAK",
     catatan: string
-  ) => ActionResponse;
+  ) => Promise<ActionResponse>;
   recordPenyerahanUangSaku: (payload: {
     santri_id: string;
     nominal: number;
@@ -535,8 +535,9 @@ export function SipetaProvider({
         administrasiService.getRiwayatPenempatanList(),
         administrasiService.getJenisPembayaranList(),
         keuanganService.getTagihanBySantri(),
-        keuanganService.getRiwayatTransaksi(),
-        keuanganService.getPengajuanTopup(),
+        // Gunakan API route server-side agar RLS tidak memblokir pembacaan transaksi oleh Wali/Bendahara
+        fetch("/api/keuangan/transaksi").then((r) => r.ok ? r.json() : Promise.resolve({ ok: false })).then((d) => d.ok ? (d.transaksiPembayaranList ?? []) : keuanganService.getRiwayatTransaksi()),
+        fetch("/api/keuangan/transaksi").then((r) => r.ok ? r.json() : Promise.resolve({ ok: false })).then((d) => d.ok ? (d.pengajuanUangSakuList ?? []) : keuanganService.getPengajuanTopup()),
         keuanganService.getMutasiUangSaku(),
         kepesantrenanService.getPerkembanganMengaji(),
         kepesantrenanService.getSetoranTahfidz(),
@@ -3709,94 +3710,60 @@ export function SipetaProvider({
 
   const clearKeranjang = () => setKeranjang([]);
 
-  const submitCheckoutPembayaran: SipetaContextValue["submitCheckoutPembayaran"] = (payload) => {
+  const submitCheckoutPembayaran: SipetaContextValue["submitCheckoutPembayaran"] = async (payload) => {
     if (!currentUser) {
       return { ok: false, message: "Akses ditolak: Pengguna belum terautentikasi." };
     }
     if (keranjang.length === 0) {
       return { ok: false, message: "Keranjang pembayaran masih kosong." };
     }
-    const activeSantriId = currentUser.santri_id ?? "snt-001";
+    const activeSantriId = currentUser.santri_id ?? "";
+    if (!activeSantriId) {
+      return { ok: false, message: "Akun Anda belum terhubung dengan data santri." };
+    }
 
-    // Validasi ulang seluruh item keranjang di sisi server/service
-    let totalNominal = 0;
-    const alokasiItems: TransaksiPembayaran["alokasi"] = [];
-    const trxId = `trx-${Date.now()}`;
+    if (authMode !== "supabase") {
+      // Mode demo: simulasi lokal
+      const nomorTrx = `TRX-BYR-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-DEMO`;
+      return { ok: true, message: `[Demo] Pengajuan pembayaran ${nomorTrx} dikirim (Mode Standalone).` };
+    }
 
-    for (const item of keranjang) {
-      const tgh = tagihanList.find((t) => t.id === item.tagihan_id);
-      if (!tgh || tgh.santri_id !== activeSantriId) {
-        return { ok: false, message: "Data tagihan di keranjang tidak valid." };
-      }
-      const check = validateNominalCicilan(tgh, item.nominal_bayar);
-      if (!check.valid) {
-        return { ok: false, message: check.error ?? "Nominal cicilan tidak valid." };
-      }
-      totalNominal += item.nominal_bayar;
-      alokasiItems.push({
-        id: `alk-${Date.now()}-${item.tagihan_id}`,
-        transaksi_id: trxId,
-        tagihan_id: tgh.id,
-        judul_tagihan: tgh.judul_tagihan,
-        nominal_alokasi: item.nominal_bayar,
+    try {
+      const items = keranjang.map((item) => ({
+        tagihan_id: item.tagihan_id,
+        nominal_bayar: item.nominal_bayar,
+      }));
+
+      const res = await fetch("/api/keuangan/transaksi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "CHECKOUT_PEMBAYARAN",
+          santri_id: activeSantriId,
+          items,
+          tanggal_transfer: payload.tanggal_transfer,
+          nama_pengirim: payload.nama_pengirim,
+          bank_pengirim: payload.bank_pengirim,
+          bukti_transfer: payload.bukti_transfer_url,
+          bukti_transfer_url: payload.bukti_transfer_url,
+        }),
       });
+
+      const data = await res.json();
+      if (!data.ok) {
+        return { ok: false, message: data.message || "Gagal menyimpan transaksi ke server." };
+      }
+
+      // Refresh dari Supabase agar data real muncul di state
+      await refreshFromSupabase();
+      setKeranjang([]);
+      return {
+        ok: true,
+        message: data.message || `Pengajuan pembayaran ${data.nomor_transaksi} berhasil disimpan permanen.`,
+      };
+    } catch (err: any) {
+      return { ok: false, message: `Kesalahan jaringan: ${err?.message || "Tidak dapat menghubungi server."}` };
     }
-
-    const nomorTrx = `TRX-BYR-${new Date()
-      .toISOString()
-      .slice(0, 10)
-      .replace(/-/g, "")}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-
-    const newTrx: TransaksiPembayaran = {
-      id: trxId,
-      nomor_transaksi: nomorTrx,
-      santri_id: activeSantriId,
-      wali_user_id: currentUser.id,
-      total_nominal: totalNominal,
-      rekening_tujuan_snapshot: {
-        nama_bank: rekeningResmi?.nama_bank || "Bank Syariah Indonesia (BSI)",
-        nomor_rekening: rekeningResmi?.nomor_rekening || "-",
-        atas_nama: rekeningResmi?.atas_nama || "Pesantren Abu Manshur",
-      },
-      tanggal_transfer: payload.tanggal_transfer,
-      nama_pengirim: payload.nama_pengirim.trim(),
-      bank_pengirim: payload.bank_pengirim.trim(),
-      bukti_transfer_url: payload.bukti_transfer_url,
-      status: "MENUNGGU_VERIFIKASI",
-      alokasi: alokasiItems,
-      created_at: new Date().toISOString(),
-    };
-
-    const cartItemsSnapshot = [...keranjang];
-    setTransaksiPembayaranList((prev) => [newTrx, ...prev]);
-    setKeranjang([]);
-
-    appendAuditLog("AJUKAN_PEMBAYARAN_TAGIHAN", "transaksi_pembayaran", newTrx.id, {
-      nomor_transaksi: newTrx.nomor_transaksi,
-      total_nominal: newTrx.total_nominal,
-      jumlah_tagihan: alokasiItems.length,
-    });
-
-    if (authMode === "supabase") {
-      keuanganService
-        .checkoutWithItems(activeSantriId, cartItemsSnapshot, {
-          tanggalTransfer: payload.tanggal_transfer,
-          namaPengirim: payload.nama_pengirim.trim(),
-          bankPengirim: payload.bank_pengirim.trim(),
-          buktiTransferPath: payload.bukti_transfer_url,
-        })
-        .then((res) => {
-          if (res.ok) refreshFromSupabase();
-        })
-        .catch(console.error);
-    }
-
-    return {
-      ok: true,
-      message: `Pengajuan pembayaran ${nomorTrx} sebesar Rp ${totalNominal.toLocaleString(
-        "id-ID"
-      )} berhasil dikirim dan menunggu verifikasi Bendahara.`,
-    };
   };
 
   const uploadBuktiTransferPembayaran: SipetaContextValue["uploadBuktiTransferPembayaran"] = (
@@ -3860,74 +3827,61 @@ export function SipetaProvider({
     };
   };
 
-  const submitTopupUangSaku: SipetaContextValue["submitTopupUangSaku"] = (payload) => {
+  const submitTopupUangSaku: SipetaContextValue["submitTopupUangSaku"] = async (payload) => {
     if (!currentUser) {
       return { ok: false, message: "Akses ditolak: Pengguna belum terautentikasi." };
     }
-    const activeSantriId = currentUser.santri_id ?? "snt-001";
-    const parsed = pengajuanTopupSakuSchema.safeParse({
-      santri_id: activeSantriId,
-      ...payload,
-    });
-    if (!parsed.success) {
+    if (!payload.nominal || payload.nominal <= 0) {
+      return { ok: false, message: "Nominal top-up harus lebih dari 0." };
+    }
+    if (!payload.nama_pengirim?.trim()) {
+      return { ok: false, message: "Nama pengirim wajib diisi." };
+    }
+
+    const activeSantriId = currentUser.santri_id ?? "";
+    if (!activeSantriId) {
+      return { ok: false, message: "Akun Anda belum terhubung dengan data santri resmi." };
+    }
+
+    // Mode Demo: simulasi lokal tanpa Supabase
+    if (authMode !== "supabase") {
+      const nomorPengajuan = `TOPUP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-DEMO`;
       return {
-        ok: false,
-        message: parsed.error.issues[0]?.message ?? "Data pengajuan uang saku tidak valid.",
+        ok: true,
+        message: `[Demo] Pengajuan top-up ${nomorPengajuan} Rp ${payload.nominal.toLocaleString("id-ID")} dikirim (Mode Standalone).`,
       };
     }
 
-    const nomorPengajuan = `TOPUP-${new Date()
-      .toISOString()
-      .slice(0, 10)
-      .replace(/-/g, "")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-
-    const newPengajuan: PengajuanUangSaku = {
-      id: `psaku-${Date.now()}`,
-      nomor_pengajuan: nomorPengajuan,
-      santri_id: activeSantriId,
-      wali_user_id: currentUser.id,
-      nominal: payload.nominal,
-      rekening_tujuan_snapshot: {
-        nama_bank: rekeningResmi?.nama_bank || "Bank Syariah Indonesia (BSI)",
-        nomor_rekening: rekeningResmi?.nomor_rekening || "-",
-        atas_nama: rekeningResmi?.atas_nama || "Pesantren Abu Manshur",
-      },
-      tanggal_transfer: payload.tanggal_transfer,
-      nama_pengirim: payload.nama_pengirim.trim(),
-      bank_pengirim: payload.bank_pengirim.trim(),
-      bukti_transfer_url: payload.bukti_transfer_url,
-      keterangan: payload.keterangan?.trim() || "Pengisian uang saku santri",
-      status: "MENUNGGU_VERIFIKASI",
-      created_at: new Date().toISOString(),
-    };
-
-    setPengajuanUangSakuList((prev) => [newPengajuan, ...prev]);
-    appendAuditLog("AJUKAN_TOPUP_UANG_SAKU", "pengajuan_uang_saku", newPengajuan.id, {
-      nomor_pengajuan: newPengajuan.nomor_pengajuan,
-      nominal: newPengajuan.nominal,
-    });
-
-    if (authMode === "supabase") {
-      keuanganService
-        .submitTopupUangSaku({
-          santriId: activeSantriId,
+    try {
+      const res = await fetch("/api/keuangan/transaksi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "SUBMIT_TOPUP",
+          santri_id: activeSantriId,
           nominal: payload.nominal,
-          namaPengirim: payload.nama_pengirim.trim(),
-          bankPengirim: payload.bank_pengirim.trim(),
-          buktiTransferPath: payload.bukti_transfer_url,
-          rekeningSnapshot: newPengajuan.rekening_tujuan_snapshot,
-          keterangan: newPengajuan.keterangan,
-        })
-        .then((res) => {
-          if (res.ok) refreshFromSupabase();
-        })
-        .catch(console.error);
-    }
+          tanggal_transfer: payload.tanggal_transfer,
+          nama_pengirim: payload.nama_pengirim,
+          bank_pengirim: payload.bank_pengirim,
+          bukti_transfer: payload.bukti_transfer_url,
+          bukti_transfer_url: payload.bukti_transfer_url,
+          keterangan: payload.keterangan,
+        }),
+      });
 
-    return {
-      ok: true,
-      message: `Pengajuan uang saku ${nomorPengajuan} berhasil dikirim dan menunggu verifikasi Bendahara.`,
-    };
+      const data = await res.json();
+      if (!data.ok) {
+        return { ok: false, message: data.message || "Gagal menyimpan pengajuan top-up ke server." };
+      }
+
+      await refreshFromSupabase();
+      return {
+        ok: true,
+        message: data.message || `Pengajuan top-up ${data.nomor_pengajuan} berhasil disimpan permanen dan menunggu verifikasi Bendahara.`,
+      };
+    } catch (err: any) {
+      return { ok: false, message: `Kesalahan jaringan: ${err?.message || "Tidak dapat menghubungi server."}` };
+    }
   };
 
   const markNotifikasiRead = (notifikasiId: string) => {
@@ -3953,120 +3907,80 @@ export function SipetaProvider({
   // BENDAHARA ACTIONS (VERIFIKASI ATOMIK & UANG KELUAR WAJIB FOTO)
   // ============================================================================
 
-  const verifyTransaksiPembayaran: SipetaContextValue["verifyTransaksiPembayaran"] = (
+  const verifyTransaksiPembayaran: SipetaContextValue["verifyTransaksiPembayaran"] = async (
     transaksiId,
     keputusan,
     catatan
   ) => {
-    // Bab 2 & Bab 3.3 PRD: Hanya Bendahara yang berwenang mengesahkan transaksi keuangan
     if (!currentUser || !canRoleApproveFinancialTransaction(currentUser.role)) {
       return {
         ok: false,
-        message:
-          "OTORISASI DITOLAK: Sesuai kebijakan pesantren, hanya Bendahara yang berwenang menyetujui atau menolak transaksi pembayaran.",
+        message: "OTORISASI DITOLAK: Sesuai kebijakan pesantren, hanya Bendahara yang berwenang menyetujui atau menolak transaksi pembayaran.",
       };
     }
 
-    const trx = transaksiPembayaranList.find((t) => t.id === transaksiId);
-    if (!trx) return { ok: false, message: "Transaksi tidak ditemukan." };
-    if (trx.status !== "MENUNGGU_VERIFIKASI") {
-      return {
-        ok: false,
-        message: `Transaksi ${trx.nomor_transaksi} sudah diproses sebelumnya (${trx.status}).`,
-      };
-    }
     if (keputusan === "DITOLAK" && catatan.trim().length < 4) {
       return { ok: false, message: "Catatan alasan penolakan wajib diisi." };
     }
 
-    if (keputusan === "DISETUJUI") {
-      // Periksa sisa tagihan sebelum komit atomik
-      for (const alk of trx.alokasi) {
-        const bill = tagihanList.find((b) => b.id === alk.tagihan_id);
-        if (!bill || bill.sisa_tagihan < alk.nominal_alokasi) {
-          return {
-            ok: false,
-            message: `Alokasi pada "${alk.judul_tagihan}" melebihi sisa kewajiban saat ini.`,
-          };
+    // Mode Demo: lakukan perubahan state lokal saja
+    if (authMode !== "supabase") {
+      const trx = transaksiPembayaranList.find((t) => t.id === transaksiId);
+      if (!trx) return { ok: false, message: "Transaksi tidak ditemukan." };
+      if (trx.status !== "MENUNGGU_VERIFIKASI") {
+        return { ok: false, message: `Transaksi ${trx.nomor_transaksi} sudah diproses (${trx.status}).` };
+      }
+      if (keputusan === "DISETUJUI") {
+        for (const alk of trx.alokasi) {
+          const bill = tagihanList.find((b) => b.id === alk.tagihan_id);
+          if (!bill || bill.sisa_tagihan < alk.nominal_alokasi) {
+            return { ok: false, message: `Alokasi pada "${alk.judul_tagihan}" melebihi sisa kewajiban.` };
+          }
         }
+        setTagihanList((prev) =>
+          prev.map((bill) => {
+            const alk = trx.alokasi.find((a) => a.tagihan_id === bill.id);
+            if (!alk) return bill;
+            const totalTerbayarBaru = bill.total_terbayar + alk.nominal_alokasi;
+            const sisaBaru = bill.nominal_tagihan - totalTerbayarBaru;
+            return { ...bill, total_terbayar: totalTerbayarBaru, sisa_tagihan: Math.max(0, sisaBaru), status: (sisaBaru <= 0 ? "LUNAS" : "DIBAYAR_SEBAGIAN") as StatusTagihan };
+          })
+        );
+      }
+      setTransaksiPembayaranList((prev) =>
+        prev.map((t) => t.id === transaksiId ? { ...t, status: keputusan, catatan_verifikasi: catatan } : t)
+      );
+      return { ok: true, message: `Transaksi ${trx.nomor_transaksi} berhasil ${keputusan === "DISETUJUI" ? "disetujui" : "ditolak"}.` };
+    }
+
+    try {
+      const res = await fetch("/api/keuangan/transaksi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "VERIFIKASI_PEMBAYARAN",
+          transaksi_id: transaksiId,
+          keputusan,
+          catatan,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        return { ok: false, message: data.message || "Gagal memverifikasi transaksi." };
       }
 
-      // Perbarui setiap tagihan secara atomik
-      setTagihanList((prev) =>
-        prev.map((bill) => {
-          const alk = trx.alokasi.find((a) => a.tagihan_id === bill.id);
-          if (!alk) return bill;
-          const totalTerbayarBaru = bill.total_terbayar + alk.nominal_alokasi;
-          const sisaBaru = bill.nominal_tagihan - totalTerbayarBaru;
-          const statusBaru: StatusTagihan = sisaBaru <= 0 ? "LUNAS" : "DIBAYAR_SEBAGIAN";
-          return {
-            ...bill,
-            total_terbayar: totalTerbayarBaru,
-            sisa_tagihan: Math.max(0, sisaBaru),
-            status: statusBaru,
-          };
-        })
-      );
+      await refreshFromSupabase();
+      return {
+        ok: true,
+        message: data.message || `Transaksi berhasil ${keputusan === "DISETUJUI" ? "disetujui dan tagihan diperbarui" : "ditolak"}.`,
+      };
+    } catch (err: any) {
+      return { ok: false, message: `Kesalahan jaringan: ${err?.message || "Tidak dapat menghubungi server."}` };
     }
-
-    setTransaksiPembayaranList((prev) =>
-      prev.map((t) =>
-        t.id === transaksiId
-          ? {
-            ...t,
-            status: keputusan,
-            verified_by_nama: currentUser.nama_lengkap,
-            verified_at: new Date().toISOString(),
-            catatan_verifikasi:
-              catatan.trim() ||
-              (keputusan === "DISETUJUI"
-                ? "Bukti transfer sah dan dana telah diterima."
-                : "Ditolak oleh Bendahara."),
-          }
-          : t
-      )
-    );
-
-    notifyWaliOfSantri(
-      trx.santri_id,
-      keputusan === "DISETUJUI" ? "PEMBAYARAN_DISETUJUI" : "PEMBAYARAN_DITOLAK",
-      keputusan === "DISETUJUI"
-        ? `Pembayaran Disetujui (${trx.nomor_transaksi})`
-        : `Pembayaran Ditolak (${trx.nomor_transaksi})`,
-      keputusan === "DISETUJUI"
-        ? `Pembayaran sebesar Rp ${trx.total_nominal.toLocaleString(
-          "id-ID"
-        )} telah diverifikasi dan kewajiban tagihan telah diperbarui.`
-        : `Pengajuan pembayaran ${trx.nomor_transaksi} ditolak. Catatan: ${catatan}`,
-      "/wali/pembayaran"
-    );
-
-    appendAuditLog(
-      `VERIFIKASI_PEMBAYARAN_${keputusan}`,
-      "transaksi_pembayaran",
-      trx.id,
-      { status: keputusan, total_nominal: trx.total_nominal },
-      catatan,
-      { status: trx.status }
-    );
-
-    if (authMode === "supabase") {
-      keuanganService
-        .verifikasiPembayaran(transaksiId, keputusan, catatan.trim())
-        .then((res) => {
-          if (res.ok) refreshFromSupabase();
-        })
-        .catch(console.error);
-    }
-
-    return {
-      ok: true,
-      message: `Transaksi ${trx.nomor_transaksi} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan saldo tagihan diperbarui" : "ditolak"
-        }.`,
-    };
   };
 
-  const verifyTopupUangSaku: SipetaContextValue["verifyTopupUangSaku"] = (
+  const verifyTopupUangSaku: SipetaContextValue["verifyTopupUangSaku"] = async (
     pengajuanId,
     keputusan,
     catatan
@@ -4078,97 +3992,54 @@ export function SipetaProvider({
       };
     }
 
-    const pengajuan = pengajuanUangSakuList.find((p) => p.id === pengajuanId);
-    if (!pengajuan) return { ok: false, message: "Pengajuan uang saku tidak ditemukan." };
-    if (pengajuan.status !== "MENUNGGU_VERIFIKASI") {
-      return { ok: false, message: "Pengajuan ini sudah diverifikasi sebelumnya." };
-    }
     if (keputusan === "DITOLAK" && catatan.trim().length < 4) {
       return { ok: false, message: "Alasan penolakan wajib diisi." };
     }
 
-    if (keputusan === "DISETUJUI") {
-      const currentLedger = getSaldoSantri(pengajuan.santri_id);
-      const saldoSebelum = currentLedger.saldo_saat_ini;
-      const saldoSesudah = saldoSebelum + pengajuan.nominal;
-      const nomorMutasi = `SAK-IN-${new Date()
-        .toISOString()
-        .slice(0, 10)
-        .replace(/-/g, "")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    // Mode Demo: lakukan perubahan state lokal saja
+    if (authMode !== "supabase") {
+      const pengajuan = pengajuanUangSakuList.find((p) => p.id === pengajuanId);
+      if (!pengajuan) return { ok: false, message: "Pengajuan uang saku tidak ditemukan." };
+      if (pengajuan.status !== "MENUNGGU_VERIFIKASI") {
+        return { ok: false, message: "Pengajuan ini sudah diverifikasi sebelumnya." };
+      }
+      if (keputusan === "DISETUJUI") {
+        const currentLedger = getSaldoSantri(pengajuan.santri_id);
+        const saldoSebelum = currentLedger.saldo_saat_ini;
+        const saldoSesudah = saldoSebelum + pengajuan.nominal;
+        const nomorMutasi = `SAK-IN-${Date.now()}`;
+        const mutasiMasuk: MutasiUangSaku = { id: `mut-${Date.now()}`, nomor_transaksi: nomorMutasi, santri_id: pengajuan.santri_id, jenis_mutasi: "MASUK", nominal: pengajuan.nominal, saldo_sebelum: saldoSebelum, saldo_sesudah: saldoSesudah, keterangan: `${pengajuan.keterangan} (${pengajuan.nomor_pengajuan})`, pengajuan_id: pengajuan.id, petugas_nama: currentUser.nama_lengkap, created_at: new Date().toISOString() };
+        setMutasiUangSakuList((prev) => [mutasiMasuk, ...prev]);
+      }
+      setPengajuanUangSakuList((prev) => prev.map((p) => p.id === pengajuanId ? { ...p, status: keputusan, catatan_verifikasi: catatan } : p));
+      return { ok: true, message: keputusan === "DISETUJUI" ? `Top-up disetujui dan saldo santri bertambah.` : `Pengajuan top-up ditolak.` };
+    }
 
-      const mutasiMasuk: MutasiUangSaku = {
-        id: `mut-${Date.now()}`,
-        nomor_transaksi: nomorMutasi,
-        santri_id: pengajuan.santri_id,
-        jenis_mutasi: "MASUK",
-        nominal: pengajuan.nominal,
-        saldo_sebelum: saldoSebelum,
-        saldo_sesudah: saldoSesudah,
-        keterangan: `${pengajuan.keterangan} (${pengajuan.nomor_pengajuan})`,
-        pengajuan_id: pengajuan.id,
-        petugas_nama: currentUser.nama_lengkap,
-        created_at: new Date().toISOString(),
+    try {
+      const res = await fetch("/api/keuangan/transaksi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "VERIFIKASI_TOPUP",
+          pengajuan_id: pengajuanId,
+          keputusan,
+          catatan,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        return { ok: false, message: data.message || "Gagal memverifikasi pengajuan top-up." };
+      }
+
+      await refreshFromSupabase();
+      return {
+        ok: true,
+        message: data.message || `Pengajuan top-up berhasil ${keputusan === "DISETUJUI" ? "disetujui dan saldo santri ditambahkan" : "ditolak"}.`,
       };
-
-      setMutasiUangSakuList((prev) => [mutasiMasuk, ...prev]);
+    } catch (err: any) {
+      return { ok: false, message: `Kesalahan jaringan: ${err?.message || "Tidak dapat menghubungi server."}` };
     }
-
-    setPengajuanUangSakuList((prev) =>
-      prev.map((p) =>
-        p.id === pengajuanId
-          ? {
-            ...p,
-            status: keputusan,
-            verified_by_nama: currentUser.nama_lengkap,
-            verified_at: new Date().toISOString(),
-            catatan_verifikasi:
-              catatan.trim() ||
-              (keputusan === "DISETUJUI" ? "Dana uang saku diterima." : "Ditolak"),
-          }
-          : p
-      )
-    );
-
-    notifyWaliOfSantri(
-      pengajuan.santri_id,
-      keputusan === "DISETUJUI" ? "SAKU_DISETUJUI" : "SAKU_DITOLAK",
-      keputusan === "DISETUJUI"
-        ? "Pengisian Uang Saku Disetujui"
-        : "Pengajuan Uang Saku Ditolak",
-      keputusan === "DISETUJUI"
-        ? `Uang saku sebesar Rp ${pengajuan.nominal.toLocaleString(
-          "id-ID"
-        )} telah masuk ke saldo santri.`
-        : `Pengajuan uang saku ${pengajuan.nomor_pengajuan} ditolak. Catatan: ${catatan}`,
-      "/wali/uang-saku"
-    );
-
-    appendAuditLog(
-      `VERIFIKASI_TOPUP_SAKU_${keputusan}`,
-      "pengajuan_uang_saku",
-      pengajuan.id,
-      { status: keputusan, nominal: pengajuan.nominal },
-      catatan
-    );
-
-    if (authMode === "supabase") {
-      keuanganService
-        .verifikasiTopupUangSaku(pengajuanId, keputusan, catatan.trim())
-        .then((res) => {
-          if (res.ok) refreshFromSupabase();
-        })
-        .catch(console.error);
-    }
-
-    return {
-      ok: true,
-      message:
-        keputusan === "DISETUJUI"
-          ? `Top-up uang saku Rp ${pengajuan.nominal.toLocaleString(
-            "id-ID"
-          )} disetujui dan saldo santri telah bertambah.`
-          : `Pengajuan top-up uang saku telah ditolak.`,
-    };
   };
 
   const recordPenyerahanUangSaku: SipetaContextValue["recordPenyerahanUangSaku"] = (payload) => {

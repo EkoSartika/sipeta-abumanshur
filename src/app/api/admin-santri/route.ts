@@ -232,8 +232,41 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Akses ditolak: Tidak memiliki wewenang mengedit data santri." }, { status: 403 });
     }
 
-    // 1. Update data santri
+    // 1. Ambil data santri saat ini untuk validasi dan perbandingan riwayat
+    const { data: currentSantri } = await adminClient
+      .from("santri")
+      .select("id, nis, nama_lengkap, kelas_id, kamar_id, status")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!currentSantri) {
+      return NextResponse.json({ ok: false, message: "Data santri tidak ditemukan." }, { status: 404 });
+    }
+
+    // 2. Siapkan update data santri
     const updateSantriObj: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (payload.nis !== undefined) {
+      const cleanNis = String(payload.nis).trim();
+      if (!cleanNis) {
+        return NextResponse.json({ ok: false, message: "NIS tidak boleh kosong." }, { status: 400 });
+      }
+      // Validasi duplikasi NIS terhadap santri lain
+      const { data: existingNis } = await adminClient
+        .from("santri")
+        .select("id, nis")
+        .eq("nis", cleanNis)
+        .neq("id", id)
+        .maybeSingle();
+
+      if (existingNis) {
+        return NextResponse.json(
+          { ok: false, message: `NIS "${cleanNis}" sudah digunakan oleh santri lain.` },
+          { status: 400 }
+        );
+      }
+      updateSantriObj.nis = cleanNis;
+    }
+
     if (payload.nama_lengkap !== undefined) updateSantriObj.nama_lengkap = String(payload.nama_lengkap).trim();
     if (payload.tempat_lahir !== undefined) updateSantriObj.tempat_lahir = String(payload.tempat_lahir).trim();
     if (payload.tanggal_lahir !== undefined) updateSantriObj.tanggal_lahir = payload.tanggal_lahir;
@@ -253,7 +286,23 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: false, message: `Gagal memperbarui santri: ${santriErr.message}` }, { status: 400 });
     }
 
-    // 2. Update identitas keluarga & wali jika disertakan
+    // Catat mutasi penempatan jika kelas atau kamar berubah
+    if (
+      (payload.kelas_id && payload.kelas_id !== currentSantri.kelas_id) ||
+      (payload.kamar_id && payload.kamar_id !== currentSantri.kamar_id)
+    ) {
+      await adminClient.from("riwayat_penempatan_santri").insert({
+        santri_id: id,
+        kelas_lama_id: currentSantri.kelas_id,
+        kelas_baru_id: payload.kelas_id || currentSantri.kelas_id,
+        kamar_lama_id: currentSantri.kamar_id,
+        kamar_baru_id: payload.kamar_id || currentSantri.kamar_id,
+        alasan: "Pembaruan penempatan oleh Tata Usaha via menu Edit Santri",
+        petugas_id: callerUser.id,
+      });
+    }
+
+    // 3. Update identitas keluarga & wali jika disertakan
     if (payload.identitas_keluarga || payload.wali) {
       const { data: waliRecord } = await adminClient
         .from("wali_santri")
@@ -292,6 +341,18 @@ export async function PATCH(request: NextRequest) {
         }
       }
     }
+
+    // Catat Audit Log
+    await adminClient.from("audit_logs").insert({
+      user_id: callerUser.id,
+      user_role: callerProfile.role,
+      aktivitas: "UPDATE_SANTRI",
+      jenis_objek: "santri",
+      objek_id: id,
+      data_sebelum: currentSantri,
+      data_sesudah: updateSantriObj,
+      alasan_perubahan: `Pembaruan data santri (${currentSantri.nama_lengkap}) oleh ${callerProfile.role}`,
+    });
 
     return NextResponse.json({ ok: true, message: "Data santri dan wali berhasil diperbarui." });
   } catch (err: unknown) {
@@ -909,11 +970,29 @@ export async function DELETE(request: NextRequest) {
         .select("id", { count: "exact", head: true })
         .eq("santri_id", santriId);
 
+      const { count: countMengaji } = await adminClient
+        .from("perkembangan_mengaji")
+        .select("id", { count: "exact", head: true })
+        .eq("santri_id", santriId);
+
+      const { count: countPrestasi } = await adminClient
+        .from("prestasi_santri")
+        .select("id", { count: "exact", head: true })
+        .eq("santri_id", santriId);
+
+      const { count: countDisiplin } = await adminClient
+        .from("catatan_kedisiplinan")
+        .select("id", { count: "exact", head: true })
+        .eq("santri_id", santriId);
+
       const hasHistory =
         (countBayar ?? 0) > 0 ||
         (countTagihan ?? 0) > 0 ||
         (countUangSaku ?? 0) > 0 ||
-        (countTahfidz ?? 0) > 0;
+        (countTahfidz ?? 0) > 0 ||
+        (countMengaji ?? 0) > 0 ||
+        (countPrestasi ?? 0) > 0 ||
+        (countDisiplin ?? 0) > 0;
 
       if (hasHistory) {
         // SOFT DELETE: Ubah status menjadi TIDAK_AKTIF agar integritas keuangan terjaga
@@ -922,19 +1001,8 @@ export async function DELETE(request: NextRequest) {
           .update({ status: "TIDAK_AKTIF" })
           .eq("id", santriId);
 
-        // Nonaktifkan profil wali terkait jika ada
-        const { data: waliRecord } = await adminClient
-          .from("wali_santri")
-          .select("user_id")
-          .eq("santri_id", santriId)
-          .maybeSingle();
-
-        if (waliRecord?.user_id) {
-          await adminClient
-            .from("profiles")
-            .update({ is_active: false })
-            .eq("id", waliRecord.user_id);
-        }
+        // JANGAN nonaktifkan akun wali — satu wali mungkin memiliki lebih dari satu santri.
+        // Hanya santri yang dinonaktifkan; akun wali tetap aktif.
 
         // Catat ke Audit Log
         await adminClient.from("audit_logs").insert({
@@ -951,7 +1019,7 @@ export async function DELETE(request: NextRequest) {
         softDeactivatedCount++;
       } else {
         // HARD DELETE AMAN: Tidak ada riwayat transaksi atau keuangan
-        // 1. Hapus relasi wali_santri dan akun wali jika baru
+        // Periksa apakah akun wali masih terhubung dengan santri lain sebelum menghapus
         const { data: waliRecord } = await adminClient
           .from("wali_santri")
           .select("user_id")
@@ -959,11 +1027,23 @@ export async function DELETE(request: NextRequest) {
           .maybeSingle();
 
         if (waliRecord?.user_id) {
-          await adminClient.from("wali_santri").delete().eq("santri_id", santriId);
-          await adminClient.from("profiles").delete().eq("id", waliRecord.user_id);
-          try {
-            await adminClient.auth.admin.deleteUser(waliRecord.user_id);
-          } catch {}
+          // Periksa apakah wali ini terhubung dengan santri lain
+          const { count: waliSantriCount } = await adminClient
+            .from("wali_santri")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", waliRecord.user_id);
+
+          if ((waliSantriCount ?? 0) <= 1) {
+            // Wali hanya terhubung dengan santri ini — aman untuk dihapus seluruhnya
+            await adminClient.from("wali_santri").delete().eq("santri_id", santriId);
+            await adminClient.from("profiles").delete().eq("id", waliRecord.user_id);
+            try {
+              await adminClient.auth.admin.deleteUser(waliRecord.user_id);
+            } catch {}
+          } else {
+            // Wali terhubung dengan santri lain — hanya hapus relasi, bukan akun wali
+            await adminClient.from("wali_santri").delete().eq("santri_id", santriId);
+          }
         }
 
         // 2. Hapus riwayat penempatan santri & saldo uang saku awal

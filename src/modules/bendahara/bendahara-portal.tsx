@@ -83,6 +83,7 @@ export function BendaharaPortal({
   };
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [catatanMap, setCatatanMap] = useState<Record<string, string>>({});
+  const [isVerifying, setIsVerifying] = useState<string | null>(null);
 
   // State form penyerahan uang saku (Uang Keluar - Wajib Foto)
   const [selectedSantriId, setSelectedSantriId] = useState(santriList[0]?.id ?? "");
@@ -429,33 +430,41 @@ export function BendaharaPortal({
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            const res = verifyTransaksiPembayaran(
+                          disabled={isVerifying !== null}
+                          onClick={async () => {
+                            if (isVerifying) return;
+                            setIsVerifying(trx.id + "_SETUJUI");
+                            const res = await verifyTransaksiPembayaran(
                               trx.id,
                               "DISETUJUI",
                               catatanMap[trx.id] ?? "Bukti transfer sah dan nominal sesuai."
                             );
                             setFeedback({ ok: res.ok, text: res.message });
+                            setIsVerifying(null);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           <CheckCircle2 className="h-4 w-4" />
-                          Setujui Atomik
+                          {isVerifying === trx.id + "_SETUJUI" ? "Memproses..." : "Setujui Atomik"}
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            const res = verifyTransaksiPembayaran(
+                          disabled={isVerifying !== null}
+                          onClick={async () => {
+                            if (isVerifying) return;
+                            setIsVerifying(trx.id + "_TOLAK");
+                            const res = await verifyTransaksiPembayaran(
                               trx.id,
                               "DITOLAK",
                               catatanMap[trx.id] ?? ""
                             );
                             setFeedback({ ok: res.ok, text: res.message });
+                            setIsVerifying(null);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-rose-700"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           <XCircle className="h-4 w-4" />
-                          Tolak
+                          {isVerifying === trx.id + "_TOLAK" ? "Memproses..." : "Tolak"}
                         </button>
                       </div>
                     </div>
@@ -677,29 +686,37 @@ export function BendaharaPortal({
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          const res = verifyTopupUangSaku(
+                        disabled={isVerifying !== null}
+                        onClick={async () => {
+                          if (isVerifying) return;
+                          setIsVerifying(p.id + "_SETUJUI");
+                          const res = await verifyTopupUangSaku(
                             p.id,
                             "DISETUJUI",
                             catatanMap[p.id] ?? "Transfer uang saku diterima."
                           );
                           setFeedback({ ok: res.ok, text: res.message });
+                          setIsVerifying(null);
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <CheckCircle2 className="h-4 w-4" />
-                        Setujui & Tambah Saldo
+                        {isVerifying === p.id + "_SETUJUI" ? "Memproses..." : "Setujui & Tambah Saldo"}
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const res = verifyTopupUangSaku(p.id, "DITOLAK", catatanMap[p.id] ?? "");
+                        disabled={isVerifying !== null}
+                        onClick={async () => {
+                          if (isVerifying) return;
+                          setIsVerifying(p.id + "_TOLAK");
+                          const res = await verifyTopupUangSaku(p.id, "DITOLAK", catatanMap[p.id] ?? "");
                           setFeedback({ ok: res.ok, text: res.message });
+                          setIsVerifying(null);
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-rose-700"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <XCircle className="h-4 w-4" />
-                        Tolak
+                        {isVerifying === p.id + "_TOLAK" ? "Memproses..." : "Tolak"}
                       </button>
                     </div>
                   </div>
