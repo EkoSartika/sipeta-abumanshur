@@ -104,12 +104,18 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.trg_audit_profil_pesantren() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.trg_audit_profil_pesantren() TO anon, authenticated;
+
 DROP TRIGGER IF EXISTS trg_audit_profil_pesantren_logger ON public.profil_pesantren;
 CREATE TRIGGER trg_audit_profil_pesantren_logger
 AFTER INSERT OR UPDATE ON public.profil_pesantren
 FOR EACH ROW EXECUTE FUNCTION public.trg_audit_profil_pesantren();
 
 -- Inisialisasi Data Default jika tabel masih kosong (Non-destruktif: tidak menimpa data yang ada)
+-- CATATAN IDENTITAS: Nilai identitas awal (NSPP, NPSN, SK Pendirian, dan kontak resmi) merupakan
+-- nilai rujukan operasional awal yang dapat disunting dan disesuaikan langsung oleh Tata Usaha (TU)
+-- melalui portal antarmuka SIPETA (menu Pengaturan Profil Pesantren).
 -- SINKRONISASI TAHUN PELAJARAN: Jika tabel tahun_ajaran sudah memiliki baris aktif (is_active = true),
 -- gunakan nilai nama tahun ajaran tersebut daripada nilai hardcoded default.
 INSERT INTO public.profil_pesantren (
@@ -147,6 +153,10 @@ ON CONFLICT (id) DO NOTHING;
 -- Aktifkan Row Level Security (RLS) pada tabel profil_pesantren
 ALTER TABLE public.profil_pesantren ENABLE ROW LEVEL SECURITY;
 
+-- Pemberian Hak Akses (GRANT) Tabel profil_pesantren
+GRANT SELECT ON public.profil_pesantren TO anon, authenticated;
+GRANT INSERT, UPDATE ON public.profil_pesantren TO authenticated;
+
 -- Kebijakan RLS: Baca oleh publik (anon) dan seluruh pengguna terotentikasi
 DROP POLICY IF EXISTS "Profil Pesantren: dapat dibaca oleh seluruh pengguna" ON public.profil_pesantren;
 CREATE POLICY "Profil Pesantren: dapat dibaca oleh seluruh pengguna"
@@ -181,6 +191,10 @@ WITH CHECK (public.get_my_role() IN ('tu', 'admin', 'superadmin'));
 CREATE UNIQUE INDEX IF NOT EXISTS idx_single_active_tahun_ajaran
 ON public.tahun_ajaran ((is_active))
 WHERE is_active = true;
+
+-- Pemberian Hak Akses (GRANT) Tabel tahun_ajaran
+GRANT SELECT ON public.tahun_ajaran TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.tahun_ajaran TO authenticated;
 
 -- Hapus SEMUA policy lama pada tahun_ajaran guna menghindari kontaminasi izin PERMISSIVE (OR)
 DROP POLICY IF EXISTS "Master Kelas/Kamar/TahunAjaran: baca oleh akun aktif berwenang" ON public.tahun_ajaran;
@@ -249,6 +263,9 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+REVOKE EXECUTE ON FUNCTION public.prevent_direct_tahun_ajaran_active_update() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.prevent_direct_tahun_ajaran_active_update() TO anon, authenticated;
 
 DROP TRIGGER IF EXISTS trg_guard_direct_tahun_ajaran_update ON public.tahun_ajaran;
 CREATE TRIGGER trg_guard_direct_tahun_ajaran_update
@@ -362,6 +379,9 @@ DROP TRIGGER IF EXISTS trg_audit_tahun_ajaran_logger ON public.tahun_ajaran;
 CREATE TRIGGER trg_audit_tahun_ajaran_logger
 AFTER UPDATE ON public.tahun_ajaran
 FOR EACH ROW EXECUTE FUNCTION public.trg_audit_tahun_ajaran();
+
+REVOKE EXECUTE ON FUNCTION public.trg_audit_tahun_ajaran() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.trg_audit_tahun_ajaran() TO anon, authenticated;
 
 
 -- ----------------------------------------------------------------------------

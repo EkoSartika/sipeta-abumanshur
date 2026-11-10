@@ -255,7 +255,7 @@ describe("SIPETA Migration 015: Profil Pesantren & Tahun Pelajaran Audit", () =>
       expect(activeRows.rows.length).toBe(1);
       expect(activeRows.rows[0].id).toBe('22222222-2222-2222-2222-222222222222');
 
-      // 8. Verifikasi: Pengguna tanpa hak akses (misal role 'wali' atau unauthenticated) DITOLAK
+      // 8. Verifikasi: Pengguna tanpa hak akses (role 'wali') DITOLAK
       await db.query(`UPDATE profiles SET role = 'wali' WHERE id = '00000000-0000-0000-0000-000000000099'`);
       let unauthorizedError = false;
       try {
@@ -266,12 +266,39 @@ describe("SIPETA Migration 015: Profil Pesantren & Tahun Pelajaran Audit", () =>
       }
       expect(unauthorizedError).toBe(true);
 
-      // Kembalikan ke role 'tu'
-      await db.query(`UPDATE profiles SET role = 'tu' WHERE id = '00000000-0000-0000-0000-000000000099'`);
+      // 9. Verifikasi: RPC resmi BERHASIL oleh role 'admin' (Pengasuh)
+      await db.query(`UPDATE profiles SET role = 'admin' WHERE id = '00000000-0000-0000-0000-000000000099'`);
+      const adminRpcRes: any = await db.query(
+        `SELECT rpc_set_active_tahun_ajaran('11111111-1111-1111-1111-111111111111'::UUID) as res`
+      );
+      expect(adminRpcRes.rows[0].res.success).toBe(true);
+      expect(adminRpcRes.rows[0].res.tahun_ajaran_nama).toBe('2025/2026');
 
-      // 9. Verifikasi: Audit logs tercatat lengkap
+      // 10. Verifikasi: RPC resmi BERHASIL oleh role 'superadmin'
+      await db.query(`UPDATE profiles SET role = 'superadmin' WHERE id = '00000000-0000-0000-0000-000000000099'`);
+      const superadminRpcRes: any = await db.query(
+        `SELECT rpc_set_active_tahun_ajaran('22222222-2222-2222-2222-222222222222'::UUID) as res`
+      );
+      expect(superadminRpcRes.rows[0].res.success).toBe(true);
+      expect(superadminRpcRes.rows[0].res.tahun_ajaran_nama).toBe('2026/2027 Ganjil');
+
+      // 11. Verifikasi: Unique Index Menjamin Tepat 1 Tahun Pelajaran Aktif
+      let uniqueIndexViolation = false;
+      try {
+        // Coba insert tahun ajaran baru dengan is_active = true langsung
+        await db.query(`
+          INSERT INTO tahun_ajaran (id, nama, is_active)
+          VALUES ('33333333-3333-3333-3333-333333333333', '2027/2028', true)
+        `);
+      } catch (e: any) {
+        uniqueIndexViolation = true;
+        expect(e.message).toContain("duplicate key value violates unique constraint");
+      }
+      expect(uniqueIndexViolation).toBe(true);
+
+      // 12. Verifikasi: Audit logs tercatat lengkap
       const auditRows: any = await db.query(`SELECT aktivitas, jenis_objek FROM audit_logs ORDER BY waktu ASC`);
-      expect(auditRows.rows.length).toBeGreaterThanOrEqual(3);
+      expect(auditRows.rows.length).toBeGreaterThanOrEqual(4);
       const activities = auditRows.rows.map((r: any) => r.aktivitas);
       expect(activities).toContain('INSERT_PROFIL_PESANTREN');
       expect(activities).toContain('UPDATE_PROFIL_PESANTREN');
