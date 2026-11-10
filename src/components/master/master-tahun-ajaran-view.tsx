@@ -295,12 +295,12 @@ export function MasterTahunAjaranView() {
                           </button>
                         )}
 
-                        {!ta.is_active && (currentUser?.role === "superadmin" || currentUser?.role === "admin") && (
+                        {!ta.is_active && currentUser?.role === "superadmin" && (
                           <button
                             type="button"
                             onClick={() => handleDelete(ta.id, ta.nama)}
                             className="p-1.5 text-slate-400 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition"
-                            title="Hapus Tahun Pelajaran"
+                            title="Hapus Tahun Pelajaran (Hanya Superadmin, khusus master kosong tanpa relasi)"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -582,3 +582,4 @@ export function MasterTahunAjaranView() {
     </div>
   );
 }
+

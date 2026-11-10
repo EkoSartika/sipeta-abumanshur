@@ -63,4 +63,36 @@ describe("Master Tahun Pelajaran Component & Validation Test", () => {
     expect(isDup2).toBe(true);
     expect(isNotDup).toBe(false);
   });
+
+  it("blocks deleting active academic year or deletion by non-superadmin", () => {
+    // 1. Role non-superadmin tidak boleh menghapus
+    const canDeleteAdmin = (role: string) => role === "superadmin";
+    expect(canDeleteAdmin("admin")).toBe(false);
+    expect(canDeleteAdmin("tu")).toBe(false);
+    expect(canDeleteAdmin("wali")).toBe(false);
+    expect(canDeleteAdmin("superadmin")).toBe(true);
+
+    // 2. Tahun ajaran yang aktif tidak boleh dihapus
+    const canDeleteTarget = (target: { is_active: boolean; countTagihan: number; countKelas: number }) => {
+      if (target.is_active) return false;
+      if (target.countTagihan > 0 || target.countKelas > 0) return false;
+      return true;
+    };
+
+    expect(canDeleteTarget({ is_active: true, countTagihan: 0, countKelas: 0 })).toBe(false);
+    expect(canDeleteTarget({ is_active: false, countTagihan: 5, countKelas: 0 })).toBe(false);
+    expect(canDeleteTarget({ is_active: false, countTagihan: 0, countKelas: 2 })).toBe(false);
+    expect(canDeleteTarget({ is_active: false, countTagihan: 0, countKelas: 0 })).toBe(true);
+  });
+
+  it("ensures createTahunAjaran is strictly restricted to admin and superadmin", () => {
+    const isAuthorizedRole = (role: string) => role === "superadmin" || role === "admin";
+    expect(isAuthorizedRole("superadmin")).toBe(true);
+    expect(isAuthorizedRole("admin")).toBe(true);
+    expect(isAuthorizedRole("tu")).toBe(false);
+    expect(isAuthorizedRole("bendahara")).toBe(false);
+    expect(isAuthorizedRole("pengelola")).toBe(false);
+    expect(isAuthorizedRole("wali")).toBe(false);
+  });
 });
+

@@ -121,6 +121,35 @@ export class AdministrasiService {
     }
 
     try {
+      // 1. Cek keberadaan dan status aktif tahun pelajaran
+      const { data: target, error: fetchErr } = await this.client
+        .from("tahun_ajaran")
+        .select("id, nama, is_active")
+        .eq("id", tahunAjaranId)
+        .maybeSingle();
+
+      if (fetchErr || !target) {
+        return { ok: false, message: "Tahun pelajaran tidak ditemukan di database." };
+      }
+
+      if (target.is_active) {
+        return { ok: false, message: "Akses ditolak: Tahun pelajaran yang sedang aktif tidak boleh dihapus." };
+      }
+
+      // 2. Proteksi Integritas Relasi: Cek relasi data akademik, kelas, atau transaksi
+      const [{ count: countTagihan }, { count: countKelas }] = await Promise.all([
+        this.client.from("tagihan").select("*", { count: "exact", head: true }).eq("tahun_ajaran_id", tahunAjaranId),
+        this.client.from("kelas_santri").select("*", { count: "exact", head: true }).eq("tahun_ajaran_id", tahunAjaranId),
+      ]);
+
+      if ((countTagihan ?? 0) > 0 || (countKelas ?? 0) > 0) {
+        return {
+          ok: false,
+          message: `Penghapusan ditolak demi integritas data: Tahun pelajaran "${target.nama}" telah terhubung dengan data tagihan (${countTagihan || 0}) atau kelas santri (${countKelas || 0}). Gunakan status non-aktif sebagai arsip.`,
+        };
+      }
+
+      // 3. Eksekusi penghapusan (hanya untuk master tahun ajaran kosong tanpa referensi)
       const { error } = await this.client
         .from("tahun_ajaran")
         .delete()
@@ -130,7 +159,7 @@ export class AdministrasiService {
         return { ok: false, message: error.message };
       }
 
-      return { ok: true, message: "Tahun pelajaran berhasil dihapus." };
+      return { ok: true, message: `Tahun pelajaran "${target.nama}" berhasil dihapus.` };
     } catch (err) {
       return {
         ok: false,

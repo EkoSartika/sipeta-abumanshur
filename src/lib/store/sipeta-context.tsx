@@ -1547,6 +1547,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createTahunAjaran: SipetaContextValue["createTahunAjaran"] = async (payload) => {
+    if (currentUser && currentUser.role !== "superadmin" && currentUser.role !== "admin") {
+      return { ok: false, message: "Akses ditolak: Hanya Admin dan Superadmin yang berwenang menambahkan master tahun pelajaran." };
+    }
+
     const cleanNama = payload.nama.trim();
     if (!cleanNama) {
       return { ok: false, message: "Nama tahun pelajaran wajib diisi." };
@@ -1588,9 +1592,13 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteTahunAjaran: SipetaContextValue["deleteTahunAjaran"] = async (id) => {
+    if (currentUser && currentUser.role !== "superadmin") {
+      return { ok: false, message: "Akses ditolak: Hanya Superadmin yang berwenang menghapus master tahun pelajaran." };
+    }
+
     const target = tahunAjaranList.find((t) => t.id === id);
     if (target?.is_active) {
-      return { ok: false, message: "Tidak dapat menghapus tahun pelajaran yang sedang aktif." };
+      return { ok: false, message: "Akses ditolak: Tidak dapat menghapus tahun pelajaran yang sedang aktif." };
     }
 
     if (isSupabaseConfigured()) {
