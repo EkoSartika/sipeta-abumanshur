@@ -43,7 +43,75 @@ CREATE TRIGGER trg_profil_pesantren_updated_at
 BEFORE UPDATE ON public.profil_pesantren
 FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Trigger audit logs untuk profil_pesantren (mencatat inisialisasi awal INSERT dan setiap mutasi UPDATE)
+CREATE OR REPLACE FUNCTION public.trg_audit_profil_pesantren()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_role public.user_role;
+BEGIN
+    v_user_id := auth.uid();
+    IF v_user_id IS NOT NULL THEN
+        SELECT role INTO v_role FROM public.profiles WHERE id = v_user_id;
+    END IF;
+
+    IF (TG_OP = 'UPDATE') THEN
+        INSERT INTO public.audit_logs (
+            user_id,
+            user_role,
+            aktivitas,
+            jenis_objek,
+            objek_id,
+            data_sebelum,
+            data_sesudah,
+            alasan_perubahan
+        ) VALUES (
+            v_user_id,
+            v_role,
+            'UPDATE_PROFIL_PESANTREN',
+            'profil_pesantren',
+            NEW.id::text,
+            to_jsonb(OLD),
+            to_jsonb(NEW),
+            'Pembaruan profil resmi pesantren dan/atau tahun ajaran aktif'
+        );
+        RETURN NEW;
+    ELSIF (TG_OP = 'INSERT') THEN
+        INSERT INTO public.audit_logs (
+            user_id,
+            user_role,
+            aktivitas,
+            jenis_objek,
+            objek_id,
+            data_sesudah,
+            alasan_perubahan
+        ) VALUES (
+            v_user_id,
+            v_role,
+            'INSERT_PROFIL_PESANTREN',
+            'profil_pesantren',
+            NEW.id::text,
+            to_jsonb(NEW),
+            'Inisialisasi record profil resmi pesantren'
+        );
+        RETURN NEW;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_audit_profil_pesantren_logger ON public.profil_pesantren;
+CREATE TRIGGER trg_audit_profil_pesantren_logger
+AFTER INSERT OR UPDATE ON public.profil_pesantren
+FOR EACH ROW EXECUTE FUNCTION public.trg_audit_profil_pesantren();
+
 -- Inisialisasi Data Default jika tabel masih kosong (Non-destruktif: tidak menimpa data yang ada)
+-- SINKRONISASI TAHUN PELAJARAN: Jika tabel tahun_ajaran sudah memiliki baris aktif (is_active = true),
+-- gunakan nilai nama tahun ajaran tersebut daripada nilai hardcoded default.
 INSERT INTO public.profil_pesantren (
     id, nama_resmi, nspp, npsn, akreditasi, sk_pendirian, alamat,
     kelurahan, kecamatan, kabupaten_kota, provinsi, kode_pos,
@@ -67,10 +135,14 @@ SELECT
     'sekretariat@abumanshur.sch.id',
     'https://abumanshur.sch.id',
     'Kyai Abu Manshur',
-    '2026/2027',
+    COALESCE(
+        (SELECT ta.nama FROM public.tahun_ajaran ta WHERE ta.is_active = true ORDER BY ta.created_at DESC LIMIT 1),
+        '2024/2025'
+    ),
     'Ganjil',
     'Pondok Pesantren Modern Abu Manshur berkomitmen mendidik santri berakhlak mulia, unggul dalam ilmu agama (tahfidz & kitab), dan cakap dalam ilmu pengetahuan umum serta bahasa.'
-WHERE NOT EXISTS (SELECT 1 FROM public.profil_pesantren);
+WHERE NOT EXISTS (SELECT 1 FROM public.profil_pesantren)
+ON CONFLICT (id) DO NOTHING;
 
 -- Aktifkan Row Level Security (RLS) pada tabel profil_pesantren
 ALTER TABLE public.profil_pesantren ENABLE ROW LEVEL SECURITY;
@@ -167,8 +239,10 @@ BEGIN
         -- Periksa call stack internal PL/pgSQL
         GET DIAGNOSTICS v_context = PG_CONTEXT;
 
-        -- Mutasi is_active HANYA diizinkan jika dieksekusi dari dalam fungsi rpc_set_active_tahun_ajaran
-        IF v_context NOT LIKE '%rpc_set_active_tahun_ajaran%' THEN
+        -- Mutasi is_active HANYA diizinkan jika dieksekusi dari dalam fungsi rpc_set_active_tahun_ajaran.
+        -- Validasi ketat pola call stack resmi PL/pgSQL:
+        -- Mencegah bypass dari fungsi liar bernama parsial atau schema asing.
+        IF v_context !~ '(^|\n)PL/pgSQL function (public\.)?rpc_set_active_tahun_ajaran\(' THEN
             RAISE EXCEPTION 'Akses ditolak: Status aktif tahun pelajaran HANYA dapat diubah melalui rpc_set_active_tahun_ajaran(). UPDATE langsung dilarang.';
         END IF;
     END IF;
@@ -192,33 +266,40 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+    v_operator_id UUID;
     v_role public.user_role;
     v_tahun_nama TEXT;
 BEGIN
-    -- 1. Verifikasi Role Otoritatif: TU, Admin (Pengasuh), dan Superadmin
+    -- 1. Verifikasi Autentikasi Pengguna
+    v_operator_id := auth.uid();
+    IF v_operator_id IS NULL THEN
+        RAISE EXCEPTION 'Akses ditolak: Pengguna tidak terautentikasi.';
+    END IF;
+
+    -- 2. Verifikasi Role Otoritatif: TU, Admin (Pengasuh), dan Superadmin
     v_role := public.get_my_role();
-    IF v_role NOT IN ('tu', 'admin', 'superadmin') THEN
+    IF v_role IS NULL OR v_role NOT IN ('tu', 'admin', 'superadmin') THEN
         RAISE EXCEPTION 'Akses ditolak: Hanya Tata Usaha (TU), Pengasuh (Admin), atau Superadmin yang berwenang mengaktifkan tahun pelajaran.';
     END IF;
 
-    -- 2. Validasi keberadaan tahun ajaran target
+    -- 3. Validasi keberadaan tahun ajaran target
     SELECT nama INTO v_tahun_nama FROM public.tahun_ajaran WHERE id = p_tahun_ajaran_id;
     IF v_tahun_nama IS NULL THEN
         RAISE EXCEPTION 'Tahun pelajaran dengan ID % tidak ditemukan.', p_tahun_ajaran_id;
     END IF;
 
-    -- 3. Nonaktifkan semua tahun ajaran lain (transaksi atomik)
+    -- 4. Nonaktifkan semua tahun ajaran lain (transaksi atomik)
     UPDATE public.tahun_ajaran SET is_active = false WHERE is_active = true;
 
-    -- 4. Aktifkan tahun ajaran target
+    -- 5. Aktifkan tahun ajaran target
     UPDATE public.tahun_ajaran SET is_active = true WHERE id = p_tahun_ajaran_id;
 
-    -- 5. Sinkronkan nama tahun ajaran aktif ke tabel profil_pesantren
+    -- 6. Sinkronkan nama tahun ajaran aktif ke tabel profil_pesantren
     UPDATE public.profil_pesantren
     SET tahun_pelajaran_aktif = v_tahun_nama,
         updated_at = now(),
-        updated_by = auth.uid()
-    WHERE true;
+        updated_by = v_operator_id
+    WHERE id = '00000000-0000-0000-0000-000000000001'::UUID;
 
     RETURN jsonb_build_object(
         'success', true,
@@ -235,73 +316,8 @@ GRANT EXECUTE ON FUNCTION public.rpc_set_active_tahun_ajaran(UUID) TO authentica
 
 
 -- ----------------------------------------------------------------------------
--- 5. TRIGGER AUDIT LOGS DATABASE LEVEL (SECURITY DEFINER)
+-- 5. TRIGGER AUDIT LOGS DATABASE LEVEL: TAHUN AJARAN (SECURITY DEFINER)
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.trg_audit_profil_pesantren()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-    v_user_id UUID;
-    v_role public.user_role;
-BEGIN
-    v_user_id := auth.uid();
-    IF v_user_id IS NOT NULL THEN
-        SELECT role INTO v_role FROM public.profiles WHERE id = v_user_id;
-    END IF;
-
-    IF (TG_OP = 'UPDATE') THEN
-        INSERT INTO public.audit_logs (
-            user_id,
-            user_role,
-            aktivitas,
-            jenis_objek,
-            objek_id,
-            data_sebelum,
-            data_sesudah,
-            alasan_perubahan
-        ) VALUES (
-            v_user_id,
-            v_role,
-            'UPDATE_PROFIL_PESANTREN',
-            'profil_pesantren',
-            NEW.id::text,
-            to_jsonb(OLD),
-            to_jsonb(NEW),
-            'Pembaruan profil resmi pesantren dan/atau tahun ajaran aktif'
-        );
-        RETURN NEW;
-    ELSIF (TG_OP = 'INSERT') THEN
-        INSERT INTO public.audit_logs (
-            user_id,
-            user_role,
-            aktivitas,
-            jenis_objek,
-            objek_id,
-            data_sesudah,
-            alasan_perubahan
-        ) VALUES (
-            v_user_id,
-            v_role,
-            'INSERT_PROFIL_PESANTREN',
-            'profil_pesantren',
-            NEW.id::text,
-            to_jsonb(NEW),
-            'Inisialisasi record profil resmi pesantren'
-        );
-        RETURN NEW;
-    END IF;
-    RETURN NULL;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_audit_profil_pesantren_logger ON public.profil_pesantren;
-CREATE TRIGGER trg_audit_profil_pesantren_logger
-AFTER INSERT OR UPDATE ON public.profil_pesantren
-FOR EACH ROW EXECUTE FUNCTION public.trg_audit_profil_pesantren();
-
 CREATE OR REPLACE FUNCTION public.trg_audit_tahun_ajaran()
 RETURNS TRIGGER
 LANGUAGE plpgsql

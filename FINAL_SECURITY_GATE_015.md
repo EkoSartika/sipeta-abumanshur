@@ -1,60 +1,43 @@
-# LAPORAN PERBAIKAN SINTAKS & FINAL SECURITY GATE — MIGRASI 015
-## Audit Sintaks SQL Editor, Eliminasi Static Salt, & Validasi Engine PostgreSQL
+# LAPORAN PEMERIKSAAN FINAL & AUDIT KEAMANAN MIGRASI 015
+## Sinkronisasi Otomatis Tahun Ajaran Awal, Stack Pattern Guard PG_CONTEXT, & Validasi PostgreSQL Engine
 
 **Pondok Pesantren Modern Abu Manshur — Cirebon**  
-**Tanggal Audit & Perbaikan:** 10 November 2026  
-**Status Naskah Migrasi:** **SYNTAX VERIFIED, TESTED & READY TO EXECUTE**  
-**Eksekusi Cloud:** **DITAHAN SECARA LOKAL (TIDAK DIJALANKAN KE SUPABASE CLOUD)**  
+**Tanggal Verifikasi:** 10 November 2026  
+**Status Naskah Migrasi:** **AUDITED, HARDENED, TESTED & FINAL READY TO EXECUTE**  
+**Kondisi Eksekusi Cloud:** **DITAHAN SECARA LOKAL (TIDAK DIJALANKAN OTOMATIS KE SUPABASE CLOUD)**  
 **File Target:** `supabase/migrations/015_profil_pesantren.sql`
 
 ---
 
-## 1. Penyebab Error Sintaks & Bagian yang Diperbaiki
+## 1. Sinkronisasi Tahun Pelajaran Awal & Proteksi Idempotensi
 
-### A. Analisis Akar Masalah (Root Cause)
-Pesan error saat eksekusi di Supabase SQL Editor:
-```text
-ERROR: 42601: syntax error at or near "'tahun_ajaran_id'"
-LINE 283: 'tahun_ajaran_id', p_tahun_ajaran_id,
-```
-**Penyebab:**  
-Pada deklarasi fungsi `public.rpc_set_active_tahun_ajaran()`, terdapat duplikasi blok penutup fungsi pada baris 280–287. Fungsi telah ditutup secara sah pada baris 281–282 dengan:
-```sql
-    RETURN jsonb_build_object(
-        'success', true,
-        'message', 'Tahun pelajaran aktif berhasil diperbarui ke ' || v_tahun_nama,
-        'tahun_ajaran_id', p_tahun_ajaran_id,
-        'tahun_ajaran_nama', v_tahun_nama
-    );
-END;
-$$;
-```
-Namun, di bawah `$$;` (baris 283–287) terdapat sisa teks yang tertinggal dari riwayat modifikasi sebelumnya:
-```sql
-        'tahun_ajaran_id', p_tahun_ajaran_id,
-        'tahun_ajaran_nama', v_tahun_nama
-    );
-END;
-$$;
-```
-Karena baris tersebut berada di luar blok fungsi PL/pgSQL, PostgreSQL memperlakukannya sebagai ekspresi SQL mandiri, sehingga memicu `ERROR 42601 (syntax error)`.
+Sesuai instruksi nomor 1, inisialisasi awal tabel `public.profil_pesantren` telah disempurnakan:
 
-### B. Tindakan Perbaikan
-- Blok baris 283–287 yang berlebih telah **dibersihkan sepenuhnya**.
-- Seluruh tanda kurung, koma argumen, dan blok PL/pgSQL telah diperiksa ulang dan divalidasi valid.
+### A. Dynamic Initial Adoption dari `tahun_ajaran` Aktif
+- **Mekanisme Baru:** Kolom `tahun_pelajaran_aktif` tidak lagi menggunakan nilai statis jika tabel `tahun_ajaran` telah memiliki record dengan `is_active = true`.
+  ```sql
+  COALESCE(
+      (SELECT ta.nama FROM public.tahun_ajaran ta WHERE ta.is_active = true ORDER BY ta.created_at DESC LIMIT 1),
+      '2024/2025'
+  )
+  ```
+- **Prinsip Non-Destruktif:** Kueri ini bersifat *read-only* murni terhadap tabel `tahun_ajaran`. Tidak ada record `tahun_ajaran` produksi yang diubah, dihapus, atau dibuat saat migrasi berjalan.
+- **Fallback Terkendali:** Apabila tabel `tahun_ajaran` dalam kondisi kosong atau belum ada tahun ajaran aktif, sistem secara aman menggunakan fallback `'2024/2025'`.
+
+### B. Proteksi Idempotensi (Re-run Safety)
+- Klausa inisialisasi:
+  ```sql
+  WHERE NOT EXISTS (SELECT 1 FROM public.profil_pesantren)
+  ON CONFLICT (id) DO NOTHING;
+  ```
+- **Jaminan Konsistensi:** Jika naskah migrasi dijalankan ulang (misal saat perbaikan skema atau deployment ulang CI/CD), baris `profil_pesantren` yang sudah ada (termasuk alamat pesantren, NSPP, telepon, atau kontak yang sudah diubah staf TU) **TIDAK AKAN TERTINDIS ATAU TERHAPUS**.
 
 ---
 
-## 2. Peningkatan Mekanisme Keamanan: Eliminasi Static Salt
+## 2. Audit Keamanan Trigger PG_CONTEXT & Validasi Stack Frame
 
-Sesuai instruksi nomor 8 (*"Jangan mengandalkan signature MD5 dengan salt statis yang tertulis di SQL sebagai mekanisme autentikasi"*), mekanisme otorisasi internal telah direkayasa ulang menggunakan arsitektur asli PostgreSQL yang jauh lebih kuat:
-
-### Masalah pada Mekanisme Lama:
-Mekanisme sebelumnya menggunakan token hash `md5(id || '::SIPETA_INTERNAL_SECURE_TOKEN::' || nonce)`. Karena string salt tertulis di file SQL, siapa pun yang membaca skrip migrasi secara teoritis mengetahui salt tersebut.
-
-### Solusi Rekayasa Baru (Native Call Stack Inspection):
-Alih-alih mengandalkan static salt atau parameter sesi custom GUC yang dapat diisi oleh pihak luar, trigger guard kini menggunakan fitur bawaan engine PL/pgSQL: **`GET DIAGNOSTICS v_context = PG_CONTEXT;`**.
-
+### A. Mitigasi Bypass Fungsi Liar & Pola Regex PL/pgSQL
+Pada fungsi `prevent_direct_tahun_ajaran_active_update()`, pemeriksaan nama fungsi diperketat menggunakan pencocokan ekspresi reguler (*regular expression*) POSIX:
 ```sql
 CREATE OR REPLACE FUNCTION public.prevent_direct_tahun_ajaran_active_update()
 RETURNS TRIGGER
@@ -66,11 +49,11 @@ DECLARE
     v_context TEXT;
 BEGIN
     IF (OLD.is_active IS DISTINCT FROM NEW.is_active) THEN
-        -- Periksa call stack internal PL/pgSQL engine
         GET DIAGNOSTICS v_context = PG_CONTEXT;
 
-        -- Mutasi is_active HANYA sah jika dipanggil dari dalam rpc_set_active_tahun_ajaran
-        IF v_context NOT LIKE '%rpc_set_active_tahun_ajaran%' THEN
+        -- Validasi ketat format stack frame PostgreSQL:
+        -- Pola: line diawali "PL/pgSQL function [public.]rpc_set_active_tahun_ajaran("
+        IF v_context !~ '(^|\n)PL/pgSQL function (public\.)?rpc_set_active_tahun_ajaran\(' THEN
             RAISE EXCEPTION 'Akses ditolak: Status aktif tahun pelajaran HANYA dapat diubah melalui rpc_set_active_tahun_ajaran(). UPDATE langsung dilarang.';
         END IF;
     END IF;
@@ -79,45 +62,81 @@ END;
 $$;
 ```
 
-### Keunggulan Mekanisme Baru:
-1. **Kebal Manipulasi Parameter:** Tidak ada parameter sesi, GUC, atau header HTTP yang dapat dimanipulasi oleh penyerang.
-2. **Tanpa Hardcoded Secret:** Tidak ada salt, secret string, atau token yang disimpan di dalam kode SQL.
-3. **Pemeriksaan Internal Engine:** Stack trace di-generate langsung oleh PostgreSQL runtime dan **mustahil dipalsukan** oleh query luar.
-4. **Bersih & Bebas Efek Samping:** Tidak ada parameter sesi yang perlu dibersihkan saat exception atau transaksi selesai.
-5. **Exception-Safe 100%:** Aman dari kebocoran status koneksi pada pooling (*PgBouncer / Supabase connection pooler*).
+**Analisis Vektor Serangan & Hasil Pengujian:**
+1. **UPDATE Langsung dari SQL Editor / API Publik:** Call stack tidak mengandung frame RPC resmi. `v_context !~ ...` bernilai `true` -> **DITOLAK DENGAN EXCEPTION**.
+2. **Panggilan dari Fungsi Liar (misal `fake_rpc_set_active_tahun_ajaran`):** Stack frame mencatat `PL/pgSQL function public.fake_rpc_set_active_tahun_ajaran()`. Karena diawali dengan prefix `fake_`, pola regex menolak -> **DITOLAK**.
+3. **Panggilan dari Schema di luar `public` (misal `attacker.rpc_set_active_tahun_ajaran`):** Stack frame mencatat `attacker.rpc_set_active_tahun_ajaran()`. Karena pola hanya mengizinkan `(public\.)?`, schema asing langsung -> **DITOLAK**.
+4. **Panggilan Fungsi dengan Akhiran Ekstra (misal `rpc_set_active_tahun_ajaran_bypass()`):** Karakter `\(` setelah nama fungsi mewajibkan tanda kurung buka langsung setelah nama resmi -> **DITOLAK**.
+5. **Eksekusi RPC Resmi `public.rpc_set_active_tahun_ajaran()`:** Stack frame mencatat `PL/pgSQL function public.rpc_set_active_tahun_ajaran(uuid)` -> **LOLOS VALIDASI**.
+
+### B. Proteksi Logika Tiga Nilai SQL (Three-Valued Logic NULL Defense)
+Pada RPC `public.rpc_set_active_tahun_ajaran()`, validasi identitas pemanggil diperkuat:
+```sql
+-- 1. Verifikasi Autentikasi Pengguna
+v_operator_id := auth.uid();
+IF v_operator_id IS NULL THEN
+    RAISE EXCEPTION 'Akses ditolak: Pengguna tidak terautentikasi.';
+END IF;
+
+-- 2. Verifikasi Role Otoritatif: TU, Admin (Pengasuh), dan Superadmin
+v_role := public.get_my_role();
+IF v_role IS NULL OR v_role NOT IN ('tu', 'admin', 'superadmin') THEN
+    RAISE EXCEPTION 'Akses ditolak: Hanya Tata Usaha (TU), Pengasuh (Admin), atau Superadmin yang berwenang mengaktifkan tahun pelajaran.';
+END IF;
+```
+- Menutup celah di mana pengguna tanpa baris profil (`v_role` bernilai `NULL`) dapat meloloskan pemeriksaan `IF v_role NOT IN (...)` (karena `NULL NOT IN (...)` bernilai `NULL` yang tidak mengeksekusi blok IF).
+- Dengan penambahan `v_role IS NULL OR ...`, akun tidak valid langsung diblokir.
+
+### C. Search Path & Kualifikasi Schema Otoritatif
+- Seluruh fungsi `SECURITY DEFINER` (`prevent_direct_tahun_ajaran_active_update`, `rpc_set_active_tahun_ajaran`, `trg_audit_profil_pesantren`, `trg_audit_tahun_ajaran`) dideklarasikan secara eksplisit dengan:
+  ```sql
+  SET search_path = public, pg_temp;
+  ```
+- Seluruh tabel (`public.profil_pesantren`, `public.tahun_ajaran`, `public.audit_logs`, `public.profiles`) dan fungsi (`public.get_my_role()`, `auth.uid()`) dikualifikasikan schema secara penuh untuk mencegah serangan *search_path shadowing*.
+
+### D. Konsistensi RLS, GRANT, dan REVOKE
+| Objek / Fitur | Hak Akses (GRANT / REVOKE) | Kebijakan Row Level Security (RLS) | Status Keamanan |
+|:---|:---|:---|:---:|
+| `public.profil_pesantren` (SELECT) | `anon`, `authenticated` | `USING (true)` (Dapat dibaca semua pihak untuk profil & login screen) | **TERVERIFIKASI** |
+| `public.profil_pesantren` (UPDATE) | `authenticated` | `USING (public.get_my_role() IN ('tu', 'admin', 'superadmin'))` | **TERVERIFIKASI** |
+| `public.profil_pesantren` (INSERT) | `authenticated` | `WITH CHECK (public.get_my_role() IN ('tu', 'admin', 'superadmin'))` | **TERVERIFIKASI** |
+| `public.profil_pesantren` (DELETE) | DILARANG | **TIDAK ADA POLICY DELETE** (Kebal penghapusan via API) | **TERVERIFIKASI** |
+| `public.tahun_ajaran` (SELECT) | `anon`, `authenticated` | `USING (true)` (Akses baca master) | **TERVERIFIKASI** |
+| `public.tahun_ajaran` (UPDATE) | `authenticated` | `USING (public.get_my_role() IN ('superadmin', 'admin'))` (Metadata only, `is_active` dikunci trigger) | **TERVERIFIKASI** |
+| `public.tahun_ajaran` (INSERT) | `authenticated` | `USING (public.get_my_role() IN ('superadmin', 'admin'))` | **TERVERIFIKASI** |
+| `public.tahun_ajaran` (DELETE) | `authenticated` | `USING (public.get_my_role() = 'superadmin')` | **TERVERIFIKASI** |
+| `rpc_set_active_tahun_ajaran` | `REVOKE FROM PUBLIC; GRANT TO authenticated;` | Wajib lolos validasi role di dalam fungsi | **TERVERIFIKASI** |
 
 ---
 
-## 3. Hasil Validasi Engine PostgreSQL (PGlite) & Pengujian Otomatis
+## 3. Hasil Pengujian Eksekusi PGlite & Full Test Suite
 
-File migrasi `015_profil_pesantren.sql` telah diuji secara langsung menggunakan engine PostgreSQL nyata (@electric-sql/pglite):
+Pengujian dilakukan menggunakan engine database PostgreSQL nyata di lingkungan memori (`@electric-sql/pglite`):
 
-### Hasil Pengujian Fungsional:
-1. **Kompilasi & Parsing SQL:** Seluruh naskah `015_profil_pesantren.sql` dieksekusi dari baris `BEGIN;` hingga `COMMIT;` dengan hasil **ZERO SYNTAX ERRORS (PASS)**.
-2. **Pengujian Direct Update Terlarang:**
-   - Query: `UPDATE tahun_ajaran SET is_active = true WHERE id = '...';`
-   - Hasil: **DITOLAK DENGAN BENAR (PASS)**  
-     *Error: "Akses ditolak: Status aktif tahun pelajaran HANYA dapat diubah melalui rpc_set_active_tahun_ajaran(). UPDATE langsung dilarang."*
-3. **Pengujian Direct Update Data Master Non-is_active:**
-   - Query: `UPDATE tahun_ajaran SET nama = '2025/2026 Ganjil' WHERE id = '...';`
-   - Hasil: **BERHASIL (PASS)** (data master tetap dapat dikelola oleh admin/superadmin).
-4. **Pengujian Eksekusi via RPC Resmi:**
-   - Query: `SELECT rpc_set_active_tahun_ajaran('...') as res;`
-   - Hasil: **BERHASIL ATOMIK (PASS)**  
-     Tahun ajaran lama dinonaktifkan, tahun ajaran baru diaktifkan, dan `profil_pesantren.tahun_pelajaran_aktif` tersinkronisasi.
-5. **Jaminan Tunggal:** Jumlah baris aktif setelah RPC tepat berjumlah 1.
-6. **Audit Logs:** Log mutasi otomatis tercatat di `public.audit_logs`.
+### Matriks Pengujian Engine PostgreSQL (11 Skenario):
+1. **Eksekusi Naskah 015 Utuh:** Berhasil dieksekusi 100% tanpa error sintaks maupun konflik transaksi.
+2. **Sinkronisasi Awal Tahun Ajaran Aktif:** Profil berhasil mengadopsi tahun pelajaran aktif produksi yang telah ada (`2025/2026`) secara otomatis.
+3. **Proteksi Idempotensi Re-run:** Perubahan alamat pesantren (`Jl. Nyi Ageng Serang No. 99`) tetap dipertahankan saat naskah migrasi 015 dieksekusi ulang.
+4. **Direct UPDATE `is_active` Ditolak:** Kueri `UPDATE tahun_ajaran SET is_active = true` langsung menghasilkan error exception yang diharapkan.
+5. **Percobaan Bypass via Fake RPC Ditolak:** Pemanggilan dari `fake_rpc_set_active_tahun_ajaran` berhasil ditolak oleh stack regex inspection.
+6. **Update Metadata Non-`is_active` Berhasil:** Perubahan nama tahun pelajaran tanpa menyentuh status aktif berhasil dijalankan.
+7. **RPC Resmi Berhasil Mengganti Tahun Ajaran:** `rpc_set_active_tahun_ajaran` berhasil menonaktifkan tahun lama, mengaktifkan tahun baru, dan menyinkronkan profil.
+8. **Jaminan Tunggal Tahun Ajaran Aktif:** Tepat 1 record `tahun_ajaran` yang berstatus `is_active = true`.
+9. **Penolakan Akses Role Tidak Berwenang:** Percobaan eksekusi oleh role `wali` langsung ditolak dengan pesan otorisasi yang sesuai.
+10. **Pencatatan Audit Trail:** Audit logs merekam aktivitas `INSERT_PROFIL_PESANTREN`, `UPDATE_PROFIL_PESANTREN`, dan `UPDATE_STATUS_TAHUN_AJARAN`.
+11. **Supabase Realtime Publication:** Tabel `profil_pesantren` dan `tahun_ajaran` terdaftar pada publikasi Realtime.
 
-### Metrik Pengujian Aplikasi:
-- **TypeScript Typecheck:** `npx tsc --noEmit` -> **PASS (0 errors)**.
-- **Vitest Unit & Integration:** `npm test` -> **PASS (25/25 files, 407/407 tests)**.
-- **Next.js Production Build:** `npx next build` -> **PASS (21 routes terkompilasi optimal)**.
+### Ringkasan Pengujian Sistem:
+- **Unit & Integration Tests:** 25 file test, **407/407 passed (100% sukses)**.
+- **TypeScript Strict Check:** `npx tsc --noEmit` -> **0 errors**.
+- **Next.js Production Build:** 21/21 static & dynamic routes **terkompilasi sukses** (exit code 0).
+- **Status Database Produksi:** Data produksi dan migrasi sebelumnya (001–014) **tidak disentuh**.
 
 ---
 
-## 4. Teks SQL Final Siap Dijalankan di Supabase SQL Editor
+## 4. Naskah SQL Final Migrasi 015 (Siap Dijalankan di Supabase Cloud)
 
-Salin seluruh teks SQL di bawah ini dan jalankan langsung pada **Supabase Cloud SQL Editor**:
+Silakan salin seluruh kode SQL di bawah ini dan jalankan pada **Supabase SQL Editor**:
 
 ```sql
 -- ============================================================================
@@ -165,7 +184,75 @@ CREATE TRIGGER trg_profil_pesantren_updated_at
 BEFORE UPDATE ON public.profil_pesantren
 FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Trigger audit logs untuk profil_pesantren (mencatat inisialisasi awal INSERT dan setiap mutasi UPDATE)
+CREATE OR REPLACE FUNCTION public.trg_audit_profil_pesantren()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_role public.user_role;
+BEGIN
+    v_user_id := auth.uid();
+    IF v_user_id IS NOT NULL THEN
+        SELECT role INTO v_role FROM public.profiles WHERE id = v_user_id;
+    END IF;
+
+    IF (TG_OP = 'UPDATE') THEN
+        INSERT INTO public.audit_logs (
+            user_id,
+            user_role,
+            aktivitas,
+            jenis_objek,
+            objek_id,
+            data_sebelum,
+            data_sesudah,
+            alasan_perubahan
+        ) VALUES (
+            v_user_id,
+            v_role,
+            'UPDATE_PROFIL_PESANTREN',
+            'profil_pesantren',
+            NEW.id::text,
+            to_jsonb(OLD),
+            to_jsonb(NEW),
+            'Pembaruan profil resmi pesantren dan/atau tahun ajaran aktif'
+        );
+        RETURN NEW;
+    ELSIF (TG_OP = 'INSERT') THEN
+        INSERT INTO public.audit_logs (
+            user_id,
+            user_role,
+            aktivitas,
+            jenis_objek,
+            objek_id,
+            data_sesudah,
+            alasan_perubahan
+        ) VALUES (
+            v_user_id,
+            v_role,
+            'INSERT_PROFIL_PESANTREN',
+            'profil_pesantren',
+            NEW.id::text,
+            to_jsonb(NEW),
+            'Inisialisasi record profil resmi pesantren'
+        );
+        RETURN NEW;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_audit_profil_pesantren_logger ON public.profil_pesantren;
+CREATE TRIGGER trg_audit_profil_pesantren_logger
+AFTER INSERT OR UPDATE ON public.profil_pesantren
+FOR EACH ROW EXECUTE FUNCTION public.trg_audit_profil_pesantren();
+
 -- Inisialisasi Data Default jika tabel masih kosong (Non-destruktif: tidak menimpa data yang ada)
+-- SINKRONISASI TAHUN PELAJARAN: Jika tabel tahun_ajaran sudah memiliki baris aktif (is_active = true),
+-- gunakan nilai nama tahun ajaran tersebut daripada nilai hardcoded default.
 INSERT INTO public.profil_pesantren (
     id, nama_resmi, nspp, npsn, akreditasi, sk_pendirian, alamat,
     kelurahan, kecamatan, kabupaten_kota, provinsi, kode_pos,
@@ -189,10 +276,14 @@ SELECT
     'sekretariat@abumanshur.sch.id',
     'https://abumanshur.sch.id',
     'Kyai Abu Manshur',
-    '2026/2027',
+    COALESCE(
+        (SELECT ta.nama FROM public.tahun_ajaran ta WHERE ta.is_active = true ORDER BY ta.created_at DESC LIMIT 1),
+        '2024/2025'
+    ),
     'Ganjil',
     'Pondok Pesantren Modern Abu Manshur berkomitmen mendidik santri berakhlak mulia, unggul dalam ilmu agama (tahfidz & kitab), dan cakap dalam ilmu pengetahuan umum serta bahasa.'
-WHERE NOT EXISTS (SELECT 1 FROM public.profil_pesantren);
+WHERE NOT EXISTS (SELECT 1 FROM public.profil_pesantren)
+ON CONFLICT (id) DO NOTHING;
 
 -- Aktifkan Row Level Security (RLS) pada tabel profil_pesantren
 ALTER TABLE public.profil_pesantren ENABLE ROW LEVEL SECURITY;
@@ -289,8 +380,10 @@ BEGIN
         -- Periksa call stack internal PL/pgSQL
         GET DIAGNOSTICS v_context = PG_CONTEXT;
 
-        -- Mutasi is_active HANYA diizinkan jika dieksekusi dari dalam fungsi rpc_set_active_tahun_ajaran
-        IF v_context NOT LIKE '%rpc_set_active_tahun_ajaran%' THEN
+        -- Mutasi is_active HANYA diizinkan jika dieksekusi dari dalam fungsi rpc_set_active_tahun_ajaran.
+        -- Validasi ketat pola call stack resmi PL/pgSQL:
+        -- Mencegah bypass dari fungsi liar bernama parsial atau schema asing.
+        IF v_context !~ '(^|\n)PL/pgSQL function (public\.)?rpc_set_active_tahun_ajaran\(' THEN
             RAISE EXCEPTION 'Akses ditolak: Status aktif tahun pelajaran HANYA dapat diubah melalui rpc_set_active_tahun_ajaran(). UPDATE langsung dilarang.';
         END IF;
     END IF;
@@ -314,33 +407,40 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+    v_operator_id UUID;
     v_role public.user_role;
     v_tahun_nama TEXT;
 BEGIN
-    -- 1. Verifikasi Role Otoritatif: TU, Admin (Pengasuh), dan Superadmin
+    -- 1. Verifikasi Autentikasi Pengguna
+    v_operator_id := auth.uid();
+    IF v_operator_id IS NULL THEN
+        RAISE EXCEPTION 'Akses ditolak: Pengguna tidak terautentikasi.';
+    END IF;
+
+    -- 2. Verifikasi Role Otoritatif: TU, Admin (Pengasuh), dan Superadmin
     v_role := public.get_my_role();
-    IF v_role NOT IN ('tu', 'admin', 'superadmin') THEN
+    IF v_role IS NULL OR v_role NOT IN ('tu', 'admin', 'superadmin') THEN
         RAISE EXCEPTION 'Akses ditolak: Hanya Tata Usaha (TU), Pengasuh (Admin), atau Superadmin yang berwenang mengaktifkan tahun pelajaran.';
     END IF;
 
-    -- 2. Validasi keberadaan tahun ajaran target
+    -- 3. Validasi keberadaan tahun ajaran target
     SELECT nama INTO v_tahun_nama FROM public.tahun_ajaran WHERE id = p_tahun_ajaran_id;
     IF v_tahun_nama IS NULL THEN
         RAISE EXCEPTION 'Tahun pelajaran dengan ID % tidak ditemukan.', p_tahun_ajaran_id;
     END IF;
 
-    -- 3. Nonaktifkan semua tahun ajaran lain (transaksi atomik)
+    -- 4. Nonaktifkan semua tahun ajaran lain (transaksi atomik)
     UPDATE public.tahun_ajaran SET is_active = false WHERE is_active = true;
 
-    -- 4. Aktifkan tahun ajaran target
+    -- 5. Aktifkan tahun ajaran target
     UPDATE public.tahun_ajaran SET is_active = true WHERE id = p_tahun_ajaran_id;
 
-    -- 5. Sinkronkan nama tahun ajaran aktif ke tabel profil_pesantren
+    -- 6. Sinkronkan nama tahun ajaran aktif ke tabel profil_pesantren
     UPDATE public.profil_pesantren
     SET tahun_pelajaran_aktif = v_tahun_nama,
         updated_at = now(),
-        updated_by = auth.uid()
-    WHERE true;
+        updated_by = v_operator_id
+    WHERE id = '00000000-0000-0000-0000-000000000001'::UUID;
 
     RETURN jsonb_build_object(
         'success', true,
@@ -357,73 +457,8 @@ GRANT EXECUTE ON FUNCTION public.rpc_set_active_tahun_ajaran(UUID) TO authentica
 
 
 -- ----------------------------------------------------------------------------
--- 5. TRIGGER AUDIT LOGS DATABASE LEVEL (SECURITY DEFINER)
+-- 5. TRIGGER AUDIT LOGS DATABASE LEVEL: TAHUN AJARAN (SECURITY DEFINER)
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.trg_audit_profil_pesantren()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-    v_user_id UUID;
-    v_role public.user_role;
-BEGIN
-    v_user_id := auth.uid();
-    IF v_user_id IS NOT NULL THEN
-        SELECT role INTO v_role FROM public.profiles WHERE id = v_user_id;
-    END IF;
-
-    IF (TG_OP = 'UPDATE') THEN
-        INSERT INTO public.audit_logs (
-            user_id,
-            user_role,
-            aktivitas,
-            jenis_objek,
-            objek_id,
-            data_sebelum,
-            data_sesudah,
-            alasan_perubahan
-        ) VALUES (
-            v_user_id,
-            v_role,
-            'UPDATE_PROFIL_PESANTREN',
-            'profil_pesantren',
-            NEW.id::text,
-            to_jsonb(OLD),
-            to_jsonb(NEW),
-            'Pembaruan profil resmi pesantren dan/atau tahun ajaran aktif'
-        );
-        RETURN NEW;
-    ELSIF (TG_OP = 'INSERT') THEN
-        INSERT INTO public.audit_logs (
-            user_id,
-            user_role,
-            aktivitas,
-            jenis_objek,
-            objek_id,
-            data_sesudah,
-            alasan_perubahan
-        ) VALUES (
-            v_user_id,
-            v_role,
-            'INSERT_PROFIL_PESANTREN',
-            'profil_pesantren',
-            NEW.id::text,
-            to_jsonb(NEW),
-            'Inisialisasi record profil resmi pesantren'
-        );
-        RETURN NEW;
-    END IF;
-    RETURN NULL;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_audit_profil_pesantren_logger ON public.profil_pesantren;
-CREATE TRIGGER trg_audit_profil_pesantren_logger
-AFTER INSERT OR UPDATE ON public.profil_pesantren
-FOR EACH ROW EXECUTE FUNCTION public.trg_audit_profil_pesantren();
-
 CREATE OR REPLACE FUNCTION public.trg_audit_tahun_ajaran()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -493,9 +528,5 @@ COMMIT;
 
 ---
 
-## 5. Keputusan & Status Akhir
-
-1. **Status Sintaks:** File [`supabase/migrations/015_profil_pesantren.sql`](file:///C:/Users/Eko/.gemini/antigravity/scratch/sipeta/supabase/migrations/015_profil_pesantren.sql) telah diuji dan divalidasi bebas dari segala bentuk kesalahan sintaks SQL.
-2. **Status Keamanan:** Bersih dari static salt, menggunakan pemeriksaan `PG_CONTEXT` bawaan engine PostgreSQL, dan menjamin atomic switch tanpa kemungkinan duplikasi baris aktif.
-3. **Integritas Produksi:** Tidak ada data atau skema di Supabase Cloud yang diubah. File migrasi lama (001–014) tidak disentuh.
-4. **Keputusan Final:** **MIGRATION 015 SYNTAX AUDITED, TESTED & READY TO EXECUTE**. Anda dapat langsung menyalin dan menjalankan SQL final di atas pada Supabase SQL Editor.
+### Keputusan Final
+Naskah SQL `015_profil_pesantren.sql` telah memenuhi seluruh standar arsitektur keamanan, sinkronisasi otomatis dinamis, perlindungan idempotensi, dan lolos uji engine PostgreSQL. Naskah dinyatakan **FINAL READY TO EXECUTE**.
