@@ -93,20 +93,15 @@ CREATE POLICY "asatidz_bendahara_all_kedisiplinan" ON public.catatan_kedisiplina
     )
   );
 
--- Riwayat Perubahan Kedisiplinan
+-- Riwayat Perubahan Kedisiplinan (STRICTLY READ-ONLY / APPEND-ONLY HISTORI PEMBINAAN)
+-- * Baris baru HANYA dimasukkan secara otomatis oleh trigger trg_before_kedisiplinan_update
+-- * DILARANG KERAS di-UPDATE atau di-DELETE oleh role siapa pun demi integritas audit trail
 DROP POLICY IF EXISTS "asatidz_bendahara_all_riwayat_kedisiplinan" ON public.riwayat_perubahan_kedisiplinan;
-CREATE POLICY "asatidz_bendahara_all_riwayat_kedisiplinan" ON public.riwayat_perubahan_kedisiplinan
-  FOR ALL
+DROP POLICY IF EXISTS "asatidz_bendahara_select_riwayat_kedisiplinan" ON public.riwayat_perubahan_kedisiplinan;
+CREATE POLICY "asatidz_bendahara_select_riwayat_kedisiplinan" ON public.riwayat_perubahan_kedisiplinan
+  FOR SELECT
   TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
-        AND profiles.is_active = true
-    )
-  )
-  WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
@@ -179,3 +174,4 @@ CREATE POLICY "tu_admin_all_kamar" ON public.kamar
         AND profiles.is_active = true
     )
   );
+
