@@ -94,7 +94,13 @@ export function WaliPortal({
   } = useSipeta();
 
   const [internalTab, setInternalTab] = useState<WaliTab>("dashboard");
-  const activeTab = ((controlledTab as WaliTab) || internalTab);
+  const rawActiveTab = ((controlledTab as WaliTab) || internalTab);
+  const activeTab: WaliTab =
+    rawActiveTab === "informasi_tagihan" || rawActiveTab === "riwayat_pembayaran"
+      ? "pembayaran"
+      : rawActiveTab === "riwayat_mutasi"
+      ? "uang_saku"
+      : rawActiveTab;
   const setActiveTab = (tab: WaliTab) => {
     if (onTabChange) {
       onTabChange(tab);
@@ -791,9 +797,7 @@ export function WaliPortal({
       {/* =====================================================================
           TAB 2: MODUL PEMBAYARAN & KERANJANG CICILAN (BAB 5.4 & 5.5 PRD)
          ===================================================================== */}
-      {(activeTab === "pembayaran" ||
-        activeTab === "informasi_tagihan" ||
-        activeTab === "riwayat_pembayaran") && (
+      {activeTab === "pembayaran" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Kolom Kiri (2/3): Daftar Tagihan & Pemilihan Cicilan */}
           <div className="lg:col-span-2 space-y-6">
@@ -1155,7 +1159,7 @@ export function WaliPortal({
       {/* =====================================================================
           TAB 3: MODUL UANG SAKU SANTRI (BAB 6 PRD - LEDGER & FOTO PENYERAHAN)
          ===================================================================== */}
-      {(activeTab === "uang_saku" || activeTab === "riwayat_mutasi") && (
+      {activeTab === "uang_saku" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* Ringkasan Saldo Ledger */}

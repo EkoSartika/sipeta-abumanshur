@@ -955,9 +955,6 @@ export function TuPortal({
                   <p className="text-xs text-slate-500">Pendaftaran baru &amp; Import Excel</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
-                Daftarkan santri baru lengkap dengan akun wali mandiri (1:1) tanpa memerlukan email publik.
-              </p>
               <button
                 type="button"
                 onClick={() => setActiveTab("tambah_santri")}
@@ -977,9 +974,6 @@ export function TuPortal({
                   <p className="text-xs text-slate-500">Master &amp; Pemindahan Santri</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
-                Pindahkan santri antar-kelas atau antar-kamar dengan pencatatan audit log riwayat mutasi otomatis.
-              </p>
               <button
                 type="button"
                 onClick={() => {
@@ -1002,9 +996,6 @@ export function TuPortal({
                   <p className="text-xs text-slate-500">Pencarian &amp; Ekspor Data</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
-                Lihat daftar seluruh santri, informasi kontak wali, unduh rekapitulasi data Excel/CSV resmi.
-              </p>
               <button
                 type="button"
                 onClick={() => setActiveTab("santri_wali")}
@@ -1025,9 +1016,6 @@ export function TuPortal({
                   <p className="text-xs text-slate-500">Ajukan Jenis Pembiayaan Santri</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
-                Buat pengajuan jenis pembiayaan SPP/kegiatan, metode cicilan, &amp; sasaran santri untuk persetujuan Pengasuh.
-              </p>
               <button
                 type="button"
                 onClick={() => setActiveTab("pembiayaan")}
@@ -1048,9 +1036,6 @@ export function TuPortal({
                   <p className="text-xs text-slate-500">Pencatatan &amp; Master Kategori</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
-                Catat kejadian pelanggaran santri, pembinaan, tindak lanjut, serta master kategori pelanggaran.
-              </p>
               <button
                 type="button"
                 onClick={() => setActiveTab("pelanggaran")}
@@ -1071,9 +1056,6 @@ export function TuPortal({
                   <p className="text-xs text-slate-500">Pembiayaan, Mengaji &amp; Santri</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
-                Pusat rekap data SPP santri (read-only), capaian mengaji, rekap kedisiplinan, &amp; ekspor file Excel resmi.
-              </p>
               <button
                 type="button"
                 onClick={() => setActiveTab("rekapitulasi")}
@@ -1094,9 +1076,6 @@ export function TuPortal({
                   <p className="text-xs text-slate-500">Tahun Pelajaran &amp; Alamat</p>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">
-                Pengaturan tahun pelajaran aktif, semester, nama resmi, kontak, dan alamat resmi lembaga.
-              </p>
               <button
                 type="button"
                 onClick={() => setActiveTab("profil_pesantren")}
@@ -1149,9 +1128,6 @@ export function TuPortal({
                   <h3 className="text-base font-extrabold text-slate-900">
                     Registrasi Santri Baru &amp; Akun Wali Mandiri
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Akun wali santri akan dibuat secara otomatis menggunakan nomor <strong>NIS</strong> sebagai username dan kata sandi awal (bebas email).
-                  </p>
                 </div>
               </div>
 
@@ -1377,9 +1353,6 @@ export function TuPortal({
                   <h3 className="text-base font-extrabold text-slate-900">
                     Import Data Santri Massal dari Excel
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Gunakan template resmi untuk mengunggah ratusan santri dan menerbitkan akun wali secara atomik.
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -1670,9 +1643,6 @@ export function TuPortal({
                 <h3 className="text-base font-extrabold text-slate-900">
                   Formulir Pemindahan Kelas &amp; Kamar Santri
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Perpindahan kelas atau asrama akan memperbarui data santri secara konsisten dan otomatis dicatat pada riwayat penempatan santri dengan jejak audit.
-                </p>
               </div>
 
               <form onSubmit={handleMovePlacement} className="max-w-2xl space-y-4">
@@ -1799,9 +1769,6 @@ export function TuPortal({
                   <h3 className="font-extrabold text-sm text-slate-900">
                     Log Riwayat Perpindahan Kelas &amp; Kamar Santri
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Daftar seluruh rekam mutasi santri sejak penempatan awal hingga perpindahan terakhir.
-                  </p>
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -1863,7 +1830,6 @@ export function TuPortal({
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">Daftar Master Kelas</h3>
-                  <p className="text-xs text-slate-500">Kelola ruang dan tingkat kelas santri</p>
                 </div>
                 <button
                   type="button"
@@ -1906,7 +1872,6 @@ export function TuPortal({
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">Daftar Master Kamar Asrama</h3>
-                  <p className="text-xs text-slate-500">Kelola kamar asrama santri putra dan putri</p>
                 </div>
                 <button
                   type="button"
@@ -1967,9 +1932,6 @@ export function TuPortal({
                     Ajukan Pembiayaan Baru
                   </h3>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Formulir pengajuan pembiayaan untuk disetujui Pengasuh
-                </p>
               </div>
 
               <form onSubmit={handleCreatePembiayaanSubmit} className="space-y-3.5 text-xs">
@@ -2148,9 +2110,6 @@ export function TuPortal({
                   <h3 className="font-extrabold text-base text-slate-900">
                     Daftar Jenis Pembiayaan Santri
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Seluruh pengajuan pembiayaan, status persetujuan, dan jadwal jatuh tempo
-                  </p>
                 </div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
                   {jenisPembayaranList.length} Pembiayaan
@@ -2312,9 +2271,6 @@ export function TuPortal({
                   <h3 className="font-extrabold text-base text-slate-900">
                     Catat Pelanggaran Santri
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Pencatatan pelanggaran tata tertib dan tindak lanjut pembinaan
-                  </p>
                 </div>
 
                 <form onSubmit={handleCreatePelanggaranSubmit} className="space-y-3.5 text-xs">
@@ -2422,9 +2378,6 @@ export function TuPortal({
                     <h3 className="font-extrabold text-base text-slate-900">
                       Riwayat Pelanggaran Santri
                     </h3>
-                    <p className="text-xs text-slate-500">
-                      Histori kejadian dan pembinaan santri ({kedisiplinanList.length} catatan)
-                    </p>
                   </div>
                 </div>
 
@@ -2723,9 +2676,6 @@ export function TuPortal({
                     Buat Pengumuman Wali Santri
                   </h3>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Publikasikan pengumuman ke seluruh wali, kelas, atau santri
-                </p>
               </div>
 
               <form onSubmit={handleCreatePengumumanSubmit} className="space-y-3.5 text-xs">
@@ -2873,9 +2823,6 @@ export function TuPortal({
                   <h3 className="font-extrabold text-base text-slate-900">
                     Daftar Pengumuman Pesantren
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Pengumuman aktif dan draf ({pengumumanList.length} pengumuman)
-                  </p>
                 </div>
               </div>
 
@@ -3023,9 +2970,6 @@ export function TuPortal({
                   <h3 className="font-extrabold text-base text-slate-900">
                     Rekapitulasi Pembiayaan &amp; SPP Santri
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Status tagihan seluruh santri, total terbayar, dan sisa tunggakan
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -3157,9 +3101,6 @@ export function TuPortal({
                   <h3 className="font-extrabold text-base text-slate-900">
                     Rekapitulasi Perkembangan Mengaji Santri
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Data mutaba&apos;ah, kelancaran, makharijul huruf, &amp; tajwid
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -3285,9 +3226,6 @@ export function TuPortal({
                   <h3 className="font-extrabold text-base text-slate-900">
                     Rekapitulasi Pelanggaran &amp; Pembinaan Santri
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Pencatatan kedisiplinan santri dan riwayat tindak lanjut
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -3412,9 +3350,6 @@ export function TuPortal({
                   <h3 className="font-extrabold text-base text-slate-900">
                     Rekapitulasi Riwayat Lengkap Per Santri
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Pilih santri untuk melihat rangkuman profil, tagihan SPP, mengaji, &amp; pembinaan
-                  </p>
                 </div>
 
                 <div className="w-full sm:w-72">
@@ -3552,16 +3487,9 @@ export function TuPortal({
           <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 border border-blue-200">
-                  <Building2 className="h-3.5 w-3.5" />
-                  <span>Tata Usaha — Pengaturan Profil Pesantren</span>
-                </div>
-                <h3 className="mt-2 text-lg font-extrabold text-slate-900 tracking-tight">
+                <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
                   Profil Pesantren &amp; Tahun Pelajaran Aktif
                 </h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Data profil resmi, tahun ajaran aktif, dan alamat lembaga yang digunakan secara konsisten di seluruh portal SIPETA.
-                </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200">

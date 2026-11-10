@@ -509,7 +509,7 @@ export function SuperadminPortal({
             <button
               type="button"
               onClick={() => setActiveTab("users")}
-              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 group-hover:bg-emerald-800 group-hover:text-white transition shrink-0">
                 <Users className="h-5 w-5" />
@@ -518,16 +518,13 @@ export function SuperadminPortal({
                 <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-900 transition">
                   Manajemen Akun &amp; Role
                 </h4>
-                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                  Atur seluruh akun petugas internal (Admin, Bendahara, Pengelola), ubah role, dan kelola status.
-                </p>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("rekening")}
-              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-800 border border-blue-200 group-hover:bg-blue-800 group-hover:text-white transition shrink-0">
                 <Landmark className="h-5 w-5" />
@@ -536,16 +533,13 @@ export function SuperadminPortal({
                 <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-900 transition">
                   Rekening Resmi Pesantren
                 </h4>
-                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                  Konfigurasi rekening BSI resmi {rekeningResmi?.nomor_rekening || "-"} a.n. {rekeningResmi?.atas_nama || "-"}.
-                </p>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("audit_log")}
-              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-purple-800 border border-purple-200 group-hover:bg-purple-800 group-hover:text-white transition shrink-0">
                 <FileText className="h-5 w-5" />
@@ -554,9 +548,6 @@ export function SuperadminPortal({
                 <h4 className="text-sm font-bold text-slate-900 group-hover:text-purple-900 transition">
                   Jejak Audit / Audit Log
                 </h4>
-                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                  Pantau catatan riwayat aktivitas mutasi dan perubahan akun ({auditLogs.length} entri terekam).
-                </p>
               </div>
             </button>
           </div>

@@ -246,11 +246,8 @@ export default function SipetaHomePage() {
         return [
           { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
           { id: "profil_santri", label: "Profil Santri", icon: UserCheck },
-          { id: "informasi_tagihan", label: "Informasi Tagihan", icon: Receipt },
-          { id: "pembayaran", label: "Pembayaran SPP & Cicilan", icon: CreditCard },
-          { id: "riwayat_pembayaran", label: "Riwayat Pembayaran", icon: Clock },
+          { id: "pembayaran", label: "Tagihan & Pembayaran", icon: CreditCard },
           { id: "uang_saku", label: "Uang Saku Santri", icon: Wallet },
-          { id: "riwayat_mutasi", label: "Riwayat Mutasi & Foto", icon: ArrowRightLeft },
           { id: "mengaji", label: "Perkembangan Mengaji", icon: BookOpen },
           { id: "tahfidz", label: "Setoran Tahfidz", icon: Sparkles },
           { id: "prestasi", label: "Prestasi Santri", icon: Trophy },
@@ -304,63 +301,42 @@ export default function SipetaHomePage() {
       role: UserRole;
       title: string;
       url: string;
-      badge: string;
-      identifier: string;
-      desc: string;
       icon: React.ElementType;
     }[] = [
       {
         role: "superadmin",
         title: "Superadmin (Pembuat SIPETA)",
         url: "/superadmin/login",
-        badge: "Pembuat Sistem",
-        identifier: "Masuk dengan Akun Resmi",
-        desc: "Pemilik dan pembuat aplikasi: pengelolaan akun staf, penetapan rekening resmi tunggal BSI, dan jejak audit sistem.",
         icon: Shield,
       },
       {
         role: "admin",
         title: "Pengasuh Pondok",
         url: "/admin/login",
-        badge: "Pimpinan & Pengasuh",
-        identifier: "Masuk dengan Username",
-        desc: "Dashboard pengawasan terpadu seluruh santri, kelas, asrama, keuangan SPP, uang saku, capaian tahfidz, dan rekapitulasi operasional pondok.",
         icon: UserCheck,
       },
       {
         role: "tu",
         title: "Tata Usaha (TU)",
         url: "/tu/login",
-        badge: "Administrasi Santri",
-        identifier: "Masuk dengan Username",
-        desc: "Administrasi master santri, pembuatan akun wali mandiri (1:1), master kelas, asrama, import/export Excel, dan pemindahan penempatan.",
         icon: Building2,
       },
       {
         role: "pengelola",
         title: "Asatidz & Pembina",
         url: "/asatidz/login",
-        badge: "Kepesantrenan",
-        identifier: "Masuk dengan Username",
-        desc: "Pencatatan mutaba'ah mengaji harian, setoran tahfidz Al-Qur'an, rekam prestasi santri, dan pembinaan kedisiplinan asrama.",
         icon: BookOpen,
       },
       {
         role: "bendahara",
         title: "Bendahara Pesantren",
         url: "/bendahara/login",
-        badge: "Keuangan & Asatidz",
-        identifier: "Masuk dengan Username",
-        desc: "Verifikasi setoran SPP bank BSI, persetujuan uang saku, penyerahan fisik, pembukuan ledger immutable, dan integrasi fitur asatidz.",
         icon: Wallet,
       },
       {
         role: "wali",
         title: "Orang Tua / Wali Santri",
         url: "/login",
-        badge: "Wali Santri",
-        identifier: "Masuk dengan NIS Santri",
-        desc: "Layanan informasi tagihan SPP, cicilan biaya, saldo & mutasi uang saku, serta mutaba'ah tahfidz santri asuhan.",
         icon: Users,
       },
     ];
@@ -369,7 +345,7 @@ export default function SipetaHomePage() {
       <div className="min-h-screen flex flex-col bg-slate-50">
         {/* Header Publik */}
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur shadow-xs">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex w-full items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-0.5 shadow-xs border border-emerald-100 shrink-0">
                 <img
@@ -406,40 +382,28 @@ export default function SipetaHomePage() {
         </header>
 
         {/* Hero & Konten Utama Publik */}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 space-y-8">
+        <main className="w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 space-y-6">
           {/* Welcome Card Banner */}
           <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-emerald-900 to-emerald-950 p-6 sm:p-8 text-white shadow-lg">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="rounded-full bg-emerald-800/80 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-200 border border-emerald-700">
-                Gerbang Pelayanan Resmi
-              </span>
-            </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
               Selamat Datang di Portal Terpadu SIPETA
             </h2>
-            <p className="mt-3 text-sm text-emerald-100/90 leading-relaxed max-w-3xl">
-              Layanan digital terpadu bagi Orang Tua/Wali Santri, Asatidz, Bendahara, Pengelola Kepesantrenan, dan Pimpinan Pondok Pesantren Modern Abu Manshur Cirebon.
-            </p>
-            <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="rounded-xl bg-white/10 p-3.5 backdrop-blur border border-white/10">
                 <Wallet className="h-5 w-5 text-emerald-300 mb-1.5" />
                 <p className="font-bold">Keuangan &amp; SPP</p>
-                <p className="text-[11px] text-emerald-200">Cicilan &amp; 1 Rekening BSI</p>
               </div>
               <div className="rounded-xl bg-white/10 p-3.5 backdrop-blur border border-white/10">
                 <BookOpen className="h-5 w-5 text-emerald-300 mb-1.5" />
                 <p className="font-bold">Tahfidz &amp; Mengaji</p>
-                <p className="text-[11px] text-emerald-200">Mutaba&apos;ah Harian</p>
               </div>
               <div className="rounded-xl bg-white/10 p-3.5 backdrop-blur border border-white/10">
                 <Award className="h-5 w-5 text-emerald-300 mb-1.5" />
                 <p className="font-bold">Prestasi &amp; Disiplin</p>
-                <p className="text-[11px] text-emerald-200">Catatan Pembinaan</p>
               </div>
               <div className="rounded-xl bg-white/10 p-3.5 backdrop-blur border border-white/10">
                 <Calendar className="h-5 w-5 text-emerald-300 mb-1.5" />
                 <p className="font-bold">Uang Saku Ledger</p>
-                <p className="text-[11px] text-emerald-200">Wajib Foto Penyerahan</p>
               </div>
             </div>
           </div>
@@ -455,9 +419,6 @@ export default function SipetaHomePage() {
                   <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
                     Login — Gerbang Akses Layanan Terpadu
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Silakan pilih pintu masuk portal pelayanan sesuai dengan peran dan kewenangan resmi Anda:
-                  </p>
                 </div>
               </div>
             </div>
@@ -472,24 +433,14 @@ export default function SipetaHomePage() {
                     className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/70 p-5 hover:bg-emerald-50/60 hover:border-emerald-300 hover:shadow-md transition-all group relative overflow-hidden"
                   >
                     <div>
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-sm group-hover:scale-105 transition">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-sm group-hover:scale-105 transition shrink-0">
                           <Icon className="h-5 w-5" />
                         </div>
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 border border-slate-200 shadow-2xs">
-                          {portal.badge}
-                        </span>
+                        <h4 className="text-sm font-extrabold text-slate-900 group-hover:text-emerald-950 transition">
+                          {portal.title}
+                        </h4>
                       </div>
-
-                      <h4 className="text-sm font-extrabold text-slate-900 group-hover:text-emerald-950 transition">
-                        {portal.title}
-                      </h4>
-                      <p className="mt-1 text-[11px] font-semibold text-emerald-800">
-                        {portal.identifier}
-                      </p>
-                      <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-                        {portal.desc}
-                      </p>
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-slate-200/80 flex items-center justify-between text-xs font-bold text-emerald-800 group-hover:text-emerald-950">
@@ -628,7 +579,14 @@ export default function SipetaHomePage() {
   // Menyatukan seluruh navigasi ke panel kiri
   // ==========================================================================
   const menuItems = getRoleMenuItems(currentUser.role);
-  const activeMenuItem = menuItems.find((m) => m.id === activeTab) ?? menuItems[0];
+  const normalizedActiveTab = (() => {
+    if (currentUser.role === "wali") {
+      if (activeTab === "informasi_tagihan" || activeTab === "riwayat_pembayaran") return "pembayaran";
+      if (activeTab === "riwayat_mutasi") return "uang_saku";
+    }
+    return activeTab;
+  })();
+  const activeMenuItem = menuItems.find((m) => m.id === normalizedActiveTab) ?? menuItems[0];
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -710,7 +668,7 @@ export default function SipetaHomePage() {
             </p>
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const isActive = normalizedActiveTab === item.id;
               return (
                 <button
                   key={item.id}
@@ -843,7 +801,7 @@ export default function SipetaHomePage() {
 
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const isActive = normalizedActiveTab === item.id;
               return (
                 <button
                   key={item.id}
@@ -1017,7 +975,7 @@ export default function SipetaHomePage() {
         </header>
 
         {/* Main Body Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full">
           {activeTab === "profile" ? (
             <UserProfileView />
           ) : activeTab === "laporan" ? (
@@ -1066,7 +1024,7 @@ export default function SipetaHomePage() {
 
         {/* Footer Bersih */}
         <footer className="border-t border-slate-200 bg-white py-4 text-xs text-slate-500 no-print">
-          <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 sm:flex-row sm:px-6 lg:px-8">
+          <div className="flex w-full flex-col items-center justify-between gap-2 px-4 sm:flex-row sm:px-6 lg:px-8">
             <div className="flex items-center gap-2.5">
               <img
                 src="/images/logo-abu-manshur.png"

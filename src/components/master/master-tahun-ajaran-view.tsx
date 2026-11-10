@@ -241,13 +241,6 @@ export function MasterTahunAjaranView() {
               )}
             </div>
           </div>
-
-          <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200 flex items-start gap-2.5 text-slate-600">
-            <Info className="h-4 w-4 text-blue-700 shrink-0 mt-0.5" />
-            <div className="text-[11px] leading-relaxed">
-              <strong className="text-slate-900">Ketentuan Otoritas:</strong> Tahun pelajaran baru dapat ditambahkan oleh Admin/Superadmin. Pengaktifan tunggal dilakukan melalui RPC resmi untuk menjamin konsistensi di seluruh portal.
-            </div>
-          </div>
         </div>
       </div>
 

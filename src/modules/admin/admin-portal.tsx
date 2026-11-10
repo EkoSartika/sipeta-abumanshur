@@ -1006,16 +1006,9 @@ export function AdminPortal({
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 border border-amber-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>Pengawasan Kepesantrenan — Laporan Tahfidz</span>
-                </div>
-                <h3 className="mt-2 text-base font-extrabold text-slate-900 tracking-tight">
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
                   Rekapitulasi &amp; Riwayat Setoran Tahfidz Al-Qur&apos;an
                 </h3>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Pemantauan menyeluruh capaian juz, kelancaran hafalan santri, dan riwayat setoran harian.
-                </p>
               </div>
               <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200 self-start sm:self-auto">
                 Total Setoran: <strong className="text-amber-900">{tahfidzList.length}</strong>
@@ -1204,16 +1197,9 @@ export function AdminPortal({
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-800 border border-rose-200">
-                  <ShieldAlert className="h-3.5 w-3.5" />
-                  <span>Pengawasan Kepesantrenan — Laporan Kedisiplinan</span>
-                </div>
-                <h3 className="mt-2 text-base font-extrabold text-slate-900 tracking-tight">
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
                   Rekapitulasi Pelanggaran &amp; Riwayat Pembinaan Santri
                 </h3>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Pengawasan menyeluruh terhadap tata tertib, catatan pelanggaran asrama, dan status tindak lanjut santri.
-                </p>
               </div>
               <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200 self-start sm:self-auto">
                 Total Catatan: <strong className="text-rose-900">{kedisiplinanList.length}</strong>
@@ -1405,9 +1391,6 @@ export function AdminPortal({
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <div>
             <h3 className="font-extrabold text-base text-slate-900">Pengumuman &amp; Agenda Pondok Pesantren</h3>
-            <p className="text-xs text-slate-500">
-              Seluruh warta dan informasi resmi yang dirilis ke santri, wali santri, dan asatidz.
-            </p>
           </div>
           <div className="space-y-3">
             {pengumumanList.map((p) => (
