@@ -248,7 +248,7 @@ export function RoleLoginView({
             SIPETA — {profilPesantren?.nama_resmi || "Pondok Pesantren Modern Abu Manshur"}
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            {profilPesantren?.alamat || "Jl. Nyi Ageng Serang, Sindangmekar, Dukupuntang / Plered, Cirebon, Jawa Barat"}
+            {profilPesantren?.alamat || "Jl. Nyi Ageng Serang, Sindangmekar, Dukupuntang / Plered, Cirebon, Jawa Barat"} • Tahun Pelajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
           </p>
         </div>
       </footer>

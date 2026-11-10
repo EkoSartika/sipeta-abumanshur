@@ -386,7 +386,7 @@ export default function SipetaHomePage() {
                   </span>
                 </div>
                 <p className="text-xs font-medium text-slate-600">
-                  Sistem Informasi Pelayanan Terpadu • PP Modern Abu Manshur
+                  Sistem Informasi Pelayanan Terpadu • PP Modern Abu Manshur • T.P. {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"}
                 </p>
               </div>
             </div>
@@ -613,7 +613,7 @@ export default function SipetaHomePage() {
               SIPETA — Sistem Informasi Pelayanan Terpadu Pondok Pesantren Modern Abu Manshur
             </p>
             <p className="text-[11px] text-slate-500">
-              Jl. Nyi Ageng Serang, Sindangmekar, Dukupuntang / Plered, Cirebon, Jawa Barat
+              {profilPesantren?.alamat || "Jl. Nyi Ageng Serang, Sindangmekar, Dukupuntang / Plered, Cirebon, Jawa Barat"} • Tahun Pelajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
             </p>
           </div>
         </footer>

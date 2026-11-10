@@ -27,54 +27,88 @@ describe("Regression Test: Client-Side Rendering Exception Prevention", () => {
     }
   });
 
-  it("renders AdminPortal without exception", () => {
-    expect(() => {
-      renderToString(
-        <SipetaProvider>
-          <AdminPortal activeTab="dashboard" />
-        </SipetaProvider>
-      );
-    }).not.toThrow();
+  it("renders AdminPortal across all tabs without exception", () => {
+    const tabs = ["dashboard", "santri_asrama", "keuangan", "laporan_tahfidz", "laporan_kedisiplinan", "pengumuman", "audit_log"] as const;
+    for (const tab of tabs) {
+      expect(() => {
+        renderToString(
+          <SipetaProvider>
+            <AdminPortal activeTab={tab} />
+          </SipetaProvider>
+        );
+      }).not.toThrow();
+    }
   });
 
-  it("renders TuPortal without exception", () => {
-    expect(() => {
-      renderToString(
-        <SipetaProvider>
-          <TuPortal activeTab="dashboard" />
-        </SipetaProvider>
-      );
-    }).not.toThrow();
+  it("renders TuPortal across all tabs without exception", () => {
+    const tabs = [
+      "dashboard",
+      "tambah_santri",
+      "santri_wali",
+      "kelas_kamar",
+      "pembiayaan",
+      "pelanggaran",
+      "pengumuman",
+      "rekapitulasi",
+      "profil_pesantren",
+    ] as const;
+    for (const tab of tabs) {
+      expect(() => {
+        renderToString(
+          <SipetaProvider>
+            <TuPortal activeTab={tab} />
+          </SipetaProvider>
+        );
+      }).not.toThrow();
+    }
   });
 
-  it("renders BendaharaPortal without exception", () => {
-    expect(() => {
-      renderToString(
-        <SipetaProvider>
-          <BendaharaPortal activeTab="dashboard" />
-        </SipetaProvider>
-      );
-    }).not.toThrow();
+  it("renders BendaharaPortal across all tabs without exception", () => {
+    const tabs = [
+      "dashboard",
+      "verifikasi_pembayaran",
+      "verifikasi_saku",
+      "penyerahan_saku",
+      "saldo_santri",
+      "rekening_info",
+      "mengaji",
+      "tahfidz",
+    ] as const;
+    for (const tab of tabs) {
+      expect(() => {
+        renderToString(
+          <SipetaProvider>
+            <BendaharaPortal activeTab={tab} />
+          </SipetaProvider>
+        );
+      }).not.toThrow();
+    }
   });
 
-  it("renders PengelolaPortal without exception", () => {
-    expect(() => {
-      renderToString(
-        <SipetaProvider>
-          <PengelolaPortal activeTab="dashboard" />
-        </SipetaProvider>
-      );
-    }).not.toThrow();
+  it("renders PengelolaPortal across all tabs without exception", () => {
+    const tabs = ["dashboard", "mengaji", "tahfidz", "prestasi", "kedisiplinan"] as const;
+    for (const tab of tabs) {
+      expect(() => {
+        renderToString(
+          <SipetaProvider>
+            <PengelolaPortal activeTab={tab} />
+          </SipetaProvider>
+        );
+      }).not.toThrow();
+    }
   });
 
-  it("renders WaliPortal without exception", () => {
-    expect(() => {
-      renderToString(
-        <SipetaProvider>
-          <WaliPortal activeTab="dashboard" />
-        </SipetaProvider>
-      );
-    }).not.toThrow();
+  it("renders WaliPortal across all tabs without exception", () => {
+    const tabs = ["dashboard", "profil_santri", "pembayaran", "uang_saku", "kepesantrenan", "notifikasi"] as const;
+    for (const tab of tabs) {
+      expect(() => {
+        renderToString(
+          <SipetaProvider>
+            <WaliPortal activeTab={tab} />
+          </SipetaProvider>
+        );
+      }).not.toThrow();
+    }
   });
 
   it("renders LaporanPortal without exception", () => {
