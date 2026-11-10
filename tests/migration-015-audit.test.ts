@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import { PGlite } from "@electric-sql/pglite";
 
 describe("SIPETA Migration 015: Profil Pesantren & Tahun Pelajaran Audit", () => {
   const migrationPath = path.resolve(__dirname, "../supabase/migrations/015_profil_pesantren.sql");
@@ -61,27 +62,20 @@ describe("SIPETA Migration 015: Profil Pesantren & Tahun Pelajaran Audit", () =>
     expect(migrationSql).toContain('CREATE POLICY "Tahun Ajaran: hanya superadmin hapus master"');
   });
 
-  it("6. Trigger guard memverifikasi dynamic nonce, target_id, cryptographic signature, dan otorisasi role", () => {
+  it("6. Trigger guard menggunakan PG_CONTEXT native call stack inspection (bebas static salt)", () => {
     expect(migrationSql).toContain("CREATE OR REPLACE FUNCTION public.prevent_direct_tahun_ajaran_active_update()");
-    expect(migrationSql).toContain("current_setting('sipeta.active_switch_target_id', true)");
-    expect(migrationSql).toContain("current_setting('sipeta.active_switch_nonce', true)");
-    expect(migrationSql).toContain("current_setting('sipeta.active_switch_signature', true)");
-    expect(migrationSql).toContain("v_expected_sig := md5(v_target_id || '::SIPETA_INTERNAL_SECURE_TOKEN::' || v_expected_nonce)");
-    expect(migrationSql).toContain("NEW.is_active = true AND NEW.id::text <> v_target_id");
+    expect(migrationSql).toContain("GET DIAGNOSTICS v_context = PG_CONTEXT;");
+    expect(migrationSql).toContain("v_context NOT LIKE '%rpc_set_active_tahun_ajaran%'");
     expect(migrationSql).toContain("CREATE TRIGGER trg_guard_direct_tahun_ajaran_update");
     expect(migrationSql).toContain("BEFORE UPDATE ON public.tahun_ajaran");
+    // Memastikan tidak ada hardcoded static salt di SQL
+    expect(migrationSql).not.toContain("::SIPETA_INTERNAL_SECURE_TOKEN::");
   });
 
-  it("7. RPC rpc_set_active_tahun_ajaran menggunakan gen_random_bytes CSPRNG, signature binding, exception safety, dan pembatasan EXECUTE", () => {
+  it("7. RPC rpc_set_active_tahun_ajaran atomik dan memiliki pembatasan EXECUTE", () => {
     expect(migrationSql).toContain("CREATE OR REPLACE FUNCTION public.rpc_set_active_tahun_ajaran");
     expect(migrationSql).toContain("SECURITY DEFINER");
     expect(migrationSql).toContain("v_role NOT IN ('tu', 'admin', 'superadmin')");
-    expect(migrationSql).toContain("gen_random_bytes(32)");
-    expect(migrationSql).toContain("v_sig := md5(p_tahun_ajaran_id::text || '::SIPETA_INTERNAL_SECURE_TOKEN::' || v_nonce)");
-    expect(migrationSql).toContain("PERFORM set_config('sipeta.active_switch_nonce', v_nonce, true);");
-    expect(migrationSql).toContain("PERFORM set_config('sipeta.active_switch_signature', v_sig, true);");
-    expect(migrationSql).toContain("PERFORM set_config('sipeta.active_switch_nonce', '', true);");
-    expect(migrationSql).toContain("EXCEPTION WHEN OTHERS THEN");
     expect(migrationSql).toContain("UPDATE public.tahun_ajaran SET is_active = false WHERE is_active = true;");
     expect(migrationSql).toContain("UPDATE public.tahun_ajaran SET is_active = true WHERE id = p_tahun_ajaran_id;");
     expect(migrationSql).toContain("UPDATE public.profil_pesantren");
@@ -121,4 +115,98 @@ describe("SIPETA Migration 015: Profil Pesantren & Tahun Pelajaran Audit", () =>
     expect(contextContent).toContain('"tahun_ajaran"');
     expect(contextContent).toContain("await administrasiService.updateProfilPesantren");
   });
+
+  it(
+    "11. Validasi Eksekusi PGlite Nyata: File 015_profil_pesantren.sql dieksekusi tanpa error sintaks dan trigger berfungsi",
+    async () => {
+      const db = new PGlite();
+    await db.exec(`
+      CREATE ROLE anon;
+      CREATE ROLE authenticated;
+
+      CREATE SCHEMA IF NOT EXISTS auth;
+      CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID AS $$
+        SELECT '00000000-0000-0000-0000-000000000099'::UUID;
+      $$ LANGUAGE sql;
+
+      CREATE TYPE user_role AS ENUM ('superadmin', 'admin', 'tu', 'bendahara', 'pengelola', 'wali');
+
+      CREATE TABLE profiles (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        role user_role NOT NULL DEFAULT 'tu'
+      );
+      INSERT INTO profiles (id, role) VALUES ('00000000-0000-0000-0000-000000000099', 'tu');
+
+      CREATE TABLE tahun_ajaran (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        nama TEXT NOT NULL,
+        tanggal_mulai DATE,
+        tanggal_selesai DATE,
+        is_active BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+
+      CREATE TABLE audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID,
+        user_role user_role,
+        aktivitas TEXT,
+        jenis_objek TEXT,
+        objek_id TEXT,
+        data_sebelum JSONB,
+        data_sesudah JSONB,
+        alasan_perubahan TEXT,
+        waktu TIMESTAMPTZ DEFAULT now()
+      );
+
+      CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.updated_at = now();
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      CREATE OR REPLACE FUNCTION get_my_role() RETURNS user_role AS $$
+      BEGIN
+        RETURN 'tu'::user_role;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    // Eksekusi naskah SQL 015 secara utuh
+    await db.exec(migrationSql);
+
+    // Insert 2 tahun ajaran
+    await db.query(`
+      INSERT INTO tahun_ajaran (id, nama, is_active) VALUES
+      ('11111111-1111-1111-1111-111111111111', '2024/2025', true),
+      ('22222222-2222-2222-2222-222222222222', '2025/2026', false);
+    `);
+
+    // 1. Direct update is_active HARUS GAGAL
+    let directUpdateError = false;
+    try {
+      await db.query(`UPDATE tahun_ajaran SET is_active = true WHERE id = '22222222-2222-2222-2222-222222222222'`);
+    } catch (e: any) {
+      directUpdateError = true;
+      expect(e.message).toContain("HANYA dapat diubah melalui rpc_set_active_tahun_ajaran()");
+    }
+    expect(directUpdateError).toBe(true);
+
+    // 2. Direct update nama master HARUS BERHASIL
+    await db.query(`UPDATE tahun_ajaran SET nama = '2025/2026 Ganjil' WHERE id = '22222222-2222-2222-2222-222222222222'`);
+
+    // 3. RPC execution HARUS BERHASIL
+    const rpcRes: any = await db.query(`SELECT rpc_set_active_tahun_ajaran('22222222-2222-2222-2222-222222222222') as res`);
+    expect(rpcRes.rows[0].res.success).toBe(true);
+
+    // 4. Pastikan hanya ada 1 tahun ajaran aktif
+    const activeRows: any = await db.query(`SELECT id, is_active FROM tahun_ajaran WHERE is_active = true`);
+    expect(activeRows.rows.length).toBe(1);
+    expect(activeRows.rows[0].id).toBe('22222222-2222-2222-2222-222222222222');
+
+    // 5. Pastikan audit_logs terisi
+    const auditRows: any = await db.query(`SELECT aktivitas, jenis_objek FROM audit_logs`);
+    expect(auditRows.rows.length).toBeGreaterThanOrEqual(2);
+  }, 25000);
 });
