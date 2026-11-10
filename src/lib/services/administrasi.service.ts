@@ -518,6 +518,33 @@ export class AdministrasiService {
     return (data as RiwayatPenempatanSantri[]) ?? [];
   }
 
+  async resolveActiveTahunAjaranUuid(candidateId?: string): Promise<string | null> {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (candidateId && uuidRegex.test(candidateId.trim())) {
+      return candidateId.trim();
+    }
+    if (!isSupabaseConfigured()) return null;
+
+    const { data: activeTa } = await this.client
+      .from("tahun_ajaran")
+      .select("id")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (activeTa?.id && uuidRegex.test(activeTa.id)) {
+      return activeTa.id;
+    }
+
+    const { data: fallbackTa } = await this.client
+      .from("tahun_ajaran")
+      .select("id")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return fallbackTa?.id && uuidRegex.test(fallbackTa.id) ? fallbackTa.id : null;
+  }
+
   async createSantriWithWali(payload: {
     nis: string;
     nama_lengkap: string;
@@ -526,7 +553,7 @@ export class AdministrasiService {
     jenis_kelamin: "L" | "P";
     alamat: string;
     tahun_masuk: number;
-    tahun_ajaran_id: string;
+    tahun_ajaran_id?: string;
     kelas_id: string;
     kamar_id: string;
     wali: {
@@ -539,6 +566,14 @@ export class AdministrasiService {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
 
     try {
+      const resolvedTahunAjaranId = await this.resolveActiveTahunAjaranUuid(payload.tahun_ajaran_id);
+      if (!resolvedTahunAjaranId) {
+        return {
+          ok: false,
+          message: "Registrasi dihentikan: Tahun Pelajaran aktif belum ditemukan di database.",
+        };
+      }
+
       // 1. Buat profil wali di auth/profiles
       const { data: waliProfile, error: profileErr } = await this.client
         .from("profiles")
@@ -567,7 +602,7 @@ export class AdministrasiService {
           jenis_kelamin: payload.jenis_kelamin,
           alamat: payload.alamat,
           tahun_masuk: payload.tahun_masuk,
-          tahun_ajaran_id: payload.tahun_ajaran_id,
+          tahun_ajaran_id: resolvedTahunAjaranId,
           kelas_id: payload.kelas_id,
           kamar_id: payload.kamar_id,
           status: "AKTIF",
@@ -886,7 +921,7 @@ export class AdministrasiService {
     return { ok: true, message: "Pengumuman berhasil dihapus." };
   }
 
-  async importSantriBatch(rows: any[]): Promise<{
+  async importSantriBatch(rows: any[], tahunAjaranId?: string): Promise<{
     ok: boolean;
     message: string;
     report?: any;
@@ -895,7 +930,7 @@ export class AdministrasiService {
       const response = await fetch("/api/admin-santri/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ rows, tahun_ajaran_id: tahunAjaranId }),
       });
       const data = await response.json();
       return data;

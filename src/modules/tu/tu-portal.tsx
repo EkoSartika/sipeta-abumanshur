@@ -321,7 +321,7 @@ export function TuPortal({
   // STATE PENGATURAN PROFIL PESANTREN (TU)
   // ==========================================================================
   const [selectedTahunAjaranId, setSelectedTahunAjaranId] = useState(
-    tahunAjaranList.find((t) => t.is_active)?.id || tahunAjaranList[0]?.id || "ta-2026-2027"
+    tahunAjaranList.find((t) => t.is_active)?.id || tahunAjaranList[0]?.id || ""
   );
   const [semesterProfil, setSemesterProfil] = useState<"Ganjil" | "Genap">(
     profilPesantren?.semester_aktif || "Ganjil"
@@ -368,9 +368,21 @@ export function TuPortal({
   }, [profilPesantren]);
 
   useEffect(() => {
-    const active = tahunAjaranList.find((t) => t.is_active);
+    const active = tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0];
     if (active) setSelectedTahunAjaranId(active.id);
   }, [tahunAjaranList]);
+
+  useEffect(() => {
+    if (kelasList.length > 0 && (!kelasIdSantri || !kelasList.some((k) => k.id === kelasIdSantri))) {
+      setKelasIdSantri(kelasList[0]?.id ?? "");
+    }
+  }, [kelasList, kelasIdSantri]);
+
+  useEffect(() => {
+    if (kamarList.length > 0 && (!kamarIdSantri || !kamarList.some((km) => km.id === kamarIdSantri))) {
+      setKamarIdSantri(kamarList[0]?.id ?? "");
+    }
+  }, [kamarList, kamarIdSantri]);
 
   const handleSaveProfil = async () => {
     if (!namaResmiProfil.trim()) {
@@ -601,6 +613,30 @@ export function TuPortal({
       return;
     }
 
+    const activeTa = tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0];
+    if (!activeTa?.id) {
+      setFeedback({
+        ok: false,
+        text: "Registrasi dihentikan: Tahun Pelajaran aktif belum ditemukan. Silakan atur Tahun Pelajaran aktif terlebih dahulu.",
+      });
+      return;
+    }
+
+    const validKelasId = kelasList.some((k) => k.id === kelasIdSantri)
+      ? kelasIdSantri
+      : kelasList[0]?.id || "";
+    const validKamarId = kamarList.some((km) => km.id === kamarIdSantri)
+      ? kamarIdSantri
+      : kamarList[0]?.id || "";
+
+    if (!validKelasId || !validKamarId) {
+      setFeedback({
+        ok: false,
+        text: "Harap pilih Kelas Awal dan Kamar Asrama yang valid (tambahkan Master Kelas & Kamar terlebih dahulu jika masih kosong).",
+      });
+      return;
+    }
+
     setRegisterSubmitting(true);
     try {
       const res = await createSantriWithWali({
@@ -611,8 +647,9 @@ export function TuPortal({
         jenis_kelamin: jenisKelamin,
         alamat: alamatSantri.trim() || "Pondok Pesantren Modern Abu Manshur",
         tahun_masuk: 2026,
-        kelas_id: kelasIdSantri || kelasList[0]?.id || "",
-        kamar_id: kamarIdSantri || kamarList[0]?.id || "",
+        tahun_ajaran_id: activeTa.id,
+        kelas_id: validKelasId,
+        kamar_id: validKamarId,
         nama_wali: namaWali.trim(),
         hubungan_wali: hubunganWali,
         telepon_wali: teleponWali.trim(),
@@ -645,6 +682,8 @@ export function TuPortal({
       return;
     }
 
+    const activeTa = tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0];
+
     setSubmittingPembiayaan(true);
     try {
       const res = createPengajuanPembiayaan({
@@ -652,7 +691,7 @@ export function TuPortal({
         deskripsi: deskripsiPembiayaan.trim(),
         nominal: nom,
         kategori: kategoriPembiayaan.trim() || "SPP",
-        tahun_ajaran_id: tahunAjaranList[0]?.id || "ta-2026-2027",
+        tahun_ajaran_id: activeTa?.id || "",
         periode_pembayaran: periodePembiayaan,
         tanggal_mulai: new Date().toISOString().slice(0, 10),
         tanggal_jatuh_tempo: jatuhTempoPembiayaan || new Date().toISOString().slice(0, 10),
@@ -1241,12 +1280,15 @@ export function TuPortal({
 
           {tambahSantriSubTab === "registrasi" ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">
                     Registrasi Santri Baru &amp; Akun Wali Mandiri
                   </h3>
                 </div>
+                <span className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-extrabold text-blue-800">
+                  {`Tahun Pelajaran: ${tahunAjaranList.find((t) => t.is_active)?.nama || profilPesantren?.tahun_pelajaran_aktif || "2026/2027"}`}
+                </span>
               </div>
 
               <form onSubmit={handleRegisterSantri} className="space-y-5">

@@ -216,6 +216,7 @@ interface SipetaContextValue {
     jenis_kelamin: "L" | "P";
     alamat: string;
     tahun_masuk: number;
+    tahun_ajaran_id?: string;
     kelas_id: string;
     kamar_id: string;
     nama_wali: string;
@@ -395,10 +396,12 @@ export function SipetaProvider({
   children,
   initialUser,
   initialAuthMode,
+  initialTahunAjaranList,
 }: {
   children: React.ReactNode;
   initialUser?: UserProfile | null;
   initialAuthMode?: "supabase" | "demo" | "unauthenticated";
+  initialTahunAjaranList?: TahunAjaran[];
 }) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(initialUser ?? null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(Boolean(initialUser));
@@ -410,7 +413,7 @@ export function SipetaProvider({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [rekeningResmi, setRekeningResmi] = useState<RekeningPesantren>(INITIAL_REKENING);
   const [profilPesantren, setProfilPesantren] = useState<ProfilPesantren>(INITIAL_PROFIL_PESANTREN);
-  const [tahunAjaranList, setTahunAjaranList] = useState<TahunAjaran[]>(INITIAL_TAHUN_AJARAN);
+  const [tahunAjaranList, setTahunAjaranList] = useState<TahunAjaran[]>(initialTahunAjaranList ?? INITIAL_TAHUN_AJARAN);
   const tahunAjaranAktif = useMemo(() => tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0], [tahunAjaranList]);
   const [kelasList, setKelasList] = useState<Kelas[]>(INITIAL_KELAS);
   const [kamarList, setKamarList] = useState<Kamar[]>(INITIAL_KAMAR);
@@ -1876,8 +1879,52 @@ export function SipetaProvider({
     const syntheticWaliEmail = usernameToInternalEmail(rawUsernameWali);
     const emailKontak = payload.email_kontak_wali?.trim() || payload.email_wali?.trim() || "-";
 
+    // Resolusi ID Tahun Pelajaran Aktif (Jangan pernah menggunakan label "2026/2027" atau hardcode "ta-2026-2027" sebagai UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const activeTaRecord = tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0];
+
+    let resolvedTahunAjaranId = activeTaRecord?.id || "";
+    if (payload.tahun_ajaran_id && payload.tahun_ajaran_id.trim()) {
+      const candidate = payload.tahun_ajaran_id.trim();
+      // Tolak penggunaan label tahun pelajaran (mis. "2026/2027") secara langsung sebagai UUID
+      if (/^\d{4}\/\d{4}$/.test(candidate)) {
+        const matchedByName = tahunAjaranList.find((t) => t.nama.trim() === candidate);
+        if (!matchedByName) {
+          return {
+            ok: false,
+            message: `Label tahun pelajaran '${candidate}' tidak boleh digunakan sebagai UUID tahun_ajaran_id.`,
+          };
+        }
+        resolvedTahunAjaranId = matchedByName.id;
+      } else {
+        resolvedTahunAjaranId = candidate;
+      }
+    }
+
+    // Pastikan kelas_id dan kamar_id mengacu pada daftar aktif yang valid
+    const effectiveKelasId =
+      kelasListRef.current.some((k) => k.id === payload.kelas_id)
+        ? payload.kelas_id
+        : (payload.kelas_id && !payload.kelas_id.startsWith("kls-") ? payload.kelas_id : kelasListRef.current[0]?.id || "");
+    const effectiveKamarId =
+      kamarListRef.current.some((km) => km.id === payload.kamar_id)
+        ? payload.kamar_id
+        : (payload.kamar_id && !payload.kamar_id.startsWith("kmr-") ? payload.kamar_id : kamarListRef.current[0]?.id || "");
+
+    if (!effectiveKelasId || !effectiveKamarId) {
+      return {
+        ok: false,
+        message: "Registrasi dihentikan: Kelas awal dan Kamar Asrama wajib dipilih dari master data yang aktif.",
+      };
+    }
+
     // Jika Supabase live mode, gunakan endpoint transaksi server atomik dengan rollback otomatis
     if (authMode === "supabase") {
+      const supabaseTaUuid = uuidRegex.test(resolvedTahunAjaranId)
+        ? resolvedTahunAjaranId
+        : tahunAjaranList.find((t) => t.is_active && uuidRegex.test(t.id))?.id ||
+          tahunAjaranList.find((t) => uuidRegex.test(t.id))?.id;
+
       try {
         const res = await fetch("/api/admin-santri", {
           method: "POST",
@@ -1890,8 +1937,9 @@ export function SipetaProvider({
             jenis_kelamin: payload.jenis_kelamin,
             alamat: payload.alamat,
             tahun_masuk: payload.tahun_masuk,
-            kelas_id: payload.kelas_id,
-            kamar_id: payload.kamar_id,
+            tahun_ajaran_id: supabaseTaUuid,
+            kelas_id: effectiveKelasId,
+            kamar_id: effectiveKamarId,
             wali: {
               nama_lengkap: payload.nama_wali,
               hubungan: payload.hubungan_wali,
@@ -1914,6 +1962,13 @@ export function SipetaProvider({
       }
     }
 
+    if (!resolvedTahunAjaranId) {
+      return {
+        ok: false,
+        message: "Registrasi dihentikan: Tahun Pelajaran aktif tidak ditemukan. Silakan atur Tahun Pelajaran aktif terlebih dahulu.",
+      };
+    }
+
     // Mode Demo Standalone
     const newSantriId = `snt-${Date.now()}`;
     const newWaliUserId = `usr-wali-${Date.now()}`;
@@ -1927,9 +1982,9 @@ export function SipetaProvider({
       jenis_kelamin: payload.jenis_kelamin,
       alamat: payload.alamat.trim(),
       tahun_masuk: payload.tahun_masuk,
-      tahun_ajaran_id: "ta-2026-2027",
-      kelas_id: payload.kelas_id,
-      kamar_id: payload.kamar_id,
+      tahun_ajaran_id: resolvedTahunAjaranId,
+      kelas_id: effectiveKelasId,
+      kamar_id: effectiveKamarId,
       status: "AKTIF",
       created_at: new Date().toISOString(),
     };
@@ -1981,12 +2036,27 @@ export function SipetaProvider({
       return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang melakukan import data santri." };
     }
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const activeTaRecord = tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0];
+
     if (authMode === "supabase") {
-      const res = await administrasiService.importSantriBatch(rows);
+      const supabaseTaUuid =
+        (activeTaRecord?.id && uuidRegex.test(activeTaRecord.id) ? activeTaRecord.id : undefined) ||
+        tahunAjaranList.find((t) => t.is_active && uuidRegex.test(t.id))?.id ||
+        tahunAjaranList.find((t) => uuidRegex.test(t.id))?.id;
+
+      const res = await administrasiService.importSantriBatch(rows, supabaseTaUuid);
       if (res.ok) {
         await refreshFromSupabase();
       }
       return res;
+    }
+
+    if (!activeTaRecord?.id) {
+      return {
+        ok: false,
+        message: "Proses import dihentikan: Tahun Pelajaran aktif belum ditemukan.",
+      };
     }
 
     // Demo Mode Batch Processing
@@ -2003,13 +2073,13 @@ export function SipetaProvider({
       const cleanNis = r.nis.trim();
       const cleanNama = r.nama_lengkap.trim();
 
-      const matchedKelas = kelasList.find(
+      const matchedKelas = kelasListRef.current.find(
         (k) =>
           k.kode_kelas.toUpperCase() === r.kode_kelas.toUpperCase().trim() ||
           k.nama_kelas.toLowerCase().includes(r.kelas.toLowerCase().trim())
       );
 
-      const matchedKamar = kamarList.find(
+      const matchedKamar = kamarListRef.current.find(
         (km) =>
           km.nama_kamar.toLowerCase().includes(r.kamar.toLowerCase().trim()) ||
           km.kode_kamar.toLowerCase() === r.kamar.toLowerCase().trim()
@@ -2066,7 +2136,7 @@ export function SipetaProvider({
         jenis_kelamin: r.jenis_kelamin,
         alamat: r.alamat,
         tahun_masuk: 2026,
-        tahun_ajaran_id: "ta-2026-2027",
+        tahun_ajaran_id: activeTaRecord.id,
         kelas_id: matchedKelas.id,
         kamar_id: matchedKamar.id,
         status: "AKTIF",

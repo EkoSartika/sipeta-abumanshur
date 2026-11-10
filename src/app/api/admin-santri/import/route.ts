@@ -15,6 +15,8 @@ import {
 } from "@/lib/utils/auth-mapping";
 import type { ImportBatchReport, ImportRowResult } from "@/types/database";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const importRowSchema = z.object({
   row_number: z.number().int(),
   nis: z.string().min(3).max(30),
@@ -30,10 +32,12 @@ const importRowSchema = z.object({
   no_telepon_wali: z.string().min(8),
   email_kontak: z.string().optional(),
   alamat: z.string().min(5),
+  tahun_ajaran: z.string().optional(),
 });
 
 const importPayloadSchema = z.object({
   rows: z.array(importRowSchema).min(1, "Minimal sertakan 1 baris data santri."),
+  tahun_ajaran_id: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -131,14 +135,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Cache Data Master Kelas & Kamar
-    const [{ data: kelasDb }, { data: kamarDb }] = await Promise.all([
+    // 3. Cache Data Master Kelas, Kamar, & Tahun Pelajaran
+    const [{ data: kelasDb }, { data: kamarDb }, { data: tahunAjaranDb }] = await Promise.all([
       adminClient.from("kelas").select("id, kode_kelas, nama_kelas"),
       adminClient.from("kamar").select("id, kode_kamar, nama_kamar"),
+      adminClient.from("tahun_ajaran").select("id, nama, is_active").order("created_at", { ascending: false }),
     ]);
 
     const kelasList = kelasDb || [];
     const kamarList = kamarDb || [];
+    const tahunAjaranList = tahunAjaranDb || [];
+
+    // Resolusi UUID Tahun Pelajaran Aktif
+    const requestedTaId = validation.data.tahun_ajaran_id?.trim();
+    const activeTaRecord =
+      (requestedTaId && UUID_REGEX.test(requestedTaId)
+        ? tahunAjaranList.find((t) => t.id === requestedTaId)
+        : undefined) ||
+      tahunAjaranList.find((t) => t.is_active && UUID_REGEX.test(t.id)) ||
+      tahunAjaranList.find((t) => UUID_REGEX.test(t.id));
+
+    if (!activeTaRecord || !UUID_REGEX.test(activeTaRecord.id)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "Proses import dihentikan: Tahun Pelajaran aktif belum ditemukan di database. Silakan tambahkan dan aktifkan Tahun Pelajaran terlebih dahulu.",
+        },
+        { status: 400 }
+      );
+    }
 
     const results: ImportRowResult[] = [];
     let successCount = 0;
@@ -149,6 +175,20 @@ export async function POST(request: NextRequest) {
     for (const r of rows) {
       const cleanNis = r.nis.trim();
       const cleanNama = r.nama_lengkap.trim();
+
+      // Pemetaan Tahun Pelajaran per baris (jika kolom tahun_ajaran diisi label mis. "2026/2027", petakan ke UUID asli)
+      let rowTahunAjaranId = activeTaRecord.id;
+      if (r.tahun_ajaran && r.tahun_ajaran.trim()) {
+        const cleanTaLabel = r.tahun_ajaran.trim();
+        const matchedTa = tahunAjaranList.find(
+          (t) =>
+            UUID_REGEX.test(t.id) &&
+            (t.nama.trim().toLowerCase() === cleanTaLabel.toLowerCase() || t.id === cleanTaLabel)
+        );
+        if (matchedTa) {
+          rowTahunAjaranId = matchedTa.id;
+        }
+      }
 
       // Cari Kelas & Kamar ID
       const matchedKelas = kelasList.find(
@@ -212,7 +252,7 @@ export async function POST(request: NextRequest) {
       let createdAuthUserId: string | null = null;
 
       try {
-        // A. Insert Santri
+        // A. Insert Santri (dengan UUID tahun_ajaran_id dari record public.tahun_ajaran)
         const { data: santriInserted, error: sntErr } = await adminClient
           .from("santri")
           .insert({
@@ -223,7 +263,7 @@ export async function POST(request: NextRequest) {
             jenis_kelamin: r.jenis_kelamin,
             alamat: r.alamat.trim(),
             tahun_masuk: 2026,
-            tahun_ajaran_id: "ta-2026-2027",
+            tahun_ajaran_id: rowTahunAjaranId,
             kelas_id: matchedKelas.id,
             kamar_id: matchedKamar.id,
             status: "AKTIF",

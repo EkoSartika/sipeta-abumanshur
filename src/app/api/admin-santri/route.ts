@@ -18,6 +18,8 @@ import {
   validatePasswordStrength,
 } from "@/lib/utils/auth-mapping";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const registerSantriSchema = z.object({
   nis: z.string().min(3, "NIS minimal 3 karakter."),
   nama_lengkap: z.string().min(3, "Nama santri minimal 3 karakter."),
@@ -26,6 +28,7 @@ const registerSantriSchema = z.object({
   jenis_kelamin: z.enum(["L", "P"]),
   alamat: z.string().min(5, "Alamat minimal 5 karakter."),
   tahun_masuk: z.number().int().min(2000),
+  tahun_ajaran_id: z.string().optional(),
   kelas_id: z.string().min(1, "Kelas wajib dipilih."),
   kamar_id: z.string().min(1, "Kamar asrama wajib dipilih."),
   wali: z.object({
@@ -153,6 +156,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 6. Resolusi UUID Tahun Pelajaran Aktif dari public.tahun_ajaran (Jangan pernah mengirim "ta-2026-2027" atau label teks ke kolom UUID)
+    let resolvedTahunAjaranId: string | null = null;
+
+    if (payload.tahun_ajaran_id && UUID_REGEX.test(payload.tahun_ajaran_id.trim())) {
+      const { data: requestedTa } = await adminClient
+        .from("tahun_ajaran")
+        .select("id")
+        .eq("id", payload.tahun_ajaran_id.trim())
+        .maybeSingle();
+      if (requestedTa?.id) {
+        resolvedTahunAjaranId = requestedTa.id;
+      }
+    }
+
+    if (!resolvedTahunAjaranId) {
+      const { data: activeTa } = await adminClient
+        .from("tahun_ajaran")
+        .select("id, nama")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (activeTa?.id && UUID_REGEX.test(activeTa.id)) {
+        resolvedTahunAjaranId = activeTa.id;
+      } else {
+        const { data: fallbackTa } = await adminClient
+          .from("tahun_ajaran")
+          .select("id, nama")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (fallbackTa?.id && UUID_REGEX.test(fallbackTa.id)) {
+          resolvedTahunAjaranId = fallbackTa.id;
+        }
+      }
+    }
+
+    if (!resolvedTahunAjaranId || !UUID_REGEX.test(resolvedTahunAjaranId)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "Registrasi dihentikan: Tahun Pelajaran aktif belum ditemukan di database. Silakan tambahkan dan aktifkan Tahun Pelajaran terlebih dahulu.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 7. Validasi UUID Kelas & Kamar Asrama
+    if (!UUID_REGEX.test(payload.kelas_id.trim()) || !UUID_REGEX.test(payload.kamar_id.trim())) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "Kelas atau kamar asrama yang dipilih belum valid. Pastikan data Master Kelas dan Master Kamar Asrama sudah dipilih dari daftar aktif.",
+        },
+        { status: 400 }
+      );
+    }
+
     // =========================================================================
     // PROSES TRANSAKSI DENGAN ROLLBACK OTOMATIS JIKA SALAH SATU TAHAP GAGAL
     // =========================================================================
@@ -171,9 +234,9 @@ export async function POST(request: NextRequest) {
           jenis_kelamin: payload.jenis_kelamin,
           alamat: payload.alamat.trim(),
           tahun_masuk: payload.tahun_masuk,
-          tahun_ajaran_id: "ta-2026-2027",
-          kelas_id: payload.kelas_id,
-          kamar_id: payload.kamar_id,
+          tahun_ajaran_id: resolvedTahunAjaranId,
+          kelas_id: payload.kelas_id.trim(),
+          kamar_id: payload.kamar_id.trim(),
           status: "AKTIF",
         })
         .select()
