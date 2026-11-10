@@ -1,10 +1,15 @@
 -- ============================================================================
--- SIPETA Migration 017: Penyelarasan Hak Akses Asatidz, Bendahara, dan Tata Usaha (TU)
--- Mendukung keputusan sistem: Bendahara adalah Asatidz dengan tugas tambahan keuangan,
--- serta memastikan Tata Usaha (TU) dapat mengelola Kelas dan Kamar tanpa error RLS.
+-- SIPETA Migration 017: Penyelarasan Hak Akses Asatidz (pengelola), Bendahara, dan Tata Usaha (TU)
+-- Keputusan sistem:
+--   - Role pengelola = nilai enum internal untuk role Asatidz/Ustadz
+--   - Role bendahara = enum tersendiri, memperoleh hak pengelola + hak keuangan
+--   - Role tu        = Tata Usaha, enum ditambahkan di migration 013
+-- Enum user_role valid: 'superadmin', 'admin', 'bendahara', 'pengelola', 'wali', 'tu'
 -- ============================================================================
 
--- 1. Penyelarasan RLS untuk tabel-tabel kepesantrenan (Asatidz & Bendahara)
+BEGIN;
+
+-- 1. Penyelarasan RLS untuk tabel-tabel kepesantrenan (Asatidz/pengelola & Bendahara)
 -- Perkembangan Mengaji
 DROP POLICY IF EXISTS "asatidz_bendahara_all_mengaji" ON public.perkembangan_mengaji;
 CREATE POLICY "asatidz_bendahara_all_mengaji" ON public.perkembangan_mengaji
@@ -14,7 +19,7 @@ CREATE POLICY "asatidz_bendahara_all_mengaji" ON public.perkembangan_mengaji
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -22,7 +27,7 @@ CREATE POLICY "asatidz_bendahara_all_mengaji" ON public.perkembangan_mengaji
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -36,7 +41,7 @@ CREATE POLICY "asatidz_bendahara_all_tahfidz" ON public.setoran_tahfidz
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -44,7 +49,7 @@ CREATE POLICY "asatidz_bendahara_all_tahfidz" ON public.setoran_tahfidz
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -58,7 +63,7 @@ CREATE POLICY "asatidz_bendahara_all_prestasi" ON public.prestasi_santri
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -66,7 +71,7 @@ CREATE POLICY "asatidz_bendahara_all_prestasi" ON public.prestasi_santri
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -80,7 +85,7 @@ CREATE POLICY "asatidz_bendahara_all_kedisiplinan" ON public.catatan_kedisiplina
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -88,7 +93,7 @@ CREATE POLICY "asatidz_bendahara_all_kedisiplinan" ON public.catatan_kedisiplina
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -105,7 +110,7 @@ CREATE POLICY "asatidz_bendahara_select_riwayat_kedisiplinan" ON public.riwayat_
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -119,7 +124,7 @@ CREATE POLICY "asatidz_bendahara_all_master_kategori" ON public.master_kategori_
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -127,7 +132,7 @@ CREATE POLICY "asatidz_bendahara_all_master_kategori" ON public.master_kategori_
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'asatidz', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -174,4 +179,6 @@ CREATE POLICY "tu_admin_all_kamar" ON public.kamar
         AND profiles.is_active = true
     )
   );
+
+COMMIT;
 
