@@ -61,12 +61,16 @@ describe("SIPETA Migration 016: Fitur Manajemen Semester Akademik & RPC Perganti
     expect(migrationSql).toContain("GRANT EXECUTE ON FUNCTION public.rpc_set_active_semester(TEXT) TO authenticated;");
   });
 
-  it("9. Trigger guard terpasang untuk mencegah direct UPDATE pada semester_aktif", () => {
+  it("9. Trigger guard terpasang untuk mencegah direct UPDATE pada semester_aktif dan menolak skema asing", () => {
     expect(migrationSql).toContain("CREATE OR REPLACE FUNCTION public.prevent_direct_profil_pesantren_semester_update()");
     expect(migrationSql).toContain("GET DIAGNOSTICS v_context = PG_CONTEXT;");
     expect(migrationSql).toContain("IF v_context !~ '(^|\\n)PL/pgSQL function (public\\.)?rpc_set_active_semester\\('");
+    expect(migrationSql).toContain("OR v_context ~ '(?<!public)\\.rpc_set_active_semester\\('");
     expect(migrationSql).toContain("CREATE TRIGGER trg_guard_direct_profil_pesantren_semester_update");
     expect(migrationSql).toContain("BEFORE UPDATE ON public.profil_pesantren");
+    // Verifikasi Temuan 1: Hapus fallback LIMIT 1, hanya singleton ID tetap
+    expect(migrationSql).not.toContain("LIMIT 1");
+    expect(migrationSql).toContain("WHERE id = '00000000-0000-0000-0000-000000000001'::UUID");
   });
 
   it("10. Eksekusi runtime PGlite: simulasi RPC, trigger guard, dan penegakan keamanan role", async () => {
@@ -233,12 +237,41 @@ describe("SIPETA Migration 016: Fitur Manajemen Semester Akademik & RPC Perganti
     await db.exec(`SET "request.jwt.claim.sub" = '${tuId}';`);
     await expect(
       db.exec(`UPDATE public.profil_pesantren SET semester_aktif = 'Genap';`)
-    ).rejects.toThrow(/Semester aktif HANYA dapat diubah melalui rpc_set_active_semester/);
+    ).rejects.toThrow(/Semester aktif HANYA dapat diubah melalui public\.rpc_set_active_semester/);
 
     // Skenario I: Direct UPDATE pada identitas profil (tanpa mengubah semester_aktif) tetap diizinkan
     await expect(
       db.exec(`UPDATE public.profil_pesantren SET nama_resmi = 'Pondok Pesantren Modern Abu Manshur Cirebon';`)
     ).resolves.not.toThrow();
+
+    // Skenario J: Fungsi dari skema lain (misalnya evil.rpc_set_active_semester) DITOLAK oleh trigger guard
+    await db.exec(`
+      CREATE SCHEMA evil;
+      CREATE OR REPLACE FUNCTION evil.rpc_set_active_semester(p_semester TEXT)
+      RETURNS VOID
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      AS $$
+      BEGIN
+        UPDATE public.profil_pesantren SET semester_aktif = p_semester;
+      END;
+      $$;
+    `);
+    await expect(
+      db.exec(`SELECT evil.rpc_set_active_semester('Genap');`)
+    ).rejects.toThrow(/Semester aktif HANYA dapat diubah melalui public\.rpc_set_active_semester/);
+
+    // Skenario K: Verifikasi penolakan singleton jika baris profil tidak ditemukan (tidak ada fallback baris lain)
+    await db.exec(`DELETE FROM public.profil_pesantren;`);
+    // Buat baris profil non-singleton dengan ID berbeda
+    await db.exec(`
+      INSERT INTO public.profil_pesantren (id, nama_resmi, tahun_pelajaran_aktif, semester_aktif)
+      VALUES ('99999999-9999-9999-9999-999999999999'::UUID, 'Profil Palsu', '2026/2027', 'Ganjil');
+    `);
+    await db.exec(`SET "request.jwt.claim.sub" = '${superadminId}';`);
+    await expect(
+      db.query(`SELECT public.rpc_set_active_semester('Genap');`)
+    ).rejects.toThrow(/Baris profil pesantren singleton \(00000000-0000-0000-0000-000000000001\) tidak ditemukan/);
 
     await db.close();
   }, 30000);

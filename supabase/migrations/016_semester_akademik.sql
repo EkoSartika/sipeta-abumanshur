@@ -57,10 +57,13 @@ BEGIN
         -- Periksa call stack internal PL/pgSQL
         GET DIAGNOSTICS v_context = PG_CONTEXT;
 
-        -- Mutasi semester_aktif HANYA diizinkan jika dieksekusi dari dalam fungsi rpc_set_active_semester.
+        -- Mutasi semester_aktif HANYA diizinkan jika dieksekusi dari dalam fungsi resmi public.rpc_set_active_semester.
         -- Validasi ketat pola call stack resmi PL/pgSQL:
-        IF v_context !~ '(^|\n)PL/pgSQL function (public\.)?rpc_set_active_semester\(' THEN
-            RAISE EXCEPTION 'Akses ditolak: Semester aktif HANYA dapat diubah melalui rpc_set_active_semester(). UPDATE langsung dilarang.';
+        -- 1. Wajib memanggil fungsi rpc_set_active_semester
+        -- 2. DILARANG dipanggil dari skema asing selain public (misal: evil.rpc_set_active_semester)
+        IF v_context !~ '(^|\n)PL/pgSQL function (public\.)?rpc_set_active_semester\('
+           OR v_context ~ '(?<!public)\.rpc_set_active_semester\(' THEN
+            RAISE EXCEPTION 'Akses ditolak: Semester aktif HANYA dapat diubah melalui public.rpc_set_active_semester(). UPDATE langsung dilarang.';
         END IF;
     END IF;
     RETURN NEW;
@@ -111,7 +114,9 @@ BEGIN
     END IF;
     v_clean_semester := trim(p_semester);
 
-    -- 4. Ambil Data Profil Pesantren Saat Ini dengan Row-Level Exclusive Lock (Singleton)
+    -- 4. Ambil Data Profil Pesantren Singleton dengan Row-Level Exclusive Lock
+    -- SIPETA menggunakan singleton ID tetap ('00000000-0000-0000-0000-000000000001'::UUID).
+    -- Tidak ada fallback ke sembarang baris untuk mencegah mutasi baris yang tidak sah.
     SELECT id, tahun_pelajaran_aktif, semester_aktif
     INTO v_profil_id, v_tahun_aktif, v_semester_lama
     FROM public.profil_pesantren
@@ -119,16 +124,7 @@ BEGIN
     FOR UPDATE;
 
     IF v_profil_id IS NULL THEN
-        -- Fallback cari sembarang baris profil pertama jika ID berbeda
-        SELECT id, tahun_pelajaran_aktif, semester_aktif
-        INTO v_profil_id, v_tahun_aktif, v_semester_lama
-        FROM public.profil_pesantren
-        LIMIT 1
-        FOR UPDATE;
-    END IF;
-
-    IF v_profil_id IS NULL THEN
-        RAISE EXCEPTION 'Profil pesantren belum diinisialisasi di database.';
+        RAISE EXCEPTION 'Akses ditolak: Baris profil pesantren singleton (00000000-0000-0000-0000-000000000001) tidak ditemukan.';
     END IF;
 
     -- 5. Jika nilai semester sama persis, tidak perlu mutasi (Idempoten)
