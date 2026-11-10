@@ -3,7 +3,7 @@
 -- Pondok Pesantren Modern Abu Manshur — Cirebon
 -- Dokumen Migration: Penyimpanan Permanen Profil Lembaga, NSPP/NPSN, Alamat,
 -- Kontak Resmi, Pengaturan Tahun Ajaran Aktif, RLS TU, Realtime & Audit Trail
--- Status: FINAL SECURITY GATE REVIEWED & PREPARED (TIDAK DIJALANKAN KE SUPABASE CLOUD)
+-- Status: FINAL SECURITY GATE VERIFIED & PREPARED (TIDAK DIJALANKAN KE SUPABASE CLOUD)
 -- ============================================================================
 
 BEGIN;
@@ -134,7 +134,7 @@ TO authenticated
 WITH CHECK (public.get_my_role() IN ('superadmin', 'admin'));
 
 -- Policy Baru 3: UPDATE data master (nama, rentang tanggal) hanya untuk Admin dan Superadmin
--- Catatan: Perubahan status is_active tetap dijaga ketat oleh trigger di bawah ini.
+-- Catatan: Perubahan status is_active tetap dicegah oleh Trigger Guard di bawah ini.
 CREATE POLICY "Tahun Ajaran: admin dan superadmin ubah data master"
 ON public.tahun_ajaran FOR UPDATE
 TO authenticated
@@ -151,16 +151,26 @@ USING (public.get_my_role() = 'superadmin');
 -- ----------------------------------------------------------------------------
 -- 3. TRIGGER GUARD: CEGAH UPDATE LANGSUNG PADA KOLOM IS_ACTIVE
 -- ----------------------------------------------------------------------------
--- Menjamin bahwa perubahan is_active HANYA bisa terjadi melalui rpc_set_active_tahun_ajaran
+-- Menjamin perubahan is_active HANYA bisa terjadi melalui rpc_set_active_tahun_ajaran
+-- menggunakan dynamic runtime nonce yang valid hanya dalam transaksi lokal RPC
 CREATE OR REPLACE FUNCTION public.prevent_direct_tahun_ajaran_active_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+    v_expected_nonce TEXT;
+    v_role public.user_role;
 BEGIN
-    IF (OLD.is_active IS DISTINCT FROM NEW.is_active) AND current_setting('sipeta.allow_tahun_ajaran_switch', true) IS DISTINCT FROM 'on' THEN
-        RAISE EXCEPTION 'Akses ditolak: Status aktif tahun pelajaran HANYA dapat diubah melalui rpc_set_active_tahun_ajaran(). UPDATE langsung dilarang.';
+    IF (OLD.is_active IS DISTINCT FROM NEW.is_active) THEN
+        v_expected_nonce := current_setting('sipeta.active_switch_nonce', true);
+        v_role := public.get_my_role();
+
+        -- Nonce harus terdefinisi, tidak kosong, dan pemanggil wajib berwenang (tu, admin, superadmin)
+        IF v_expected_nonce IS NULL OR v_expected_nonce = '' OR v_role NOT IN ('tu', 'admin', 'superadmin') THEN
+            RAISE EXCEPTION 'Akses ditolak: Status aktif tahun pelajaran HANYA dapat diubah melalui rpc_set_active_tahun_ajaran(). UPDATE langsung dilarang.';
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -184,6 +194,7 @@ AS $$
 DECLARE
     v_role public.user_role;
     v_tahun_nama TEXT;
+    v_nonce TEXT;
 BEGIN
     -- 1. Verifikasi Role Otoritatif: TU, Admin (Pengasuh), dan Superadmin
     v_role := public.get_my_role();
@@ -197,21 +208,32 @@ BEGIN
         RAISE EXCEPTION 'Tahun pelajaran dengan ID % tidak ditemukan.', p_tahun_ajaran_id;
     END IF;
 
-    -- 3. Buka izin sesi lokal transaksi untuk mengizinkan pergantian is_active oleh trigger guard
-    PERFORM set_config('sipeta.allow_tahun_ajaran_switch', 'on', true);
+    -- 3. Bangkitkan Dynamic Cryptographic Nonce unik khusus transaksi lokal ini
+    v_nonce := md5(random()::text || clock_timestamp()::text || COALESCE(auth.uid()::text, gen_random_uuid()::text));
+    PERFORM set_config('sipeta.active_switch_nonce', v_nonce, true);
 
-    -- 4. Nonaktifkan semua tahun ajaran lain (transaksi atomik)
-    UPDATE public.tahun_ajaran SET is_active = false WHERE is_active = true;
+    BEGIN
+        -- 4. Nonaktifkan semua tahun ajaran lain (transaksi atomik)
+        UPDATE public.tahun_ajaran SET is_active = false WHERE is_active = true;
 
-    -- 5. Aktifkan tahun ajaran target
-    UPDATE public.tahun_ajaran SET is_active = true WHERE id = p_tahun_ajaran_id;
+        -- 5. Aktifkan tahun ajaran target
+        UPDATE public.tahun_ajaran SET is_active = true WHERE id = p_tahun_ajaran_id;
 
-    -- 6. Sinkronkan nama tahun ajaran aktif ke tabel profil_pesantren
-    UPDATE public.profil_pesantren
-    SET tahun_pelajaran_aktif = v_tahun_nama,
-        updated_at = now(),
-        updated_by = auth.uid()
-    WHERE true;
+        -- 6. Sinkronkan nama tahun ajaran aktif ke tabel profil_pesantren
+        UPDATE public.profil_pesantren
+        SET tahun_pelajaran_aktif = v_tahun_nama,
+            updated_at = now(),
+            updated_by = auth.uid()
+        WHERE true;
+
+        -- 7. Bersihkan nonce izin secara eksplisit segera setelah mutasi selesai
+        PERFORM set_config('sipeta.active_switch_nonce', '', true);
+
+    EXCEPTION WHEN OTHERS THEN
+        -- Pastikan nonce dibersihkan jika terjadi error/exception apapun sebelum re-raise
+        PERFORM set_config('sipeta.active_switch_nonce', '', true);
+        RAISE;
+    END;
 
     RETURN jsonb_build_object(
         'success', true,
@@ -222,7 +244,7 @@ BEGIN
 END;
 $$;
 
--- Pembatasan Hak Eksekusi RPC: Cabut dari PUBLIC, izinkan authenticated
+-- Pembatasan Hak Eksekusi RPC: Cabut dari PUBLIC, izinkan hanya authenticated
 REVOKE EXECUTE ON FUNCTION public.rpc_set_active_tahun_ajaran(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.rpc_set_active_tahun_ajaran(UUID) TO authenticated;
 

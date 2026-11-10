@@ -61,18 +61,22 @@ describe("SIPETA Migration 015: Profil Pesantren & Tahun Pelajaran Audit", () =>
     expect(migrationSql).toContain('CREATE POLICY "Tahun Ajaran: hanya superadmin hapus master"');
   });
 
-  it("6. Trigger guard mencegah UPDATE langsung pada kolom is_active tahun_ajaran", () => {
+  it("6. Trigger guard mencegah UPDATE langsung pada kolom is_active tahun_ajaran dengan dynamic nonce & role check", () => {
     expect(migrationSql).toContain("CREATE OR REPLACE FUNCTION public.prevent_direct_tahun_ajaran_active_update()");
-    expect(migrationSql).toContain("current_setting('sipeta.allow_tahun_ajaran_switch', true) IS DISTINCT FROM 'on'");
+    expect(migrationSql).toContain("current_setting('sipeta.active_switch_nonce', true)");
+    expect(migrationSql).toContain("v_expected_nonce IS NULL OR v_expected_nonce = '' OR v_role NOT IN ('tu', 'admin', 'superadmin')");
     expect(migrationSql).toContain("CREATE TRIGGER trg_guard_direct_tahun_ajaran_update");
     expect(migrationSql).toContain("BEFORE UPDATE ON public.tahun_ajaran");
   });
 
-  it("7. RPC rpc_set_active_tahun_ajaran memiliki pembatasan EXECUTE, role check, dan berjalan atomik", () => {
+  it("7. RPC rpc_set_active_tahun_ajaran memiliki dynamic cryptographic nonce, exception safety, dan pembatasan EXECUTE", () => {
     expect(migrationSql).toContain("CREATE OR REPLACE FUNCTION public.rpc_set_active_tahun_ajaran");
     expect(migrationSql).toContain("SECURITY DEFINER");
     expect(migrationSql).toContain("v_role NOT IN ('tu', 'admin', 'superadmin')");
-    expect(migrationSql).toContain("PERFORM set_config('sipeta.allow_tahun_ajaran_switch', 'on', true);");
+    expect(migrationSql).toContain("v_nonce := md5(");
+    expect(migrationSql).toContain("PERFORM set_config('sipeta.active_switch_nonce', v_nonce, true);");
+    expect(migrationSql).toContain("PERFORM set_config('sipeta.active_switch_nonce', '', true);");
+    expect(migrationSql).toContain("EXCEPTION WHEN OTHERS THEN");
     expect(migrationSql).toContain("UPDATE public.tahun_ajaran SET is_active = false WHERE is_active = true;");
     expect(migrationSql).toContain("UPDATE public.tahun_ajaran SET is_active = true WHERE id = p_tahun_ajaran_id;");
     expect(migrationSql).toContain("UPDATE public.profil_pesantren");
