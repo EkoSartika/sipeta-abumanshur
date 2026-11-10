@@ -451,18 +451,12 @@ export function SuperadminPortal({
       {activeTab === "dashboard" && (
         <div className="space-y-6">
           {/* Welcome Card Superadmin */}
-          <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-emerald-900 to-emerald-950 p-6 sm:p-7 text-white shadow-lg">
+          <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-emerald-900 to-emerald-950 p-5 sm:p-6 text-white shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <span className="inline-block rounded-full bg-emerald-800/80 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-200 border border-emerald-700">
-                  Pusat Komando &amp; Pengawasan Pimpinan
-                </span>
-                <h3 className="mt-2 text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
                   Selamat Datang, {currentUser?.nama_lengkap}
                 </h3>
-                <p className="mt-1 text-xs sm:text-sm text-emerald-100/90 max-w-2xl leading-relaxed">
-                  Pantau seluruh tata kelola pengguna internal, rekening resmi BSI pesantren, dan rekam jejak audit seluruh transaksi keuangan maupun akademik SIPETA.
-                </p>
               </div>
               <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
                 <button

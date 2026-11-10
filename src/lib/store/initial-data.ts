@@ -17,6 +17,7 @@ import type {
   Pengumuman,
   PerkembanganMengaji,
   PrestasiSantri,
+  ProfilPesantren,
   RekeningPesantren,
   RiwayatPenempatanSantri,
   Santri,
@@ -183,6 +184,30 @@ export const INITIAL_TAHUN_AJARAN: TahunAjaran[] = [
     is_active: false,
   },
 ];
+
+export const INITIAL_PROFIL_PESANTREN: ProfilPesantren = {
+  id: "profil-pesantren-01",
+  nama_resmi: "Pondok Pesantren Modern Abu Manshur",
+  nspp: "510032090045",
+  npsn: "69982412",
+  akreditasi: "Terakreditasi A",
+  sk_pendirian: "Kd.10.09/4/PP.00.7/1335/2010",
+  alamat: "Jl. Nyi Ageng Serang, Sindangmekar, Kec. Dukupuntang, Kabupaten Cirebon, Jawa Barat 45652",
+  kelurahan: "Sindangmekar",
+  kecamatan: "Dukupuntang",
+  kabupaten_kota: "Kabupaten Cirebon",
+  provinsi: "Jawa Barat",
+  kode_pos: "45652",
+  no_telepon: "(0231) 8303388",
+  email: "sekretariat@abumanshur.sch.id",
+  website: "https://abumanshur.sch.id",
+  nama_pengasuh: "Kyai Abu Manshur",
+  tahun_pelajaran_aktif: "2026/2027",
+  semester_aktif: "Ganjil",
+  informasi_umum:
+    "Pondok Pesantren Modern Abu Manshur berkomitmen mendidik santri berakhlak mulia, unggul dalam ilmu agama (tahfidz & kitab), dan cakap dalam ilmu pengetahuan umum serta bahasa.",
+  updated_at: "2026-07-01T08:00:00Z",
+};
 
 export const INITIAL_KELAS: Kelas[] = [
   {

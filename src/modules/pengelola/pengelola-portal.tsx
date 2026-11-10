@@ -59,6 +59,7 @@ export function PengelolaPortal({
     prestasiList,
     masterPelanggaranList,
     kedisiplinanList,
+    profilPesantren,
     recordPerkembanganMengaji,
     recordSetoranTahfidz,
     recordPrestasiSantri,
@@ -341,17 +342,21 @@ export function PengelolaPortal({
 
   return (
     <div className="space-y-6">
-      {/* Header Asatidz (Bab 3.4 PRD) */}
+      {/* Header Asatidz */}
       <div className="rounded-2xl bg-gradient-to-r from-indigo-950 via-emerald-900 to-teal-950 p-5 text-white shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold">
-              Portal Asatidz (Mengaji, Tahfidz, Prestasi, &amp; Kedisiplinan)
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-200 border border-emerald-400/30">
+                Asatidz
+              </span>
+              <span className="text-xs text-emerald-200">
+                • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})
+              </span>
+            </div>
+            <h2 className="text-xl font-bold mt-1 tracking-tight">
+              Portal Asatidz
             </h2>
-            <p className="mt-0.5 text-xs text-emerald-100/90">
-              Pondok Pesantren Modern Abu Manshur: Asatidz mencatat perkembangan ibadah, tahfidz Al-Qur&apos;an,
-              prestasi santri, serta pembinaan kedisiplinan asrama.
-            </p>
           </div>
           <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
             <img

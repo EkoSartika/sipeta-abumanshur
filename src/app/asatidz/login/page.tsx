@@ -10,12 +10,9 @@ export default function AsatidzLoginPage() {
   return (
     <RoleLoginView
       expectedRole="pengelola"
-      roleBadge="Portal Asatidz & Pembina"
       title="Portal Masuk Asatidz"
-      subtitle="Pencatatan perkembangan mengaji, setoran tahfidz Al-Qur'an, pembinaan kedisiplinan, dan prestasi santri"
-      identifierLabel="Username Asatidz / Pembina"
+      identifierLabel="Username Asatidz"
       identifierPlaceholder="contoh: asatidz01"
-      identifierHelp="Gunakan username akun asatidz/musyrif Anda (tanpa email)."
     />
   );
 }

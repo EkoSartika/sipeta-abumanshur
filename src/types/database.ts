@@ -93,6 +93,30 @@ export interface TahunAjaran {
   is_active: boolean;
 }
 
+export interface ProfilPesantren {
+  id: string;
+  nama_resmi: string;
+  nspp: string;
+  npsn: string;
+  akreditasi: string;
+  sk_pendirian: string;
+  alamat: string;
+  kelurahan: string;
+  kecamatan: string;
+  kabupaten_kota: string;
+  provinsi: string;
+  kode_pos: string;
+  no_telepon: string;
+  email: string;
+  website: string;
+  nama_pengasuh: string;
+  tahun_pelajaran_aktif: string;
+  semester_aktif: "Ganjil" | "Genap";
+  informasi_umum: string;
+  updated_at: string;
+  updated_by?: string;
+}
+
 export interface Kelas {
   id: string;
   kode_kelas: string;

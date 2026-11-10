@@ -22,11 +22,11 @@ import type { UserRole } from "@/types/database";
 interface RoleLoginViewProps {
   expectedRole: UserRole;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   identifierLabel: string;
   identifierPlaceholder: string;
-  identifierHelp: string;
-  roleBadge: string;
+  identifierHelp?: string;
+  roleBadge?: string;
   isNis?: boolean;
 }
 
@@ -41,7 +41,7 @@ export function RoleLoginView({
   isNis = false,
 }: RoleLoginViewProps) {
   const router = useRouter();
-  const { loginWithSupabase, isAuthenticated, currentUser, authLoading } = useSipeta();
+  const { loginWithSupabase, isAuthenticated, currentUser, authLoading, profilPesantren } = useSipeta();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -123,15 +123,19 @@ export function RoleLoginView({
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white shadow-md border-2 border-emerald-100 mb-3">
                 <Lock className="h-6 w-6" />
               </div>
-              <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-800 border border-emerald-200">
-                {roleBadge}
-              </span>
+              {roleBadge && (
+                <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+                  {roleBadge}
+                </span>
+              )}
               <h2 className="mt-2 text-xl font-extrabold text-slate-900 tracking-tight">
                 {title}
               </h2>
-              <p className="mt-1 text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
-                {subtitle}
-              </p>
+              {subtitle && (
+                <p className="mt-1 text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+                  {subtitle}
+                </p>
+              )}
             </div>
 
             {/* Error Banner */}
@@ -175,9 +179,11 @@ export function RoleLoginView({
                     className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none min-h-[44px]"
                   />
                 </div>
-                <p className="mt-1 text-[11px] text-slate-500 leading-normal">
-                  {identifierHelp}
-                </p>
+                {identifierHelp && (
+                  <p className="mt-1 text-[11px] text-slate-500 leading-normal">
+                    {identifierHelp}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -221,7 +227,7 @@ export function RoleLoginView({
                 ) : (
                   <>
                     <LogIn className="h-4 w-4" />
-                    <span>Masuk ke {roleBadge}</span>
+                    <span>Masuk ke {roleBadge || title}</span>
                   </>
                 )}
               </button>
@@ -235,14 +241,14 @@ export function RoleLoginView({
         </div>
       </main>
 
-      {/* Footer Bersih */}
+      {/* Footer Bersih & Dinamis Berdasarkan Profil Pesantren */}
       <footer className="border-t border-slate-200 bg-white py-4 text-xs text-slate-500 text-center">
         <div className="mx-auto max-w-7xl px-4">
           <p className="font-semibold text-slate-700">
-            SIPETA — Pondok Pesantren Modern Abu Manshur
+            SIPETA — {profilPesantren?.nama_resmi || "Pondok Pesantren Modern Abu Manshur"}
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Jl. Nyi Ageng Serang, Sindangmekar, Dukupuntang / Plered, Cirebon, Jawa Barat
+            {profilPesantren?.alamat || "Jl. Nyi Ageng Serang, Sindangmekar, Dukupuntang / Plered, Cirebon, Jawa Barat"}
           </p>
         </div>
       </footer>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -22,13 +22,17 @@ import {
   Filter,
   History,
   Info,
+  MapPin,
   Megaphone,
+  Phone,
   Plus,
   Receipt,
   RefreshCw,
   RotateCcw,
+  Save,
   Search,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Square,
   Trash2,
@@ -86,6 +90,7 @@ export type TuTab =
   | "santri_wali"
   | "tambah_santri"
   | "kelas_kamar"
+  | "profil_pesantren"
   | "riwayat_penempatan";
 
 export interface TuPortalProps {
@@ -123,6 +128,10 @@ export function TuPortal({
     tagihanList,
     mengajiList,
     tahunAjaranList,
+    tahunAjaranAktif,
+    profilPesantren,
+    updateProfilPesantren,
+    setActiveTahunAjaran,
     createSantriWithWali,
     importSantriBatch,
     moveSantriPlacement,
@@ -297,6 +306,98 @@ export function TuPortal({
   const [selectedSantriDetailId, setSelectedSantriDetailId] = useState(santriList[0]?.id ?? "snt-001");
 
   // Helper Labels & Filters
+  // ==========================================================================
+  // STATE PENGATURAN PROFIL PESANTREN (TU)
+  // ==========================================================================
+  const [selectedTahunAjaranId, setSelectedTahunAjaranId] = useState(
+    tahunAjaranList.find((t) => t.is_active)?.id || tahunAjaranList[0]?.id || "ta-2026-2027"
+  );
+  const [semesterProfil, setSemesterProfil] = useState<"Ganjil" | "Genap">(
+    profilPesantren?.semester_aktif || "Ganjil"
+  );
+  const [namaResmiProfil, setNamaResmiProfil] = useState(profilPesantren?.nama_resmi || "");
+  const [nsppProfil, setNsppProfil] = useState(profilPesantren?.nspp || "");
+  const [npsnProfil, setNpsnProfil] = useState(profilPesantren?.npsn || "");
+  const [akreditasiProfil, setAkreditasiProfil] = useState(profilPesantren?.akreditasi || "");
+  const [skPendirianProfil, setSkPendirianProfil] = useState(profilPesantren?.sk_pendirian || "");
+  const [alamatProfil, setAlamatProfil] = useState(profilPesantren?.alamat || "");
+  const [kelurahanProfil, setKelurahanProfil] = useState(profilPesantren?.kelurahan || "");
+  const [kecamatanProfil, setKecamatanProfil] = useState(profilPesantren?.kecamatan || "");
+  const [kabupatenProfil, setKabupatenProfil] = useState(profilPesantren?.kabupaten_kota || "");
+  const [provinsiProfil, setProvinsiProfil] = useState(profilPesantren?.provinsi || "");
+  const [kodePosProfil, setKodePosProfil] = useState(profilPesantren?.kode_pos || "");
+  const [teleponProfil, setTeleponProfil] = useState(profilPesantren?.no_telepon || "");
+  const [emailProfil, setEmailProfil] = useState(profilPesantren?.email || "");
+  const [websiteProfil, setWebsiteProfil] = useState(profilPesantren?.website || "");
+  const [pengasuhProfil, setPengasuhProfil] = useState(profilPesantren?.nama_pengasuh || "");
+  const [informasiUmumProfil, setInformasiUmumProfil] = useState(profilPesantren?.informasi_umum || "");
+  const [confirmSaveProfilOpen, setConfirmSaveProfilOpen] = useState(false);
+  const [savingProfil, setSavingProfil] = useState(false);
+
+  useEffect(() => {
+    if (profilPesantren) {
+      setNamaResmiProfil(profilPesantren.nama_resmi || "");
+      setNsppProfil(profilPesantren.nspp || "");
+      setNpsnProfil(profilPesantren.npsn || "");
+      setAkreditasiProfil(profilPesantren.akreditasi || "");
+      setSkPendirianProfil(profilPesantren.sk_pendirian || "");
+      setAlamatProfil(profilPesantren.alamat || "");
+      setKelurahanProfil(profilPesantren.kelurahan || "");
+      setKecamatanProfil(profilPesantren.kecamatan || "");
+      setKabupatenProfil(profilPesantren.kabupaten_kota || "");
+      setProvinsiProfil(profilPesantren.provinsi || "");
+      setKodePosProfil(profilPesantren.kode_pos || "");
+      setTeleponProfil(profilPesantren.no_telepon || "");
+      setEmailProfil(profilPesantren.email || "");
+      setWebsiteProfil(profilPesantren.website || "");
+      setPengasuhProfil(profilPesantren.nama_pengasuh || "");
+      setSemesterProfil(profilPesantren.semester_aktif || "Ganjil");
+      setInformasiUmumProfil(profilPesantren.informasi_umum || "");
+    }
+  }, [profilPesantren]);
+
+  useEffect(() => {
+    const active = tahunAjaranList.find((t) => t.is_active);
+    if (active) setSelectedTahunAjaranId(active.id);
+  }, [tahunAjaranList]);
+
+  const handleSaveProfil = async () => {
+    if (!namaResmiProfil.trim()) {
+      setFeedback({ ok: false, text: "Nama resmi pesantren wajib diisi." });
+      return;
+    }
+    if (!alamatProfil.trim()) {
+      setFeedback({ ok: false, text: "Alamat pesantren wajib diisi." });
+      return;
+    }
+    setSavingProfil(true);
+    const res = await updateProfilPesantren(
+      {
+        nama_resmi: namaResmiProfil.trim(),
+        nspp: nsppProfil.trim(),
+        npsn: npsnProfil.trim(),
+        akreditasi: akreditasiProfil.trim(),
+        sk_pendirian: skPendirianProfil.trim(),
+        alamat: alamatProfil.trim(),
+        kelurahan: kelurahanProfil.trim(),
+        kecamatan: kecamatanProfil.trim(),
+        kabupaten_kota: kabupatenProfil.trim(),
+        provinsi: provinsiProfil.trim(),
+        kode_pos: kodePosProfil.trim(),
+        no_telepon: teleponProfil.trim(),
+        email: emailProfil.trim(),
+        website: websiteProfil.trim(),
+        nama_pengasuh: pengasuhProfil.trim(),
+        semester_aktif: semesterProfil,
+        informasi_umum: informasiUmumProfil.trim(),
+      },
+      selectedTahunAjaranId
+    );
+    setSavingProfil(false);
+    setConfirmSaveProfilOpen(false);
+    setFeedback({ ok: res.ok, text: res.message });
+  };
+
   const activeKategoriList = useMemo(() => {
     return masterPelanggaranList.filter((k) => k.is_active !== false);
   }, [masterPelanggaranList]);
@@ -769,15 +870,13 @@ export function TuPortal({
               <span className="rounded-md bg-blue-500/20 px-2.5 py-0.5 text-xs font-bold text-blue-200 border border-blue-400/30">
                 Administrasi Pesantren
               </span>
-              <span className="text-xs text-blue-200">• Tahun Ajaran 2026/2027</span>
+              <span className="text-xs text-blue-200">
+                • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})
+              </span>
             </div>
             <h2 className="text-xl font-extrabold mt-1 tracking-tight">
               Portal Tata Usaha (TU)
             </h2>
-            <p className="mt-0.5 text-xs text-blue-100/90 leading-relaxed">
-              Pengelolaan master data santri, akun wali santri (1:1), master kelas, master kamar asrama,
-              serta pencatatan mutasi/perpindahan kelas dan asrama santri.
-            </p>
           </div>
           <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
             <img
@@ -982,6 +1081,29 @@ export function TuPortal({
                 className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2 text-xs font-bold text-white hover:bg-teal-800 transition min-h-[40px] cursor-pointer"
               >
                 <span>Buka Rekapitulasi</span>
+              </button>
+            </div>
+
+            {/* Shortcut Profil Pesantren */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">Profil Pesantren</h3>
+                  <p className="text-xs text-slate-500">Tahun Pelajaran &amp; Alamat</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-600">
+                Pengaturan tahun pelajaran aktif, semester, nama resmi, kontak, dan alamat resmi lembaga.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab("profil_pesantren")}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition min-h-[40px] cursor-pointer"
+              >
+                <span>Kelola Profil Pesantren</span>
               </button>
             </div>
           </div>
@@ -1836,16 +1958,6 @@ export function TuPortal({
          ===================================================================== */}
       {activeTab === "pembiayaan" && (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 text-xs text-amber-900 space-y-1">
-            <span className="font-bold flex items-center gap-1.5">
-              <Info className="h-4 w-4 text-amber-700" />
-              Alur Persetujuan Pembiayaan Santri (Tata Usaha)
-            </span>
-            <p className="text-slate-600">
-              Setiap jenis pembiayaan baru yang diajukan Tata Usaha akan berstatus <strong>Menunggu Persetujuan</strong> dan tidak langsung aktif. Pengasuh/Admin akan meninjau dan menyetujui pembiayaan sebelum otomatis berubah menjadi tagihan aktif pada santri sasaran. Pembiayaan yang telah disetujui tidak dapat dihapus demi integritas data keuangan.
-            </p>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Form Pengajuan Jenis Pembiayaan Baru */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
@@ -2852,16 +2964,6 @@ export function TuPortal({
          ===================================================================== */}
       {activeTab === "rekapitulasi" && (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-teal-200 bg-teal-50/50 p-4 text-xs text-teal-900 space-y-1">
-            <span className="font-bold flex items-center gap-1.5">
-              <Info className="h-4 w-4 text-teal-700" />
-              Pusat Rekapitulasi &amp; Laporan Administrasi Pesantren (Read-Only Keuangan)
-            </span>
-            <p className="text-slate-600">
-              Tata Usaha dapat memantau status pembiayaan SPP/tagihan santri secara menyeluruh, rekapitulasi mutaba&apos;ah mengaji, rekapitulasi pelanggaran santri, serta mengekspor data ke file biner Excel (.xlsx) resmi tanpa kewenangan manipulasi transaksi kas/ledger.
-            </p>
-          </div>
-
           {/* Subtabs Rekapitulasi */}
           <div className="flex border-b border-slate-200 bg-white rounded-t-2xl px-4 pt-2">
             <button
@@ -3437,6 +3539,414 @@ export function TuPortal({
                   </div>
                 );
               })()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB: PENGATURAN PROFIL PESANTREN (TU)
+         ===================================================================== */}
+      {activeTab === "profil_pesantren" && (
+        <div className="space-y-6">
+          {/* Header Card Profil */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 border border-blue-200">
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span>Tata Usaha — Pengaturan Profil Pesantren</span>
+                </div>
+                <h3 className="mt-2 text-lg font-extrabold text-slate-900 tracking-tight">
+                  Profil Pesantren &amp; Tahun Pelajaran Aktif
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Data profil resmi, tahun ajaran aktif, dan alamat lembaga yang digunakan secara konsisten di seluruh portal SIPETA.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200">
+                  Tahun Aktif: <strong className="text-blue-900">{profilPesantren?.tahun_pelajaran_aktif || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Formulir Pengaturan Profil */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setConfirmSaveProfilOpen(true);
+              }}
+              className="mt-6 space-y-6 text-xs"
+            >
+              {/* Bagian 1: Tahun Pelajaran & Semester */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-blue-200/60 pb-2">
+                  <Calendar className="h-4 w-4 text-blue-700" />
+                  <h4 className="font-extrabold text-xs text-blue-950 uppercase tracking-wider">
+                    1. Tahun Pelajaran &amp; Semester Aktif
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Pilih Tahun Pelajaran Aktif <span className="text-rose-600">*</span>
+                    </label>
+                    <select
+                      value={selectedTahunAjaranId}
+                      onChange={(e) => setSelectedTahunAjaranId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none min-h-[42px]"
+                    >
+                      {tahunAjaranList.map((ta) => (
+                        <option key={ta.id} value={ta.id}>
+                          Tahun Pelajaran {ta.nama} {ta.is_active ? "(Sedang Aktif Saat Ini)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Tahun pelajaran yang dipilih akan menjadi acuan aktif pada seluruh modul akademik &amp; tagihan.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Semester Aktif <span className="text-rose-600">*</span>
+                    </label>
+                    <select
+                      value={semesterProfil}
+                      onChange={(e) => setSemesterProfil(e.target.value as "Ganjil" | "Genap")}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none min-h-[42px]"
+                    >
+                      <option value="Ganjil">Semester Ganjil</option>
+                      <option value="Genap">Semester Genap</option>
+                    </select>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Pilihan semester aktif pondok pesantren (Ganjil / Genap).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bagian 2: Identitas Resmi Pesantren */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <Building2 className="h-4 w-4 text-emerald-800" />
+                  <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
+                    2. Identitas Lembaga Pesantren
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Nama Resmi Lembaga Pesantren <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={namaResmiProfil}
+                      onChange={(e) => setNamaResmiProfil(e.target.value)}
+                      placeholder="contoh: Pondok Pesantren Modern Abu Manshur"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Nama Pengasuh / Pimpinan Pondok
+                    </label>
+                    <input
+                      type="text"
+                      value={pengasuhProfil}
+                      onChange={(e) => setPengasuhProfil(e.target.value)}
+                      placeholder="contoh: Kyai Abu Manshur"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      NSPP (Nomor Statistik Pondok Pesantren)
+                    </label>
+                    <input
+                      type="text"
+                      value={nsppProfil}
+                      onChange={(e) => setNsppProfil(e.target.value)}
+                      placeholder="contoh: 510032090045"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      NPSN (Nomor Pokok Sekolah Nasional)
+                    </label>
+                    <input
+                      type="text"
+                      value={npsnProfil}
+                      onChange={(e) => setNpsnProfil(e.target.value)}
+                      placeholder="contoh: 69982412"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Status Akreditasi
+                    </label>
+                    <input
+                      type="text"
+                      value={akreditasiProfil}
+                      onChange={(e) => setAkreditasiProfil(e.target.value)}
+                      placeholder="contoh: Terakreditasi A"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Nomor SK Izin Operasional / Pendirian
+                    </label>
+                    <input
+                      type="text"
+                      value={skPendirianProfil}
+                      onChange={(e) => setSkPendirianProfil(e.target.value)}
+                      placeholder="contoh: Kd.10.09/4/PP.00.7/1335/2010"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bagian 3: Alamat Pesantren */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <MapPin className="h-4 w-4 text-rose-700" />
+                  <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
+                    3. Alamat Lengkap Pesantren
+                  </h4>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Alamat Jalan &amp; Kompleks Pesantren <span className="text-rose-600">*</span>
+                    </label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={alamatProfil}
+                      onChange={(e) => setAlamatProfil(e.target.value)}
+                      placeholder="contoh: Jl. Nyi Ageng Serang, Sindangmekar, Kec. Dukupuntang, Kabupaten Cirebon, Jawa Barat 45652"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Kelurahan / Desa</label>
+                      <input
+                        type="text"
+                        value={kelurahanProfil}
+                        onChange={(e) => setKelurahanProfil(e.target.value)}
+                        placeholder="Sindangmekar"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Kecamatan</label>
+                      <input
+                        type="text"
+                        value={kecamatanProfil}
+                        onChange={(e) => setKecamatanProfil(e.target.value)}
+                        placeholder="Dukupuntang"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Kabupaten / Kota</label>
+                      <input
+                        type="text"
+                        value={kabupatenProfil}
+                        onChange={(e) => setKabupatenProfil(e.target.value)}
+                        placeholder="Kabupaten Cirebon"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Provinsi</label>
+                      <input
+                        type="text"
+                        value={provinsiProfil}
+                        onChange={(e) => setProvinsiProfil(e.target.value)}
+                        placeholder="Jawa Barat"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Kode Pos</label>
+                      <input
+                        type="text"
+                        value={kodePosProfil}
+                        onChange={(e) => setKodePosProfil(e.target.value)}
+                        placeholder="45652"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bagian 4: Kontak & Media Komunikasi */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <Phone className="h-4 w-4 text-teal-700" />
+                  <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
+                    4. Kontak Sekretariat &amp; Komunikasi
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Nomor Telepon / Hotline</label>
+                    <input
+                      type="text"
+                      value={teleponProfil}
+                      onChange={(e) => setTeleponProfil(e.target.value)}
+                      placeholder="(0231) 8303388"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Email Resmi Sekretariat</label>
+                    <input
+                      type="email"
+                      value={emailProfil}
+                      onChange={(e) => setEmailProfil(e.target.value)}
+                      placeholder="sekretariat@abumanshur.sch.id"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Website Resmi</label>
+                    <input
+                      type="text"
+                      value={websiteProfil}
+                      onChange={(e) => setWebsiteProfil(e.target.value)}
+                      placeholder="https://abumanshur.sch.id"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bagian 5: Informasi Umum */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <FileText className="h-4 w-4 text-indigo-700" />
+                  <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
+                    5. Informasi Umum &amp; Komitmen Lembaga
+                  </h4>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Deskripsi Ringkas &amp; Informasi Umum Pesantren
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={informasiUmumProfil}
+                    onChange={(e) => setInformasiUmumProfil(e.target.value)}
+                    placeholder="Tuliskan deskripsi ringkas, visi, atau komitmen pondok pesantren..."
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Tombol Aksi Simpan */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-blue-700 shrink-0" />
+                  <span>Perubahan profil akan tersimpan permanen dan tersinkronisasi di seluruh portal.</span>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (profilPesantren) {
+                        setNamaResmiProfil(profilPesantren.nama_resmi || "");
+                        setAlamatProfil(profilPesantren.alamat || "");
+                        setTeleponProfil(profilPesantren.no_telepon || "");
+                        setEmailProfil(profilPesantren.email || "");
+                        setWebsiteProfil(profilPesantren.website || "");
+                        setNsppProfil(profilPesantren.nspp || "");
+                        setNpsnProfil(profilPesantren.npsn || "");
+                        setAkreditasiProfil(profilPesantren.akreditasi || "");
+                        setSkPendirianProfil(profilPesantren.sk_pendirian || "");
+                        setInformasiUmumProfil(profilPesantren.informasi_umum || "");
+                      }
+                      setFeedback({ ok: true, text: "Formulir profil diatur ulang ke data tersimpan." });
+                    }}
+                    className="flex-1 sm:flex-none rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition min-h-[42px] cursor-pointer"
+                  >
+                    Batal / Reset
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingProfil}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-extrabold text-white shadow-md hover:bg-blue-800 transition disabled:opacity-50 min-h-[42px] cursor-pointer"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{savingProfil ? "Menyimpan..." : "Simpan Perubahan Profil"}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* Modal Konfirmasi Penyimpanan Profil */}
+          {confirmSaveProfilOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-800">
+                    <Building2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900">Konfirmasi Simpan Profil Pesantren</h3>
+                    <p className="text-xs text-slate-500">Pondok Pesantren Modern Abu Manshur</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <p>
+                    Anda akan memperbarui informasi profil pesantren dengan rincian:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 font-medium text-slate-800">
+                    <li>
+                      Tahun Pelajaran: <strong>{tahunAjaranList.find((t) => t.id === selectedTahunAjaranId)?.nama || "2026/2027"} ({semesterProfil})</strong>
+                    </li>
+                    <li>
+                      Nama Lembaga: <strong>{namaResmiProfil}</strong>
+                    </li>
+                    <li>
+                      Alamat: <span className="text-slate-700">{alamatProfil}</span>
+                    </li>
+                  </ul>
+                  <p className="text-[11px] text-blue-900 font-semibold pt-1">
+                    Perubahan ini akan langsung digunakan secara konsisten pada portal TU, Pengasuh, Asatidz, Bendahara, Wali Santri, dan Superadmin.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={savingProfil}
+                    onClick={() => setConfirmSaveProfilOpen(false)}
+                    className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    Periksa Kembali
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingProfil}
+                    onClick={handleSaveProfil}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition"
+                  >
+                    {savingProfil ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    <span>{savingProfil ? "Menyimpan..." : "Ya, Simpan Permanen"}</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

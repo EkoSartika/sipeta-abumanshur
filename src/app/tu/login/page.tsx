@@ -12,10 +12,8 @@ export default function TuLoginPage() {
       expectedRole="tu"
       roleBadge="Portal Tata Usaha (TU)"
       title="Portal Masuk Tata Usaha (TU)"
-      subtitle="Pengelolaan administrasi data santri, akun wali mandiri, master kelas, asrama, dan perpindahan penempatan"
       identifierLabel="Username Staf Tata Usaha"
       identifierPlaceholder="contoh: tu01"
-      identifierHelp="Gunakan username internal resmi staf Tata Usaha Anda."
     />
   );
 }

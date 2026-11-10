@@ -29,6 +29,7 @@ import type {
   Pengumuman,
   PerkembanganMengaji,
   PrestasiSantri,
+  ProfilPesantren,
   RekeningPesantren,
   RiwayatPenempatanSantri,
   RiwayatPenyesuaianTagihan,
@@ -59,6 +60,7 @@ import {
   INITIAL_PENGUMUMAN,
   INITIAL_PERKEMBANGAN_MENGAJI,
   INITIAL_PRESTASI,
+  INITIAL_PROFIL_PESANTREN,
   INITIAL_REKENING,
   INITIAL_RIWAYAT_PENEMPATAN,
   INITIAL_SANTRI,
@@ -107,7 +109,9 @@ interface SipetaContextValue {
   authLoading: boolean;
   users: UserProfile[];
   rekeningResmi: RekeningPesantren;
+  profilPesantren: ProfilPesantren;
   tahunAjaranList: TahunAjaran[];
+  tahunAjaranAktif: TahunAjaran | undefined;
   kelasList: Kelas[];
   kamarList: Kamar[];
   santriList: Santri[];
@@ -193,6 +197,8 @@ interface SipetaContextValue {
     summary?: { total: number; deleted: number; deactivated: number; skipped: number; failed: number };
   }>;
   updateRekeningResmi: (payload: Omit<RekeningPesantren, "id" | "is_active" | "updated_at">) => ActionResponse;
+  updateProfilPesantren: (payload: Partial<ProfilPesantren>, activeTahunAjaranId?: string) => Promise<ActionResponse>;
+  setActiveTahunAjaran: (tahunAjaranId: string) => Promise<ActionResponse>;
 
   // Admin Actions
   createSantriWithWali: (payload: {
@@ -386,7 +392,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [rekeningResmi, setRekeningResmi] = useState<RekeningPesantren>(INITIAL_REKENING);
-  const [tahunAjaranList] = useState<TahunAjaran[]>(INITIAL_TAHUN_AJARAN);
+  const [profilPesantren, setProfilPesantren] = useState<ProfilPesantren>(INITIAL_PROFIL_PESANTREN);
+  const [tahunAjaranList, setTahunAjaranList] = useState<TahunAjaran[]>(INITIAL_TAHUN_AJARAN);
+  const tahunAjaranAktif = useMemo(() => tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0], [tahunAjaranList]);
   const [kelasList, setKelasList] = useState<Kelas[]>(INITIAL_KELAS);
   const [kamarList, setKamarList] = useState<Kamar[]>(INITIAL_KAMAR);
   const [santriList, setSantriList] = useState<Santri[]>(INITIAL_SANTRI);
@@ -454,6 +462,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         pengumumanRes,
         notifikasiRes,
         fetchedUsersRes,
+        tahunAjaranRes,
+        profilRes,
       ] = await Promise.allSettled([
         administrasiService.getRekeningResmi(),
         administrasiService.getKelasList(),
@@ -472,6 +482,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         administrasiService.getPengumumanList(),
         notifikasiService.getNotifikasi(),
         authService.getAllProfiles(),
+        administrasiService.getTahunAjaranList(),
+        administrasiService.getProfilPesantren(),
       ]);
 
       if (rekeningRes.status === "fulfilled" && rekeningRes.value) {
@@ -496,6 +508,12 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       if (notifikasiRes.status === "fulfilled" && Array.isArray(notifikasiRes.value)) setNotifikasiList(notifikasiRes.value);
       if (fetchedUsersRes.status === "fulfilled" && Array.isArray(fetchedUsersRes.value) && fetchedUsersRes.value.length > 0) {
         setUsers(fetchedUsersRes.value.filter((u) => u && !u.id.startsWith("usr-")));
+      }
+      if (tahunAjaranRes.status === "fulfilled" && Array.isArray(tahunAjaranRes.value) && tahunAjaranRes.value.length > 0) {
+        setTahunAjaranList(tahunAjaranRes.value);
+      }
+      if (profilRes.status === "fulfilled" && profilRes.value) {
+        setProfilPesantren((prev) => ({ ...prev, ...profilRes.value }));
       }
     } catch (e) {
       console.warn("Sinkronisasi Supabase ditunda/offline:", e);
@@ -683,6 +701,18 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   // Hydrate data operasional dari localStorage saat client mount (HANYA saat offline/demo tanpa Supabase)
   useEffect(() => {
     try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const savedProfil = window.localStorage.getItem("sipeta_profil_pesantren");
+        if (savedProfil) {
+          try {
+            const parsedProfil = JSON.parse(savedProfil);
+            if (parsedProfil && typeof parsedProfil === "object") {
+              setProfilPesantren((prev) => ({ ...prev, ...parsedProfil }));
+            }
+          } catch {}
+        }
+      }
+
       if (isSupabaseConfigured()) {
         // Pada mode Supabase aktif, bersihkan cache data lama agar tidak merusak state produksi
         if (typeof window !== "undefined" && window.localStorage) {
@@ -1385,6 +1415,75 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       { ...oldRek }
     );
     return { ok: true, message: "Rekening resmi pesantren berhasil diperbarui." };
+  };
+
+  const updateProfilPesantren: SipetaContextValue["updateProfilPesantren"] = async (payload, activeTahunAjaranId) => {
+    if (!currentUser || (currentUser.role !== "tu" && currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return {
+        ok: false,
+        message: "Hanya Tata Usaha (TU), Pengasuh, atau Superadmin yang berwenang memperbarui profil pesantren.",
+      };
+    }
+
+    if (payload.nama_resmi !== undefined && !payload.nama_resmi.trim()) {
+      return { ok: false, message: "Nama resmi pesantren tidak boleh kosong." };
+    }
+    if (payload.alamat !== undefined && !payload.alamat.trim()) {
+      return { ok: false, message: "Alamat pesantren tidak boleh kosong." };
+    }
+
+    let updatedProfil: ProfilPesantren = {
+      ...profilPesantren,
+      ...payload,
+      updated_at: new Date().toISOString(),
+      updated_by: currentUser.id,
+    };
+
+    if (activeTahunAjaranId) {
+      setTahunAjaranList((prev) =>
+        prev.map((t) => ({
+          ...t,
+          is_active: t.id === activeTahunAjaranId,
+        }))
+      );
+      const activeTA = tahunAjaranList.find((t) => t.id === activeTahunAjaranId);
+      if (activeTA) {
+        updatedProfil = {
+          ...updatedProfil,
+          tahun_pelajaran_aktif: activeTA.nama,
+        };
+      }
+      if (isSupabaseConfigured()) {
+        administrasiService.setActiveTahunAjaran(activeTahunAjaranId).catch(console.error);
+      }
+    }
+
+    setProfilPesantren(updatedProfil);
+
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem("sipeta_profil_pesantren", JSON.stringify(updatedProfil));
+      }
+    } catch {}
+
+    if (isSupabaseConfigured()) {
+      administrasiService.updateProfilPesantren(updatedProfil).catch(console.error);
+    }
+
+    appendAuditLog(
+      "UPDATE_PROFIL_PESANTREN",
+      "profil_pesantren",
+      updatedProfil.id,
+      { ...updatedProfil },
+      `Pembaruan profil pesantren & tahun ajaran aktif (${updatedProfil.tahun_pelajaran_aktif} - ${updatedProfil.semester_aktif}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`,
+      { ...profilPesantren }
+    );
+
+    return { ok: true, message: "Profil pesantren dan tahun pelajaran aktif berhasil diperbarui." };
+  };
+
+  const setActiveTahunAjaran: SipetaContextValue["setActiveTahunAjaran"] = async (id: string) => {
+    return updateProfilPesantren({}, id);
   };
 
   const changePassword: SipetaContextValue["changePassword"] = async (newPassword) => {
@@ -3777,7 +3876,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         authLoading,
         users,
         rekeningResmi,
+        profilPesantren,
         tahunAjaranList,
+        tahunAjaranAktif,
         kelasList,
         kamarList,
         santriList,
@@ -3823,6 +3924,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         deleteUserAccount,
         deleteUserAccountBatch,
         updateRekeningResmi,
+        updateProfilPesantren,
+        setActiveTahunAjaran,
         createSantriWithWali,
         importSantriBatch,
         deleteSantriBatch,

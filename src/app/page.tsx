@@ -89,6 +89,8 @@ export default function SipetaHomePage() {
     transaksiPembayaranList,
     mutasiUangSakuList,
     santriList,
+    profilPesantren,
+    tahunAjaranAktif,
   } = useSipeta();
 
   // Navigation State
@@ -172,7 +174,8 @@ export default function SipetaHomePage() {
           { id: "dashboard", label: "Dashboard Pengawasan", icon: LayoutGrid },
           { id: "santri_asrama", label: "Pengawasan Santri & Asrama", icon: Users, badge: santriList.length },
           { id: "keuangan", label: "Pengawasan & Persetujuan Keuangan", icon: Wallet, badge: pendingAdminFeeCount || undefined },
-          { id: "kepesantrenan", label: "Tahfidz & Kedisiplinan", icon: BookOpen },
+          { id: "laporan_tahfidz", label: "Laporan Tahfidz", icon: Sparkles },
+          { id: "laporan_kedisiplinan", label: "Laporan Kedisiplinan", icon: ShieldAlert },
           { id: "pengumuman", label: "Pengumuman Pondok", icon: Megaphone },
           { id: "audit_log", label: "Jejak Aktivitas Staf", icon: FileText, badge: auditLogs.length },
           { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
@@ -183,6 +186,7 @@ export default function SipetaHomePage() {
         const pendingTuFeeCount = jenisPembayaranList.filter((j) => j.status_persetujuan === "MENUNGGU_PERSETUJUAN").length;
         return [
           { id: "dashboard", label: "Dashboard TU", icon: LayoutGrid },
+          { id: "profil_pesantren", label: "Profil Pesantren", icon: Building2 },
           {
             id: "pembiayaan",
             label: "Manajemen Pembiayaan Santri",
@@ -194,7 +198,7 @@ export default function SipetaHomePage() {
           { id: "rekapitulasi", label: "Rekapitulasi & Laporan", icon: BarChart3 },
           { id: "santri_wali", label: "Data Santri & Akun Wali", icon: Users, badge: santriList.length },
           { id: "tambah_santri", label: "Tambah Data Santri", icon: UserPlus },
-          { id: "kelas_kamar", label: "Kelas, Kamar & Penempatan", icon: Building2 },
+          { id: "kelas_kamar", label: "Kelas, Kamar & Penempatan", icon: Landmark },
           { id: "profile", label: "Profil Saya", icon: UserCheck },
         ];
 
@@ -948,7 +952,7 @@ export default function SipetaHomePage() {
                   <span>{activeMenuItem?.label ?? "Ruang Kerja"}</span>
                 </h2>
                 <p className="text-[11px] text-slate-500 hidden sm:block">
-                  Pondok Pesantren Modern Abu Manshur • SIPETA v1.0
+                  {profilPesantren?.nama_resmi || "Pondok Pesantren Modern Abu Manshur"} • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})
                 </p>
               </div>
             </div>
@@ -1058,7 +1062,7 @@ export default function SipetaHomePage() {
           )}
         </main>
 
-        {/* Footer */}
+        {/* Footer Bersih */}
         <footer className="border-t border-slate-200 bg-white py-4 text-xs text-slate-500 no-print">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 sm:flex-row sm:px-6 lg:px-8">
             <div className="flex items-center gap-2.5">
@@ -1068,13 +1072,11 @@ export default function SipetaHomePage() {
                 className="h-6 w-6 object-contain shrink-0"
               />
               <span>
-                <strong>SIPETA Pondok Pesantren Modern Abu Manshur</strong> • Plered - Cirebon
+                <strong>SIPETA — {profilPesantren?.nama_resmi || "Pondok Pesantren Modern Abu Manshur"}</strong> • {profilPesantren?.alamat ? profilPesantren.alamat.split(",")[0] : "Plered - Cirebon"}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-[11px]">
-              <span>1 Santri = 1 Akun Wali</span>
-              <span>• Rekening Resmi BSI</span>
-              <span>• Ledger Uang Saku &amp; SPP</span>
+            <div className="text-[11px] text-slate-400">
+              <span>Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})</span>
             </div>
           </div>
         </footer>

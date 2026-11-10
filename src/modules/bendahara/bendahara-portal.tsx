@@ -64,6 +64,7 @@ export function BendaharaPortal({
     pengajuanUangSakuList,
     mutasiUangSakuList,
     rekeningResmi,
+    profilPesantren,
     getSaldoSantri,
     verifyTransaksiPembayaran,
     verifyTopupUangSaku,
@@ -176,7 +177,7 @@ export function BendaharaPortal({
 
   return (
     <div className="space-y-6">
-      {/* Banner Otoritas Tunggal Bendahara (Bab 2 & Bab 3.3 PRD) */}
+      {/* Header Portal Bendahara */}
       <div className="rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-900 p-5 text-white shadow-md">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-4">
@@ -188,17 +189,17 @@ export function BendaharaPortal({
               />
             </div>
             <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-0.5 text-xs font-bold text-amber-200 border border-amber-300/30">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Otoritas Tunggal Pengesahan Transaksi Keuangan
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-200 border border-emerald-400/30">
+                  Kebendaharaan &amp; Keuangan
+                </span>
+                <span className="text-xs text-emerald-200">
+                  • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})
+                </span>
               </div>
-              <h2 className="mt-1.5 text-xl font-bold">
-                Portal Kerja Bendahara Pesantren Modern Abu Manshur
+              <h2 className="mt-1 text-xl font-bold tracking-tight">
+                Portal Bendahara
               </h2>
-              <p className="text-xs text-emerald-100/90">
-                Seluruh persetujuan pembayaran tagihan, pengisian uang saku, dan pencatatan penyerahan
-                uang saku (+foto wajib) diproses secara atomik.
-              </p>
             </div>
           </div>
           <div className="flex gap-3">
@@ -355,10 +356,6 @@ export function BendaharaPortal({
             <h3 className="text-base font-bold text-slate-900">
               Daftar Pengajuan Pembayaran Menunggu Verifikasi ({pendingPembayaran.length})
             </h3>
-            <p className="text-xs text-slate-500">
-              Saat disetujui, sistem secara atomik memperbarui sisa kewajiban setiap tagihan yang
-              dialokasikan menjadi Lunas atau Dibayar Sebagian.
-            </p>
 
             {pendingPembayaran.length === 0 ? (
               <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
@@ -616,10 +613,6 @@ export function BendaharaPortal({
             <h3 className="text-base font-bold text-slate-900">
               Verifikasi Pengajuan Pengisian (Top-Up) Uang Saku ({pendingTopupSaku.length})
             </h3>
-            <p className="text-xs text-slate-500">
-              Jika disetujui, saldo uang saku santri otomatis bertambah dan sistem mencatat mutasi
-              MASUK di ledger santri.
-            </p>
           </div>
 
           {pendingTopupSaku.length === 0 ? (
@@ -738,10 +731,6 @@ export function BendaharaPortal({
                 <h3 className="text-base font-bold text-slate-900">
                   Form Pencatatan Penyerahan Uang Saku Tunai (Uang Keluar)
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Sesuai Bab 2 & Bab 6.3 PRD: Foto penyerahan uang WAJIB tersedia sebelum transaksi
-                  dapat disahkan.
-                </p>
               </div>
             </div>
 
@@ -909,9 +898,6 @@ export function BendaharaPortal({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div>
               <h3 className="text-base font-extrabold text-slate-900">Keuangan &amp; Saldo Santri</h3>
-              <p className="text-xs text-slate-500">
-                Pencatatan pembukuan uang saku, riwayat mutasi ledger immutable, dan penyesuaian koreksi resmi.
-              </p>
             </div>
             <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 flex-wrap">
               <button
@@ -1019,16 +1005,13 @@ export function BendaharaPortal({
             </div>
           )}
 
-          {/* SUBTAB 2: RIWAYAT MUTASI / LEDGER IMMUTABLE */}
+          {/* SUBTAB 2: RIWAYAT MUTASI */}
           {keuanganSubTab === "ledger" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <h4 className="text-base font-bold text-slate-900">
-                  Buku Besar Mutasi Uang Saku (Append-Only Ledger)
+                  Riwayat Mutasi Uang Saku
                 </h4>
-                <p className="text-xs text-slate-500">
-                  Seluruh mutasi bersifat immutable. Total {mutasiUangSakuList.length} transaksi tercatat.
-                </p>
               </div>
 
               <div className="space-y-2.5">
@@ -1241,19 +1224,6 @@ export function BendaharaPortal({
               </span>
             </div>
           </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-1.5 text-xs">
-            <span className="font-bold text-slate-800 flex items-center gap-1.5">
-              <Info className="h-4 w-4 text-emerald-700" />
-              Petunjuk Verifikasi Transaksi:
-            </span>
-            <p className="text-slate-600 leading-relaxed">
-              {rekeningResmi?.catatan_instruksi || "-"}
-            </p>
-            <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
-              * Otoritas perubahan konfigurasi rekening resmi berada di bawah wewenang <strong>Admin Administrasi</strong> dan <strong>Superadmin</strong>.
-            </p>
-          </div>
         </div>
       )}
 
@@ -1267,12 +1237,6 @@ export function BendaharaPortal({
         activeTab === "kedisiplinan" ||
         activeTab === "master_kategori_pelanggaran") && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-xs text-amber-900 font-medium">
-            <Info className="h-4 w-4 text-amber-700 shrink-0" />
-            <span>
-              <strong>Integrasi Modul Asatidz &amp; Keuangan:</strong> Sebagai Bendahara, Anda memiliki akses penuh untuk mencatat dan memantau perkembangan mengaji, hafalan tahfidz, prestasi, serta kedisiplinan santri.
-            </span>
-          </div>
           <AsatidzPortal activeTab={activeTab} onTabChange={onTabChange} />
         </div>
       )}

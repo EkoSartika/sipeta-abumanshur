@@ -55,6 +55,8 @@ export type AdminTab =
   | "dashboard"
   | "santri_asrama"
   | "keuangan"
+  | "laporan_tahfidz"
+  | "laporan_kedisiplinan"
   | "kepesantrenan"
   | "pengumuman"
   | "audit_log";
@@ -86,6 +88,7 @@ export function AdminPortal({
     pengumumanList,
     rekeningResmi,
     auditLogs,
+    profilPesantren,
     approveJenisPembayaran,
     rejectJenisPembayaran,
   } = useSipeta();
@@ -114,10 +117,57 @@ export function AdminPortal({
   const [filterKamar, setFilterKamar] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
 
+  // Filter Laporan Tahfidz
+  const [tahfidzSearch, setTahfidzSearch] = useState("");
+  const [tahfidzFilterKelas, setTahfidzFilterKelas] = useState("all");
+  const [tahfidzFilterKualitas, setTahfidzFilterKualitas] = useState("all");
+  const [tahfidzFilterJuz, setTahfidzFilterJuz] = useState("all");
+
+  // Filter Laporan Kedisiplinan
+  const [kedisiplinanSearch, setKedisiplinanSearch] = useState("");
+  const [kedisiplinanFilterKelas, setKedisiplinanFilterKelas] = useState("all");
+  const [kedisiplinanFilterTingkat, setKedisiplinanFilterTingkat] = useState("all");
+  const [kedisiplinanFilterStatus, setKedisiplinanFilterStatus] = useState("all");
+
   // Filter Audit Log
   const [auditFilterAktivitas, setAuditFilterAktivitas] = useState("all");
   const [auditFilterRole, setAuditFilterRole] = useState("all");
   const [auditSearch, setAuditSearch] = useState("");
+
+  const filteredTahfidz = useMemo(() => {
+    return tahfidzList.filter((th) => {
+      const s = santriList.find((x) => x.id === th.santri_id);
+      if (tahfidzSearch) {
+        const query = tahfidzSearch.toLowerCase();
+        const matchName = (s?.nama_lengkap || "").toLowerCase().includes(query);
+        const matchNis = (s?.nis || "").includes(query);
+        const matchSurah = (th.nama_surah || "").toLowerCase().includes(query);
+        if (!matchName && !matchNis && !matchSurah) return false;
+      }
+      if (tahfidzFilterKelas !== "all" && s?.kelas_id !== tahfidzFilterKelas) return false;
+      if (tahfidzFilterKualitas !== "all" && th.kualitas_hafalan !== tahfidzFilterKualitas) return false;
+      if (tahfidzFilterJuz !== "all" && String(th.juz) !== tahfidzFilterJuz) return false;
+      return true;
+    });
+  }, [tahfidzList, santriList, tahfidzSearch, tahfidzFilterKelas, tahfidzFilterKualitas, tahfidzFilterJuz]);
+
+  const filteredKedisiplinan = useMemo(() => {
+    return kedisiplinanList.filter((kd) => {
+      const s = santriList.find((x) => x.id === kd.santri_id);
+      if (kedisiplinanSearch) {
+        const query = kedisiplinanSearch.toLowerCase();
+        const matchName = (s?.nama_lengkap || "").toLowerCase().includes(query);
+        const matchNis = (s?.nis || "").includes(query);
+        const matchKat = (kd.nama_kategori || "").toLowerCase().includes(query);
+        const matchDesc = (kd.deskripsi || "").toLowerCase().includes(query);
+        if (!matchName && !matchNis && !matchKat && !matchDesc) return false;
+      }
+      if (kedisiplinanFilterKelas !== "all" && s?.kelas_id !== kedisiplinanFilterKelas) return false;
+      if (kedisiplinanFilterTingkat !== "all" && kd.tingkat_pelanggaran !== kedisiplinanFilterTingkat) return false;
+      if (kedisiplinanFilterStatus !== "all" && kd.status_tindak_lanjut !== kedisiplinanFilterStatus) return false;
+      return true;
+    });
+  }, [kedisiplinanList, santriList, kedisiplinanSearch, kedisiplinanFilterKelas, kedisiplinanFilterTingkat, kedisiplinanFilterStatus]);
 
   // Perhitungan Metrik Pengawasan Eksekutif
   const metrics = useMemo(() => {
@@ -245,15 +295,13 @@ export function AdminPortal({
               <span className="rounded-md bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-200 border border-emerald-400/30">
                 Pimpinan &amp; Pengasuh
               </span>
-              <span className="text-xs text-emerald-200">• Mandat Pengawasan Menyeluruh</span>
+              <span className="text-xs text-emerald-200">
+                • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})
+              </span>
             </div>
             <h2 className="text-xl font-extrabold mt-1 tracking-tight">
-              Portal Pengasuh Pondok (Executive Dashboard)
+              Portal Pengasuh Pondok
             </h2>
-            <p className="mt-0.5 text-xs text-emerald-100/90 leading-relaxed">
-              Pemantauan terpadu seluruh santri, kelas, asrama, keuangan SPP, uang saku, capaian tahfidz,
-              pembinaan kedisiplinan, pengumuman, dan jejak aktivitas staf pondok pesantren.
-            </p>
           </div>
           <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
             <img
@@ -422,13 +470,25 @@ export function AdminPortal({
 
               <button
                 type="button"
-                onClick={() => setActiveTab("kepesantrenan")}
+                onClick={() => setActiveTab("laporan_tahfidz")}
                 className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
               >
-                <BookOpen className="h-4 w-4 text-amber-700 shrink-0" />
+                <Sparkles className="h-4 w-4 text-amber-700 shrink-0" />
                 <div>
-                  <span className="block text-xs font-bold text-slate-900">Tahfidz &amp; Kedisiplinan</span>
-                  <span className="text-[11px] text-slate-400">Mutaba&apos;ah &amp; prestasi</span>
+                  <span className="block text-xs font-bold text-slate-900">Laporan Tahfidz</span>
+                  <span className="text-[11px] text-slate-400">Rekap setoran &amp; capaian</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("laporan_kedisiplinan")}
+                className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
+              >
+                <ShieldAlert className="h-4 w-4 text-rose-700 shrink-0" />
+                <div>
+                  <span className="block text-xs font-bold text-slate-900">Laporan Kedisiplinan</span>
+                  <span className="text-[11px] text-slate-400">Pelanggaran &amp; pembinaan</span>
                 </div>
               </button>
 
@@ -561,16 +621,6 @@ export function AdminPortal({
               </button>
             </div>
           )}
-
-          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 text-xs text-blue-900 space-y-1">
-            <span className="font-bold flex items-center gap-1.5">
-              <Info className="h-4 w-4 text-blue-700" />
-              Mode Pengawasan &amp; Persetujuan Keuangan Pesantren
-            </span>
-            <p className="text-slate-600">
-              Pengasuh Pondok memiliki kewenangan meninjau, menyetujui, atau menolak pengajuan jenis pembiayaan santri dari Tata Usaha (TU). Pembiayaan yang disetujui akan otomatis aktif dan menerbitkan tagihan bagi santri sasaran.
-            </p>
-          </div>
 
           {/* ALUR PERSETUJUAN PEMBIAYAAN SANTRI (DARI TU) */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
@@ -946,71 +996,401 @@ export function AdminPortal({
       )}
 
       {/* =====================================================================
-          TAB 3: PENGAWASAN KEPESANTRENAN & TAHFIDZ
+          TAB 3: LAPORAN TAHFIDZ AL-QUR'AN (PENGASUH PONDOK)
          ===================================================================== */}
-      {activeTab === "kepesantrenan" && (
+      {(activeTab === "laporan_tahfidz" || activeTab === "kepesantrenan") && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Setoran Tahfidz Terbaru */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-extrabold text-sm text-slate-900">Setoran Tahfidz Al-Qur&apos;an Terbaru</h3>
-                <Sparkles className="h-4 w-4 text-amber-600" />
+          {/* Header Card Laporan Tahfidz */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 border border-amber-200">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Pengawasan Kepesantrenan — Laporan Tahfidz</span>
+                </div>
+                <h3 className="mt-2 text-base font-extrabold text-slate-900 tracking-tight">
+                  Rekapitulasi &amp; Riwayat Setoran Tahfidz Al-Qur&apos;an
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Pemantauan menyeluruh capaian juz, kelancaran hafalan santri, dan riwayat setoran harian.
+                </p>
               </div>
-              <div className="space-y-2 max-h-96 overflow-y-auto divide-y divide-slate-100">
-                {tahfidzList.slice(0, 15).map((th) => {
-                  const s = santriList.find((x) => x.id === th.santri_id);
-                  return (
-                    <div key={th.id} className="pt-2 flex items-center justify-between text-xs">
-                      <div>
-                        <strong className="text-slate-900">{s?.nama_lengkap || "Santri"}</strong>
-                        <span className="block text-slate-500">
-                          Surah {th.nama_surah} (Juz {th.juz}) • {th.jenis_setoran}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-amber-700">{th.kualitas_hafalan}</span>
-                        <span className="block text-[10px] text-slate-400">
-                          {formatTanggal(th.tanggal_setoran)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+              <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200 self-start sm:self-auto">
+                Total Setoran: <strong className="text-amber-900">{tahfidzList.length}</strong>
+              </span>
+            </div>
+
+            {/* Statistik Laporan Tahfidz */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 block">
+                  Total Setoran
+                </span>
+                <p className="text-2xl font-extrabold text-amber-950 mt-1">{tahfidzList.length}</p>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Seluruh riwayat tercatat</span>
+              </div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                  Kualitas Lancar
+                </span>
+                <p className="text-2xl font-extrabold text-emerald-950 mt-1">
+                  {tahfidzList.filter((th) => th.kualitas_hafalan === "Lancar").length}
+                </p>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Hafalan mutqin &amp; lancar</span>
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800 block">
+                  Kualitas Jayyid
+                </span>
+                <p className="text-2xl font-extrabold text-blue-950 mt-1">
+                  {tahfidzList.filter((th) => th.kualitas_hafalan === "Jayyid").length}
+                </p>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Hafalan baik/cukup</span>
+              </div>
+              <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-800 block">
+                  Santri Aktif Setor
+                </span>
+                <p className="text-2xl font-extrabold text-purple-950 mt-1">
+                  {new Set(tahfidzList.map((th) => th.santri_id)).size}
+                </p>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Santri dengan riwayat</span>
               </div>
             </div>
 
-            {/* Catatan Kedisiplinan & Pembinaan */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-extrabold text-sm text-slate-900">Catatan Kedisiplinan &amp; Pembinaan</h3>
-                <ShieldAlert className="h-4 w-4 text-rose-600" />
+            {/* Filter Laporan Tahfidz */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">Cari Santri / Surah</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Nama santri, NIS, surah..."
+                    value={tahfidzSearch}
+                    onChange={(e) => setTahfidzSearch(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2 text-xs"
+                  />
+                </div>
               </div>
-              <div className="space-y-2 max-h-96 overflow-y-auto divide-y divide-slate-100">
-                {kedisiplinanList.slice(0, 15).map((kd) => {
-                  const s = santriList.find((x) => x.id === kd.santri_id);
-                  return (
-                    <div key={kd.id} className="pt-2 flex items-center justify-between text-xs">
-                      <div>
-                        <strong className="text-slate-900">{s?.nama_lengkap || "Santri"}</strong>
-                        <p className="text-slate-600 mt-0.5">{kd.deskripsi}</p>
-                        <span className="text-[10px] text-slate-400">Tindak Lanjut: {kd.tindak_lanjut}</span>
-                      </div>
-                      <div className="text-right shrink-0 ml-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                            kd.status_tindak_lanjut === "SELESAI"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {kd.status_tindak_lanjut}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">Filter Kelas</label>
+                <select
+                  value={tahfidzFilterKelas}
+                  onChange={(e) => setTahfidzFilterKelas(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                >
+                  <option value="all">Semua Kelas</option>
+                  {kelasList.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.nama_kelas}
+                    </option>
+                  ))}
+                </select>
               </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">Kualitas Hafalan</label>
+                <select
+                  value={tahfidzFilterKualitas}
+                  onChange={(e) => setTahfidzFilterKualitas(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                >
+                  <option value="all">Semua Kualitas</option>
+                  <option value="Lancar">Lancar</option>
+                  <option value="Jayyid">Jayyid</option>
+                  <option value="Kurang Lancar">Kurang Lancar</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">Filter Juz</label>
+                <select
+                  value={tahfidzFilterJuz}
+                  onChange={(e) => setTahfidzFilterJuz(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono"
+                >
+                  <option value="all">Semua Juz (1-30)</option>
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map((juz) => (
+                    <option key={juz} value={String(juz)}>
+                      Juz {juz}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Tabel Laporan Tahfidz */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 font-bold text-slate-700 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3">Tanggal</th>
+                    <th className="px-4 py-3">Nama Santri &amp; NIS</th>
+                    <th className="px-4 py-3">Kelas</th>
+                    <th className="px-4 py-3">Surah &amp; Ayat</th>
+                    <th className="px-4 py-3 text-center">Juz</th>
+                    <th className="px-4 py-3 text-center">Jenis Setoran</th>
+                    <th className="px-4 py-3 text-center">Kualitas Hafalan</th>
+                    <th className="px-4 py-3">Catatan Pembina</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTahfidz.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                        Tidak ada riwayat setoran tahfidz yang cocok dengan filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTahfidz.map((th) => {
+                      const s = santriList.find((x) => x.id === th.santri_id);
+                      const k = s?.kelas_id ? kelasList.find((x) => x.id === s.kelas_id) : null;
+                      return (
+                        <tr key={th.id} className="hover:bg-slate-50 transition">
+                          <td className="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                            {formatTanggal(th.tanggal_setoran)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <strong className="text-slate-900 block">{s?.nama_lengkap || "Santri"}</strong>
+                            <span className="text-[10px] text-slate-500 font-mono">{s?.nis || "-"}</span>
+                          </td>
+                          <td className="px-4 py-3">{k?.nama_kelas || "-"}</td>
+                          <td className="px-4 py-3">
+                            <span className="font-bold text-amber-900 block">Surah {th.nama_surah}</span>
+                            <span className="text-[10px] text-slate-500">Ayat {th.ayat_awal} - {th.ayat_akhir}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center font-mono font-bold text-slate-800">
+                            {th.juz}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                              {th.jenis_setoran}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                th.kualitas_hafalan === "Lancar"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : th.kualitas_hafalan === "Jayyid"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {th.kualitas_hafalan}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 max-w-xs truncate">
+                            {th.catatan_pembimbing || "-"}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 3.5: LAPORAN KEDISIPLINAN SANTRI (PENGASUH PONDOK)
+         ===================================================================== */}
+      {activeTab === "laporan_kedisiplinan" && (
+        <div className="space-y-6">
+          {/* Header Card Laporan Kedisiplinan */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-800 border border-rose-200">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  <span>Pengawasan Kepesantrenan — Laporan Kedisiplinan</span>
+                </div>
+                <h3 className="mt-2 text-base font-extrabold text-slate-900 tracking-tight">
+                  Rekapitulasi Pelanggaran &amp; Riwayat Pembinaan Santri
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Pengawasan menyeluruh terhadap tata tertib, catatan pelanggaran asrama, dan status tindak lanjut santri.
+                </p>
+              </div>
+              <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200 self-start sm:self-auto">
+                Total Catatan: <strong className="text-rose-900">{kedisiplinanList.length}</strong>
+              </span>
+            </div>
+
+            {/* Statistik Laporan Kedisiplinan */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800 block">
+                  Total Kejadian
+                </span>
+                <p className="text-2xl font-extrabold text-rose-950 mt-1">{kedisiplinanList.length}</p>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Seluruh riwayat pelanggaran</span>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 block">
+                  Dalam Pembinaan
+                </span>
+                <p className="text-2xl font-extrabold text-amber-950 mt-1">
+                  {kedisiplinanList.filter((k) => k.status_tindak_lanjut === "DALAM_PEMBINAAN").length}
+                </p>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Santri butuh pendampingan</span>
+              </div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                  Pembinaan Selesai
+                </span>
+                <p className="text-2xl font-extrabold text-emerald-950 mt-1">
+                  {kedisiplinanList.filter((k) => k.status_tindak_lanjut === "SELESAI").length}
+                </p>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Kasus terselesaikan</span>
+              </div>
+              <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-800 block">
+                  Pelanggaran Berat
+                </span>
+                <p className="text-2xl font-extrabold text-purple-950 mt-1">
+                  {kedisiplinanList.filter((k) => k.tingkat_pelanggaran === "BERAT").length}
+                </p>
+                <span className="text-[10px] text-slate-500 mt-0.5 block">Perlu atensi pimpinan</span>
+              </div>
+            </div>
+
+            {/* Filter Laporan Kedisiplinan */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">Cari Santri / Kategori</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Nama santri, NIS, kategori..."
+                    value={kedisiplinanSearch}
+                    onChange={(e) => setKedisiplinanSearch(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2 text-xs"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">Filter Kelas</label>
+                <select
+                  value={kedisiplinanFilterKelas}
+                  onChange={(e) => setKedisiplinanFilterKelas(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                >
+                  <option value="all">Semua Kelas</option>
+                  {kelasList.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.nama_kelas}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">Tingkat Pelanggaran</label>
+                <select
+                  value={kedisiplinanFilterTingkat}
+                  onChange={(e) => setKedisiplinanFilterTingkat(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                >
+                  <option value="all">Semua Tingkat</option>
+                  <option value="RINGAN">Ringan</option>
+                  <option value="SEDANG">Sedang</option>
+                  <option value="BERAT">Berat</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">Status Tindak Lanjut</label>
+                <select
+                  value={kedisiplinanFilterStatus}
+                  onChange={(e) => setKedisiplinanFilterStatus(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                >
+                  <option value="all">Semua Status</option>
+                  <option value="DALAM_PEMBINAAN">Dalam Pembinaan</option>
+                  <option value="SELESAI">Selesai</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Tabel Laporan Kedisiplinan */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 font-bold text-slate-700 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3">Tanggal</th>
+                    <th className="px-4 py-3">Nama Santri &amp; NIS</th>
+                    <th className="px-4 py-3">Kelas</th>
+                    <th className="px-4 py-3">Kategori</th>
+                    <th className="px-4 py-3">Deskripsi Kejadian</th>
+                    <th className="px-4 py-3 text-center">Tingkat</th>
+                    <th className="px-4 py-3">Tindak Lanjut Pembinaan</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredKedisiplinan.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                        Tidak ada riwayat catatan kedisiplinan yang cocok dengan filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredKedisiplinan.map((kd) => {
+                      const s = santriList.find((x) => x.id === kd.santri_id);
+                      const k = s?.kelas_id ? kelasList.find((x) => x.id === s.kelas_id) : null;
+                      return (
+                        <tr key={kd.id} className="hover:bg-slate-50 transition">
+                          <td className="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                            {formatTanggal(kd.tanggal_kejadian)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <strong className="text-slate-900 block">{s?.nama_lengkap || "Santri"}</strong>
+                            <span className="text-[10px] text-slate-500 font-mono">{s?.nis || "-"}</span>
+                          </td>
+                          <td className="px-4 py-3">{k?.nama_kelas || "-"}</td>
+                          <td className="px-4 py-3 font-bold text-purple-950">{kd.nama_kategori}</td>
+                          <td className="px-4 py-3 max-w-xs">
+                            <p className="text-slate-700">{kd.deskripsi}</p>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                kd.tingkat_pelanggaran === "BERAT"
+                                  ? "bg-rose-100 text-rose-800"
+                                  : kd.tingkat_pelanggaran === "SEDANG"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-blue-100 text-blue-800"
+                              }`}
+                            >
+                              {kd.tingkat_pelanggaran}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 max-w-xs">
+                            <p>{kd.tindak_lanjut || "-"}</p>
+                            {kd.catatan_pembinaan && (
+                              <p className="text-[10px] text-slate-400 italic mt-0.5">
+                                Catatan: {kd.catatan_pembinaan}
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                kd.status_tindak_lanjut === "SELESAI"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {kd.status_tindak_lanjut}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

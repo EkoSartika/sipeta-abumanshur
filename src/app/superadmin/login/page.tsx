@@ -10,12 +10,9 @@ export default function SuperadminLoginPage() {
   return (
     <RoleLoginView
       expectedRole="superadmin"
-      roleBadge="Portal Superadmin (Pimpinan)"
       title="Portal Masuk Superadmin"
-      subtitle="Tata kelola akun pengguna internal, rekening resmi pesantren, dan jejak audit sistem"
       identifierLabel="Email atau Username Superadmin"
       identifierPlaceholder="sipetaabumanshur@gmail.com"
-      identifierHelp="Khusus akun Superadmin resmi pimpinan Pondok Pesantren Modern Abu Manshur."
     />
   );
 }

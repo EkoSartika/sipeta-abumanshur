@@ -11,6 +11,7 @@ import type {
   Kamar,
   Kelas,
   Pengumuman,
+  ProfilPesantren,
   RekeningPesantren,
   RiwayatPenempatanSantri,
   Santri,
@@ -51,6 +52,72 @@ export class AdministrasiService {
     if (!isSupabaseConfigured()) return [];
     const { data } = await this.client.from("tahun_ajaran").select("*").order("created_at", { ascending: false });
     return (data as TahunAjaran[]) ?? [];
+  }
+
+  async setActiveTahunAjaran(tahunAjaranId: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    try {
+      // 1. Nonaktifkan semua tahun ajaran lain
+      await this.client.from("tahun_ajaran").update({ is_active: false }).neq("id", tahunAjaranId);
+      // 2. Aktifkan tahun ajaran target
+      const { error } = await this.client
+        .from("tahun_ajaran")
+        .update({ is_active: true })
+        .eq("id", tahunAjaranId);
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, message: "Tahun ajaran aktif berhasil diperbarui." };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Gagal memperbarui tahun ajaran aktif." };
+    }
+  }
+
+  async getProfilPesantren(): Promise<ProfilPesantren | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const { data, error } = await this.client
+        .from("profil_pesantren")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) return null;
+      return data as ProfilPesantren;
+    } catch {
+      return null;
+    }
+  }
+
+  async updateProfilPesantren(payload: Partial<ProfilPesantren>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    try {
+      // Cek apakah ada record profil
+      const { data: existing } = await this.client
+        .from("profil_pesantren")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      if (existing?.id) {
+        const { error } = await this.client
+          .from("profil_pesantren")
+          .update({
+            ...payload,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+        if (error) return { ok: false, message: error.message };
+      } else {
+        const { error } = await this.client
+          .from("profil_pesantren")
+          .insert({
+            ...payload,
+            updated_at: new Date().toISOString(),
+          });
+        if (error) return { ok: false, message: error.message };
+      }
+      return { ok: true, message: "Profil pesantren berhasil disimpan ke database." };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Gagal menyimpan profil pesantren." };
+    }
   }
 
   // --------------------------------------------------------------------------
