@@ -518,6 +518,7 @@ export default function SipetaHomePage() {
                       <option value="wali">Wali Santri (Hafidz)</option>
                       <option value="bendahara">Bendahara (Hj. Siti Aminah)</option>
                       <option value="admin">Admin (H. Ahmad Dahlan)</option>
+                      <option value="tu">Tata Usaha (Ust. Lukman)</option>
                       <option value="pengelola">Pengelola (Ust. Abdullah)</option>
                       <option value="superadmin">Superadmin (Kyai Abu Manshur)</option>
                     </select>
