@@ -199,36 +199,66 @@ export class AdministrasiService {
   }
 
   async setActiveSemester(semester: "Ganjil" | "Genap"): Promise<{ ok: boolean; message: string; data?: unknown }> {
-    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    if (!isSupabaseConfigured()) {
+      return {
+        ok: false,
+        message: "Koneksi database Supabase belum terkonfigurasi. Pergantian semester memerlukan RPC database resmi.",
+      };
+    }
     try {
-      // 1. Coba via RPC atomik rpc_set_active_semester jika telah termigrasi di Supabase
+      // Pergantian semester HANYA boleh dilakukan melalui RPC resmi rpc_set_active_semester
+      // TIDAK ADA fallback ke UPDATE langsung ke tabel profil_pesantren
       const { data: rpcData, error: rpcError } = await this.client.rpc("rpc_set_active_semester", {
         p_semester: semester,
       });
-      if (!rpcError && rpcData) {
+
+      if (rpcError) {
+        // Deteksi jika fungsi RPC belum ada di database (migration 016 belum dieksekusi di Supabase Cloud)
+        if (
+          rpcError.message.includes("does not exist") ||
+          (rpcError as { code?: string }).code === "PGRST202" ||
+          (rpcError as { code?: string }).code === "42883"
+        ) {
+          return {
+            ok: false,
+            message:
+              "Fitur pergantian semester belum tersedia di database atau migration 016_semester_akademik.sql belum diterapkan di Supabase Cloud. Jalankan naskah migrasi 016 di SQL Editor.",
+          };
+        }
         return {
-          ok: true,
-          message: (rpcData as { message?: string })?.message || `Semester aktif berhasil diubah menjadi Semester ${semester}.`,
-          data: rpcData,
+          ok: false,
+          message: rpcError.message || "Gagal mengubah semester aktif melalui RPC resmi.",
         };
       }
-      if (rpcError && !rpcError.message.includes("does not exist") && (rpcError as { code?: string }).code !== "PGRST202") {
-        return { ok: false, message: rpcError.message };
+
+      if (!rpcData) {
+        return {
+          ok: false,
+          message: "Tidak ada data respon yang diterima dari RPC rpc_set_active_semester.",
+        };
       }
 
-      // 2. Fallback update tabel langsung ke profil_pesantren (hanya jika RPC belum termigrasi di dev)
-      const singletonId = "00000000-0000-0000-0000-000000000001";
-      const { error } = await this.client
-        .from("profil_pesantren")
-        .update({
-          semester_aktif: semester,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", singletonId);
-      if (error) return { ok: false, message: error.message };
-      return { ok: true, message: `Semester aktif berhasil diubah menjadi Semester ${semester}.` };
+      const resObj = rpcData as { success?: boolean; message?: string };
+      if (resObj.success === false) {
+        return {
+          ok: false,
+          message: resObj.message || "Pergantian semester ditolak oleh RPC database.",
+        };
+      }
+
+      return {
+        ok: true,
+        message: resObj.message || `Semester aktif berhasil diubah menjadi Semester ${semester}.`,
+        data: rpcData,
+      };
     } catch (err) {
-      return { ok: false, message: err instanceof Error ? err.message : "Gagal memperbarui semester aktif." };
+      return {
+        ok: false,
+        message:
+          err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan internal saat memanggil RPC rpc_set_active_semester.",
+      };
     }
   }
 

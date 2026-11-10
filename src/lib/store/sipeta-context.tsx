@@ -1487,9 +1487,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: "Alamat pesantren tidak boleh kosong." };
     }
 
-    // Role TU tidak berwenang mengubah semester_aktif secara langsung
+    // Pergantian semester HANYA boleh melalui setActiveSemester (RPC rpc_set_active_semester).
+    // Hapus semester_aktif dari payload update profil umum untuk mencegah UPDATE langsung ke tabel profil_pesantren.
     const effectivePayload = { ...payload };
-    if (currentUser.role === "tu" && effectivePayload.semester_aktif !== undefined) {
+    if (effectivePayload.semester_aktif !== undefined) {
       delete effectivePayload.semester_aktif;
     }
 
@@ -1554,6 +1555,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setActiveSemester: SipetaContextValue["setActiveSemester"] = async (semester) => {
+    // 1. Validasi Hak Akses Role: HANYA Pengasuh (Admin) dan Superadmin
     if (!currentUser || (currentUser.role !== "superadmin" && currentUser.role !== "admin")) {
       return {
         ok: false,
@@ -1561,6 +1563,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
+    // 2. Validasi Nilai Input
     if (semester !== "Ganjil" && semester !== "Genap") {
       return {
         ok: false,
@@ -1568,6 +1571,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
+    // 3. Jika semester sama persis, tidak perlu mutasi
     const prevSemester = profilPesantren.semester_aktif;
     if (prevSemester === semester) {
       return {
@@ -1576,6 +1580,22 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
+    // 4. Eksekusi RPC rpc_set_active_semester (TIDAK ADA PERUBAHAN OPTIMISTIS & TIDAK ADA FALLBACK UPDATE)
+    const dbRes = await administrasiService.setActiveSemester(semester);
+    if (!dbRes.ok) {
+      // JIKA RPC GAGAL ATAU MIGRATION 016 BELUM DITERAPKAN:
+      // - Batalkan perubahan
+      // - Jangan ubah state semester
+      // - Jangan catat audit log
+      // - Jangan simpan ke localStorage
+      console.warn("Gagal mengubah semester aktif via RPC:", dbRes.message);
+      return {
+        ok: false,
+        message: dbRes.message,
+      };
+    }
+
+    // 5. RPC BENAR-BENAR BERHASIL: Perbarui state context & localStorage
     const updatedProfil: ProfilPesantren = {
       ...profilPesantren,
       semester_aktif: semester,
@@ -1591,14 +1611,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {}
 
-    if (isSupabaseConfigured()) {
-      const dbRes = await administrasiService.setActiveSemester(semester);
-      if (!dbRes.ok) {
-        console.warn("Gagal sinkronisasi semester aktif ke Supabase:", dbRes.message);
-        return { ok: false, message: dbRes.message };
-      }
-    }
-
+    // 6. Catat audit log HANYA setelah RPC benar-benar berhasil
     appendAuditLog(
       "SET_ACTIVE_SEMESTER",
       "profil_pesantren",
@@ -1614,9 +1627,18 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
+    // 7. Refresh data dari Supabase Cloud untuk menyinkronkan data terbaru
+    if (isSupabaseConfigured()) {
+      try {
+        await refreshFromSupabase();
+      } catch (err) {
+        console.warn("Sinkronisasi pasca-perubahan semester:", err);
+      }
+    }
+
     return {
       ok: true,
-      message: `Semester aktif berhasil diubah menjadi Semester ${semester} untuk Tahun Pelajaran ${updatedProfil.tahun_pelajaran_aktif}.`,
+      message: dbRes.message || `Semester aktif berhasil diubah menjadi Semester ${semester} untuk Tahun Pelajaran ${updatedProfil.tahun_pelajaran_aktif}.`,
     };
   };
 

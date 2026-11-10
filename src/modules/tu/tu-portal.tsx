@@ -388,7 +388,6 @@ export function TuPortal({
         email: emailProfil.trim(),
         website: websiteProfil.trim(),
         nama_pengasuh: pengasuhProfil.trim(),
-        semester_aktif: semesterProfil,
         informasi_umum: informasiUmumProfil.trim(),
       },
       tahunAjaranList.some((t) => t.id === selectedTahunAjaranId) ? selectedTahunAjaranId : undefined
@@ -3621,29 +3620,16 @@ export function TuPortal({
                   </div>
                   <div>
                     <label className="font-bold text-slate-700 block mb-1">
-                      Semester Aktif {currentUser?.role === "tu" ? <span className="text-slate-400 font-normal">(Khusus Admin/Pengasuh)</span> : <span className="text-rose-600">*</span>}
+                      Semester Aktif <span className="text-slate-400 font-normal">(Dikelola via Master Data)</span>
                     </label>
-                    {currentUser?.role === "tu" ? (
-                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-100/80 px-3 py-2.5 text-xs font-bold text-slate-700 min-h-[42px]">
-                        <span>Semester {profilPesantren?.semester_aktif || "Ganjil"}</span>
-                        <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] text-slate-600 font-semibold">
-                          Read-Only untuk TU
-                        </span>
-                      </div>
-                    ) : (
-                      <select
-                        value={semesterProfil}
-                        onChange={(e) => setSemesterProfil(e.target.value as "Ganjil" | "Genap")}
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none min-h-[42px]"
-                      >
-                        <option value="Ganjil">Semester Ganjil</option>
-                        <option value="Genap">Semester Genap</option>
-                      </select>
-                    )}
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-100/80 px-3 py-2.5 text-xs font-bold text-slate-700 min-h-[42px]">
+                      <span>Semester {profilPesantren?.semester_aktif || "Ganjil"}</span>
+                      <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] text-slate-600 font-semibold">
+                        Sistem Terpusat
+                      </span>
+                    </div>
                     <p className="mt-1 text-[11px] text-slate-500">
-                      {currentUser?.role === "tu"
-                        ? "Semester aktif dikelola secara khusus oleh Pengasuh (Admin) atau Superadmin melalui menu Master Data Tahun Pelajaran."
-                        : "Pilihan semester aktif pondok pesantren (Ganjil / Genap)."}
+                      Semester aktif dikelola secara khusus oleh Pengasuh (Admin) atau Superadmin melalui menu <strong>Master Data Tahun Pelajaran</strong> via RPC resmi database.
                     </p>
                   </div>
                 </div>

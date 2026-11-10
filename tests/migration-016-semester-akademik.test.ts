@@ -212,6 +212,15 @@ describe("SIPETA Migration 016: Fitur Manajemen Semester Akademik & RPC Perganti
     expect(finalProfil.rows[0]?.semester_aktif).toBe("Ganjil");
     expect(finalProfil.rows[0]?.tahun_pelajaran_aktif).toBe("2026/2027");
 
+    // Skenario G: Kegagalan RPC tidak menyebabkan perubahan data profil maupun audit log liar
+    await db.exec(`SET "request.jwt.claim.sub" = '${waliId}';`);
+    await expect(db.query(`SELECT public.rpc_set_active_semester('Genap');`)).rejects.toThrow();
+
+    const untouchedProfil = await db.query<{ semester_aktif: string }>(
+      `SELECT semester_aktif FROM public.profil_pesantren;`
+    );
+    expect(untouchedProfil.rows[0]?.semester_aktif).toBe("Ganjil");
+
     await db.close();
   }, 30000);
 });
