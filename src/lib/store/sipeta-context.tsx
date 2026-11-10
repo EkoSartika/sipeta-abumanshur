@@ -403,59 +403,78 @@ export function SipetaProvider({
   initialAuthMode?: "supabase" | "demo" | "unauthenticated";
   initialTahunAjaranList?: TahunAjaran[];
 }) {
+  const useDemoInitialData = !isSupabaseConfigured() && initialAuthMode !== "supabase";
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(initialUser ?? null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(Boolean(initialUser));
   const [authMode, setAuthMode] = useState<"supabase" | "demo" | "unauthenticated">(
     initialAuthMode ?? (initialUser ? "demo" : "unauthenticated")
   );
   const [authLoading, setAuthLoading] = useState<boolean>(true);
-  const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserProfile[]>(
+    useDemoInitialData ? INITIAL_USERS : initialUser ? [initialUser] : []
+  );
+  const [currentUserId, setCurrentUserId] = useState<string | null>(initialUser?.id ?? null);
   const [rekeningResmi, setRekeningResmi] = useState<RekeningPesantren>(INITIAL_REKENING);
   const [profilPesantren, setProfilPesantren] = useState<ProfilPesantren>(INITIAL_PROFIL_PESANTREN);
-  const [tahunAjaranList, setTahunAjaranList] = useState<TahunAjaran[]>(initialTahunAjaranList ?? INITIAL_TAHUN_AJARAN);
-  const tahunAjaranAktif = useMemo(() => tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0], [tahunAjaranList]);
-  const [kelasList, setKelasList] = useState<Kelas[]>(INITIAL_KELAS);
-  const [kamarList, setKamarList] = useState<Kamar[]>(INITIAL_KAMAR);
-  const kelasListRef = useRef<Kelas[]>(INITIAL_KELAS);
-  const kamarListRef = useRef<Kamar[]>(INITIAL_KAMAR);
+  const [tahunAjaranList, setTahunAjaranList] = useState<TahunAjaran[]>(
+    initialTahunAjaranList ?? (useDemoInitialData ? INITIAL_TAHUN_AJARAN : [])
+  );
+  const tahunAjaranAktif = useMemo(
+    () => tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0],
+    [tahunAjaranList]
+  );
+  const [kelasList, setKelasList] = useState<Kelas[]>(useDemoInitialData ? INITIAL_KELAS : []);
+  const [kamarList, setKamarList] = useState<Kamar[]>(useDemoInitialData ? INITIAL_KAMAR : []);
+  const kelasListRef = useRef<Kelas[]>(useDemoInitialData ? INITIAL_KELAS : []);
+  const kamarListRef = useRef<Kamar[]>(useDemoInitialData ? INITIAL_KAMAR : []);
   kelasListRef.current = kelasList;
   kamarListRef.current = kamarList;
-  const [santriList, setSantriList] = useState<Santri[]>(INITIAL_SANTRI);
-  const [waliList, setWaliList] = useState<WaliSantri[]>(INITIAL_WALI_SANTRI);
+  const [santriList, setSantriList] = useState<Santri[]>(useDemoInitialData ? INITIAL_SANTRI : []);
+  const [waliList, setWaliList] = useState<WaliSantri[]>(useDemoInitialData ? INITIAL_WALI_SANTRI : []);
   const [riwayatPenempatan, setRiwayatPenempatan] = useState<RiwayatPenempatanSantri[]>(
-    INITIAL_RIWAYAT_PENEMPATAN
+    useDemoInitialData ? INITIAL_RIWAYAT_PENEMPATAN : []
   );
   const [jenisPembayaranList, setJenisPembayaranList] = useState<JenisPembayaran[]>(
-    INITIAL_JENIS_PEMBAYARAN
+    useDemoInitialData ? INITIAL_JENIS_PEMBAYARAN : []
   );
-  const [tagihanList, setTagihanList] = useState<Tagihan[]>(INITIAL_TAGIHAN);
+  const [tagihanList, setTagihanList] = useState<Tagihan[]>(useDemoInitialData ? INITIAL_TAGIHAN : []);
   const [riwayatPenyesuaianTagihan, setRiwayatPenyesuaianTagihan] = useState<
     RiwayatPenyesuaianTagihan[]
   >([]);
   const [keranjang, setKeranjang] = useState<KeranjangItem[]>([]);
   const [transaksiPembayaranList, setTransaksiPembayaranList] = useState<TransaksiPembayaran[]>(
-    INITIAL_TRANSAKSI_PEMBAYARAN
+    useDemoInitialData ? INITIAL_TRANSAKSI_PEMBAYARAN : []
   );
   const [pengajuanUangSakuList, setPengajuanUangSakuList] = useState<PengajuanUangSaku[]>(
-    INITIAL_PENGAJUAN_UANG_SAKU
+    useDemoInitialData ? INITIAL_PENGAJUAN_UANG_SAKU : []
   );
   const [mutasiUangSakuList, setMutasiUangSakuList] = useState<MutasiUangSaku[]>(
-    INITIAL_MUTASI_UANG_SAKU
+    useDemoInitialData ? INITIAL_MUTASI_UANG_SAKU : []
   );
   const [mengajiList, setMengajiList] = useState<PerkembanganMengaji[]>(
-    INITIAL_PERKEMBANGAN_MENGAJI
+    useDemoInitialData ? INITIAL_PERKEMBANGAN_MENGAJI : []
   );
-  const [tahfidzList, setTahfidzList] = useState<SetoranTahfidz[]>(INITIAL_SETORAN_TAHFIDZ);
-  const [prestasiList, setPrestasiList] = useState<PrestasiSantri[]>(INITIAL_PRESTASI);
+  const [tahfidzList, setTahfidzList] = useState<SetoranTahfidz[]>(
+    useDemoInitialData ? INITIAL_SETORAN_TAHFIDZ : []
+  );
+  const [prestasiList, setPrestasiList] = useState<PrestasiSantri[]>(
+    useDemoInitialData ? INITIAL_PRESTASI : []
+  );
   const [masterPelanggaranList, setMasterPelanggaranList] = useState<MasterKategoriPelanggaran[]>(
-    INITIAL_MASTER_PELANGGARAN
+    useDemoInitialData ? INITIAL_MASTER_PELANGGARAN : []
   );
-  const [kedisiplinanList, setKedisiplinanList] =
-    useState<CatatanKedisiplinan[]>(INITIAL_KEDISIPLINAN);
-  const [pengumumanList, setPengumumanList] = useState<Pengumuman[]>(INITIAL_PENGUMUMAN);
-  const [notifikasiList, setNotifikasiList] = useState<NotifikasiItem[]>(INITIAL_NOTIFIKASI);
-  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(INITIAL_AUDIT_LOGS);
+  const [kedisiplinanList, setKedisiplinanList] = useState<CatatanKedisiplinan[]>(
+    useDemoInitialData ? INITIAL_KEDISIPLINAN : []
+  );
+  const [pengumumanList, setPengumumanList] = useState<Pengumuman[]>(
+    useDemoInitialData ? INITIAL_PENGUMUMAN : []
+  );
+  const [notifikasiList, setNotifikasiList] = useState<NotifikasiItem[]>(
+    useDemoInitialData ? INITIAL_NOTIFIKASI : []
+  );
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(
+    useDemoInitialData ? INITIAL_AUDIT_LOGS : []
+  );
   const [hydrated, setHydrated] = useState(false);
 
   // Status Koneksi Backend Aktual & Mode Data
@@ -474,10 +493,12 @@ export function SipetaProvider({
         kamarRes,
         santriRes,
         waliRes,
+        riwayatPenempatanRes,
         jenisRes,
         tagihanRes,
         transaksiRes,
         topupRes,
+        mutasiSakuRes,
         mengajiRes,
         tahfidzRes,
         prestasiRes,
@@ -488,56 +509,91 @@ export function SipetaProvider({
         fetchedUsersRes,
         tahunAjaranRes,
         profilRes,
+        auditLogsRes,
       ] = await Promise.allSettled([
         administrasiService.getRekeningResmi(),
         administrasiService.getKelasList(),
         administrasiService.getKamarList(),
         administrasiService.getSantriList(),
         administrasiService.getWaliList(),
+        administrasiService.getRiwayatPenempatanList(),
         administrasiService.getJenisPembayaranList(),
         keuanganService.getTagihanBySantri(),
         keuanganService.getRiwayatTransaksi(),
         keuanganService.getPengajuanTopup(),
+        keuanganService.getMutasiUangSaku(),
         kepesantrenanService.getPerkembanganMengaji(),
         kepesantrenanService.getSetoranTahfidz(),
         kepesantrenanService.getPrestasiSantri(),
         kepesantrenanService.getCatatanKedisiplinan(),
         kepesantrenanService.getMasterKategoriPelanggaran(true),
-        administrasiService.getPengumumanList(),
+        administrasiService.getPengumumanList(true),
         notifikasiService.getNotifikasi(),
         authService.getAllProfiles(),
         administrasiService.getTahunAjaranList(),
         administrasiService.getProfilPesantren(),
+        administrasiService.getAuditLogs(),
       ]);
 
       if (rekeningRes.status === "fulfilled" && rekeningRes.value) {
         setRekeningResmi((prev) => ({ ...prev, ...rekeningRes.value }));
       }
-      if (kelasRes.status === "fulfilled" && Array.isArray(kelasRes.value)) setKelasList(kelasRes.value);
-      if (kamarRes.status === "fulfilled" && Array.isArray(kamarRes.value)) setKamarList(kamarRes.value);
+      if (kelasRes.status === "fulfilled" && Array.isArray(kelasRes.value)) {
+        kelasListRef.current = kelasRes.value;
+        setKelasList(kelasRes.value);
+      }
+      if (kamarRes.status === "fulfilled" && Array.isArray(kamarRes.value)) {
+        kamarListRef.current = kamarRes.value;
+        setKamarList(kamarRes.value);
+      }
       if (santriRes.status === "fulfilled" && Array.isArray(santriRes.value)) setSantriList(santriRes.value);
       if (waliRes.status === "fulfilled" && Array.isArray(waliRes.value)) setWaliList(waliRes.value);
+      if (riwayatPenempatanRes.status === "fulfilled" && Array.isArray(riwayatPenempatanRes.value)) {
+        setRiwayatPenempatan(riwayatPenempatanRes.value);
+      }
       if (jenisRes.status === "fulfilled" && Array.isArray(jenisRes.value)) setJenisPembayaranList(jenisRes.value);
       if (tagihanRes.status === "fulfilled" && Array.isArray(tagihanRes.value)) setTagihanList(tagihanRes.value);
       if (transaksiRes.status === "fulfilled" && Array.isArray(transaksiRes.value)) setTransaksiPembayaranList(transaksiRes.value);
       if (topupRes.status === "fulfilled" && Array.isArray(topupRes.value)) setPengajuanUangSakuList(topupRes.value);
+      if (mutasiSakuRes.status === "fulfilled" && Array.isArray(mutasiSakuRes.value)) {
+        setMutasiUangSakuList(mutasiSakuRes.value);
+      }
       if (mengajiRes.status === "fulfilled" && Array.isArray(mengajiRes.value)) setMengajiList(mengajiRes.value);
       if (tahfidzRes.status === "fulfilled" && Array.isArray(tahfidzRes.value)) setTahfidzList(tahfidzRes.value);
       if (prestasiRes.status === "fulfilled" && Array.isArray(prestasiRes.value)) setPrestasiList(prestasiRes.value);
       if (kedisiplinanRes.status === "fulfilled" && Array.isArray(kedisiplinanRes.value)) setKedisiplinanList(kedisiplinanRes.value);
-      if (kategoriPelanggaranRes.status === "fulfilled" && Array.isArray(kategoriPelanggaranRes.value) && kategoriPelanggaranRes.value.length > 0) {
+      if (kategoriPelanggaranRes.status === "fulfilled" && Array.isArray(kategoriPelanggaranRes.value)) {
         setMasterPelanggaranList(kategoriPelanggaranRes.value);
       }
       if (pengumumanRes.status === "fulfilled" && Array.isArray(pengumumanRes.value)) setPengumumanList(pengumumanRes.value);
       if (notifikasiRes.status === "fulfilled" && Array.isArray(notifikasiRes.value)) setNotifikasiList(notifikasiRes.value);
-      if (fetchedUsersRes.status === "fulfilled" && Array.isArray(fetchedUsersRes.value) && fetchedUsersRes.value.length > 0) {
-        setUsers(fetchedUsersRes.value.filter((u) => u && !u.id.startsWith("usr-")));
+      if (fetchedUsersRes.status === "fulfilled" && Array.isArray(fetchedUsersRes.value)) {
+        const cleanUsers = fetchedUsersRes.value.filter((u) => u && !u.id.startsWith("usr-"));
+        if (cleanUsers.length > 0) {
+          setUsers(cleanUsers);
+        }
       }
-      if (tahunAjaranRes.status === "fulfilled" && Array.isArray(tahunAjaranRes.value) && tahunAjaranRes.value.length > 0) {
+      const activeTaFromDb =
+        tahunAjaranRes.status === "fulfilled" && Array.isArray(tahunAjaranRes.value)
+          ? tahunAjaranRes.value.find((t) => t.is_active)
+          : undefined;
+      if (tahunAjaranRes.status === "fulfilled" && Array.isArray(tahunAjaranRes.value)) {
         setTahunAjaranList(tahunAjaranRes.value);
       }
       if (profilRes.status === "fulfilled" && profilRes.value) {
-        setProfilPesantren((prev) => ({ ...prev, ...profilRes.value }));
+        setProfilPesantren((prev) => ({
+          ...prev,
+          ...profilRes.value,
+          tahun_pelajaran_aktif: activeTaFromDb?.nama || profilRes.value!.tahun_pelajaran_aktif,
+        }));
+      } else if (activeTaFromDb) {
+        setProfilPesantren((prev) => ({
+          ...prev,
+          tahun_pelajaran_aktif: activeTaFromDb.nama,
+        }));
+      }
+      if (auditLogsRes.status === "fulfilled" && Array.isArray(auditLogsRes.value)) {
+        setAuditLogs(auditLogsRes.value);
       }
     } catch (e) {
       console.warn("Sinkronisasi Supabase ditunda/offline:", e);
@@ -595,14 +651,36 @@ export function SipetaProvider({
               setCurrentUserId(null);
               setIsAuthenticated(false);
               setAuthMode("unauthenticated");
-              // Ambil data publik (pengumuman) secara aman tanpa memanggil API terproteksi
+              // Ambil data publik (profil pesantren, tahun pelajaran, pengumuman) dari Supabase
               try {
-                const pubAnnouncements = await administrasiService.getPengumumanList();
-                if (isMounted && Array.isArray(pubAnnouncements) && pubAnnouncements.length > 0) {
-                  setPengumumanList(pubAnnouncements);
+                const [pubAnnouncements, pubProfil, pubTa] = await Promise.all([
+                  administrasiService.getPengumumanList(false),
+                  administrasiService.getProfilPesantren(),
+                  administrasiService.getTahunAjaranList(),
+                ]);
+                if (isMounted) {
+                  if (Array.isArray(pubAnnouncements)) {
+                    setPengumumanList(pubAnnouncements);
+                  }
+                  const activePubTa = Array.isArray(pubTa) ? pubTa.find((t) => t.is_active) : undefined;
+                  if (Array.isArray(pubTa)) {
+                    setTahunAjaranList(pubTa);
+                  }
+                  if (pubProfil) {
+                    setProfilPesantren((prev) => ({
+                      ...prev,
+                      ...pubProfil,
+                      tahun_pelajaran_aktif: activePubTa?.nama || pubProfil.tahun_pelajaran_aktif,
+                    }));
+                  } else if (activePubTa) {
+                    setProfilPesantren((prev) => ({
+                      ...prev,
+                      tahun_pelajaran_aktif: activePubTa.nama,
+                    }));
+                  }
                 }
               } catch {
-                // Gunakan default INITIAL_PENGUMUMAN
+                // Abaikan jika gagal memuat data publik
               }
             }
           }
@@ -673,7 +751,7 @@ export function SipetaProvider({
           async () => {
             try {
               const list = await administrasiService.getTahunAjaranList();
-              if (Array.isArray(list) && list.length > 0) {
+              if (Array.isArray(list)) {
                 setTahunAjaranList(list);
                 const activeTA = list.find((t) => t.is_active);
                 if (activeTA) {
@@ -683,7 +761,7 @@ export function SipetaProvider({
                   }));
                 }
               }
-            } catch {}
+            } catch { }
           }
         )
         .subscribe();
@@ -691,9 +769,9 @@ export function SipetaProvider({
       return () => {
         try {
           client.removeChannel(channel);
-        } catch {}
+        } catch { }
       };
-    } catch {}
+    } catch { }
   }, []);
 
   const loginWithSupabase = async (
@@ -753,7 +831,33 @@ export function SipetaProvider({
 
   const enterDemoMode = (demoRole?: UserRole) => {
     const targetRole = demoRole ?? "wali";
-    const demoUser = users.find((u) => u.role === targetRole) ?? INITIAL_USERS[4]!;
+    if (santriList.length === 0) {
+      setUsers(INITIAL_USERS);
+      setRekeningResmi(INITIAL_REKENING);
+      setTahunAjaranList(INITIAL_TAHUN_AJARAN);
+      setKelasList(INITIAL_KELAS);
+      setKamarList(INITIAL_KAMAR);
+      kelasListRef.current = INITIAL_KELAS;
+      kamarListRef.current = INITIAL_KAMAR;
+      setSantriList(INITIAL_SANTRI);
+      setWaliList(INITIAL_WALI_SANTRI);
+      setRiwayatPenempatan(INITIAL_RIWAYAT_PENEMPATAN);
+      setJenisPembayaranList(INITIAL_JENIS_PEMBAYARAN);
+      setTagihanList(INITIAL_TAGIHAN);
+      setTransaksiPembayaranList(INITIAL_TRANSAKSI_PEMBAYARAN);
+      setPengajuanUangSakuList(INITIAL_PENGAJUAN_UANG_SAKU);
+      setMutasiUangSakuList(INITIAL_MUTASI_UANG_SAKU);
+      setMengajiList(INITIAL_PERKEMBANGAN_MENGAJI);
+      setTahfidzList(INITIAL_SETORAN_TAHFIDZ);
+      setPrestasiList(INITIAL_PRESTASI);
+      setMasterPelanggaranList(INITIAL_MASTER_PELANGGARAN);
+      setKedisiplinanList(INITIAL_KEDISIPLINAN);
+      setPengumumanList(INITIAL_PENGUMUMAN);
+      setNotifikasiList(INITIAL_NOTIFIKASI);
+      setAuditLogs(INITIAL_AUDIT_LOGS);
+    }
+    const sourceUsers = users.length > 0 ? users : INITIAL_USERS;
+    const demoUser = sourceUsers.find((u) => u.role === targetRole) ?? INITIAL_USERS[4]!;
     setCurrentUser(demoUser);
     setCurrentUserId(demoUser.id);
     setIsAuthenticated(true);
@@ -767,30 +871,30 @@ export function SipetaProvider({
     setAuthMode("unauthenticated");
     try {
       window.localStorage.removeItem(STORAGE_KEY);
-    } catch {}
+    } catch { }
   };
 
   // Hydrate data operasional dari localStorage saat client mount (HANYA saat offline/demo tanpa Supabase)
   useEffect(() => {
     try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        const savedProfil = window.localStorage.getItem("sipeta_profil_pesantren");
-        if (savedProfil) {
-          try {
-            const parsedProfil = JSON.parse(savedProfil);
-            if (parsedProfil && typeof parsedProfil === "object") {
-              setProfilPesantren((prev) => ({ ...prev, ...parsedProfil }));
-            }
-          } catch {}
-        }
-      }
-
       if (isSupabaseConfigured()) {
-        // Pada mode Supabase aktif, bersihkan cache data lama agar tidak merusak state produksi
+        // Pada mode Supabase aktif, bersihkan cache data lama agar tidak merusak Single Source of Truth produksi
         if (typeof window !== "undefined" && window.localStorage) {
           window.localStorage.removeItem(STORAGE_KEY);
+          window.localStorage.removeItem("sipeta_profil_pesantren");
         }
       } else {
+        if (typeof window !== "undefined" && window.localStorage) {
+          const savedProfil = window.localStorage.getItem("sipeta_profil_pesantren");
+          if (savedProfil) {
+            try {
+              const parsedProfil = JSON.parse(savedProfil);
+              if (parsedProfil && typeof parsedProfil === "object") {
+                setProfilPesantren((prev) => ({ ...prev, ...parsedProfil }));
+              }
+            } catch { }
+          }
+        }
         const saved = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
         if (saved) {
           const parsed = JSON.parse(saved);
@@ -953,7 +1057,7 @@ export function SipetaProvider({
   const resetDemoData = () => {
     try {
       window.localStorage.removeItem(STORAGE_KEY);
-    } catch {}
+    } catch { }
     setUsers(INITIAL_USERS);
     setRekeningResmi(INITIAL_REKENING);
     setKelasList(INITIAL_KELAS);
@@ -1226,12 +1330,12 @@ export function SipetaProvider({
           setCurrentUser((prev) =>
             prev
               ? {
-                  ...prev,
-                  nama_lengkap: payload.nama_lengkap ?? prev.nama_lengkap,
-                  no_telepon: payload.no_telepon !== undefined ? payload.no_telepon : prev.no_telepon,
-                  role: payload.role ?? prev.role,
-                  is_active: payload.is_active !== undefined ? payload.is_active : prev.is_active,
-                }
+                ...prev,
+                nama_lengkap: payload.nama_lengkap ?? prev.nama_lengkap,
+                no_telepon: payload.no_telepon !== undefined ? payload.no_telepon : prev.no_telepon,
+                role: payload.role ?? prev.role,
+                is_active: payload.is_active !== undefined ? payload.is_active : prev.is_active,
+              }
               : null
           );
         }
@@ -1263,12 +1367,12 @@ export function SipetaProvider({
       setCurrentUser((prev) =>
         prev
           ? {
-              ...prev,
-              nama_lengkap: payload.nama_lengkap ?? prev.nama_lengkap,
-              no_telepon: payload.no_telepon !== undefined ? payload.no_telepon : prev.no_telepon,
-              role: payload.role ?? prev.role,
-              is_active: payload.is_active !== undefined ? payload.is_active : prev.is_active,
-            }
+            ...prev,
+            nama_lengkap: payload.nama_lengkap ?? prev.nama_lengkap,
+            no_telepon: payload.no_telepon !== undefined ? payload.no_telepon : prev.no_telepon,
+            role: payload.role ?? prev.role,
+            is_active: payload.is_active !== undefined ? payload.is_active : prev.is_active,
+          }
           : null
       );
     }
@@ -1478,6 +1582,20 @@ export function SipetaProvider({
       updated_at: new Date().toISOString(),
     };
     setRekeningResmi(updated);
+    if (authMode === "supabase" || isSupabaseConfigured()) {
+      administrasiService
+        .updateRekeningResmi({
+          nama_bank: updated.nama_bank,
+          kode_bank: updated.kode_bank,
+          nomor_rekening: updated.nomor_rekening,
+          atas_nama: updated.atas_nama,
+          catatan_instruksi: updated.catatan_instruksi,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
     appendAuditLog(
       "UPDATE_REKENING_RESMI",
       "rekening_pesantren",
@@ -1487,6 +1605,87 @@ export function SipetaProvider({
       { ...oldRek }
     );
     return { ok: true, message: "Rekening resmi pesantren berhasil diperbarui." };
+  };
+
+  const setActiveTahunAjaran: SipetaContextValue["setActiveTahunAjaran"] = async (id: string) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "superadmin" && currentUser.role !== "admin" && currentUser.role !== "tu")
+    ) {
+      return {
+        ok: false,
+        message:
+          "Akses ditolak: Hanya Superadmin, Pengasuh (Admin), atau Tata Usaha yang berwenang mengubah tahun pelajaran aktif.",
+      };
+    }
+
+    const cleanId = id?.trim();
+    if (!cleanId) {
+      return { ok: false, message: "ID Tahun Pelajaran wajib dipilih." };
+    }
+
+    const targetTa = tahunAjaranList.find((t) => t.id === cleanId);
+
+    if (authMode === "supabase" || isSupabaseConfigured()) {
+      const taRes = await administrasiService.setActiveTahunAjaran(cleanId);
+      if (!taRes.ok) {
+        return { ok: false, message: taRes.message };
+      }
+
+      setTahunAjaranList((prev) =>
+        prev.map((t) => ({
+          ...t,
+          is_active: t.id === cleanId,
+        }))
+      );
+      if (targetTa) {
+        setProfilPesantren((prev) => ({
+          ...prev,
+          tahun_pelajaran_aktif: targetTa.nama,
+          updated_at: new Date().toISOString(),
+          updated_by: currentUser.id,
+        }));
+      }
+
+      await refreshFromSupabase();
+      return {
+        ok: true,
+        message:
+          taRes.message ||
+          `Tahun pelajaran ${targetTa?.nama || ""} berhasil diaktifkan dan disinkronkan di seluruh sistem.`,
+      };
+    }
+
+    // Mode Demo / Standalone
+    if (!targetTa) {
+      return { ok: false, message: "Tahun pelajaran tidak ditemukan." };
+    }
+
+    setTahunAjaranList((prev) =>
+      prev.map((t) => ({
+        ...t,
+        is_active: t.id === cleanId,
+      }))
+    );
+    setProfilPesantren((prev) => ({
+      ...prev,
+      tahun_pelajaran_aktif: targetTa.nama,
+      updated_at: new Date().toISOString(),
+      updated_by: currentUser.id,
+    }));
+
+    appendAuditLog(
+      "SET_ACTIVE_TAHUN_AJARAN",
+      "tahun_ajaran",
+      cleanId,
+      { tahun_pelajaran_aktif: targetTa.nama, is_active: true },
+      `Aktivasi Tahun Pelajaran ${targetTa.nama} oleh ${currentUser.nama_lengkap}`
+    );
+
+    return {
+      ok: true,
+      message: `Tahun pelajaran ${targetTa.nama} berhasil diaktifkan.`,
+    };
   };
 
   const updateProfilPesantren: SipetaContextValue["updateProfilPesantren"] = async (payload, activeTahunAjaranId) => {
@@ -1504,55 +1703,43 @@ export function SipetaProvider({
       return { ok: false, message: "Alamat pesantren tidak boleh kosong." };
     }
 
-    // Pergantian semester HANYA boleh melalui setActiveSemester (RPC rpc_set_active_semester).
-    // Hapus semester_aktif dari payload update profil umum untuk mencegah UPDATE langsung ke tabel profil_pesantren.
-    const effectivePayload = { ...payload };
-    if (effectivePayload.semester_aktif !== undefined) {
-      delete effectivePayload.semester_aktif;
+    // Jika pemanggil meminta pergantian Tahun Pelajaran Aktif, jalankan via setActiveTahunAjaran (RPC atomik) terlebih dahulu
+    if (activeTahunAjaranId) {
+      const taRes = await setActiveTahunAjaran(activeTahunAjaranId);
+      if (!taRes.ok) {
+        return taRes;
+      }
+      if (Object.keys(payload).length === 0) {
+        return taRes;
+      }
     }
 
-    let updatedProfil: ProfilPesantren = {
+    // Pergantian semester & tahun pelajaran aktif HANYA boleh melalui RPC resmi (setActiveSemester / setActiveTahunAjaran).
+    const effectivePayload = { ...payload };
+    delete effectivePayload.semester_aktif;
+    delete effectivePayload.tahun_pelajaran_aktif;
+
+    const updatedProfil: ProfilPesantren = {
       ...profilPesantren,
       ...effectivePayload,
       updated_at: new Date().toISOString(),
       updated_by: currentUser.id,
     };
 
-    if (activeTahunAjaranId) {
-      setTahunAjaranList((prev) =>
-        prev.map((t) => ({
-          ...t,
-          is_active: t.id === activeTahunAjaranId,
-        }))
-      );
-      const activeTA = tahunAjaranList.find((t) => t.id === activeTahunAjaranId);
-      if (activeTA) {
-        updatedProfil = {
-          ...updatedProfil,
-          tahun_pelajaran_aktif: activeTA.nama,
-        };
-      }
-      if (isSupabaseConfigured()) {
-        const taRes = await administrasiService.setActiveTahunAjaran(activeTahunAjaranId);
-        if (!taRes.ok) {
-          console.warn("Gagal sinkronisasi tahun ajaran aktif ke Supabase:", taRes.message);
-        }
-      }
-    }
-
-    setProfilPesantren(updatedProfil);
-
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.setItem("sipeta_profil_pesantren", JSON.stringify(updatedProfil));
-      }
-    } catch {}
-
-    if (isSupabaseConfigured()) {
-      const dbRes = await administrasiService.updateProfilPesantren(updatedProfil);
+    if (authMode === "supabase" || isSupabaseConfigured()) {
+      const dbRes = await administrasiService.updateProfilPesantren(effectivePayload);
       if (!dbRes.ok) {
-        console.warn("Gagal menyimpan profil pesantren ke Supabase:", dbRes.message);
+        return { ok: false, message: dbRes.message };
       }
+      setProfilPesantren(updatedProfil);
+      await refreshFromSupabase();
+    } else {
+      setProfilPesantren(updatedProfil);
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem("sipeta_profil_pesantren", JSON.stringify(updatedProfil));
+        }
+      } catch { }
     }
 
     appendAuditLog(
@@ -1560,15 +1747,11 @@ export function SipetaProvider({
       "profil_pesantren",
       updatedProfil.id,
       { ...updatedProfil },
-      `Pembaruan profil pesantren & tahun ajaran aktif (${updatedProfil.tahun_pelajaran_aktif} - ${updatedProfil.semester_aktif}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`,
+      `Pembaruan profil pesantren (${updatedProfil.tahun_pelajaran_aktif} - ${updatedProfil.semester_aktif}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`,
       { ...profilPesantren }
     );
 
-    return { ok: true, message: "Profil pesantren dan tahun pelajaran aktif berhasil diperbarui." };
-  };
-
-  const setActiveTahunAjaran: SipetaContextValue["setActiveTahunAjaran"] = async (id: string) => {
-    return updateProfilPesantren({}, id);
+    return { ok: true, message: "Profil pesantren berhasil diperbarui." };
   };
 
   const setActiveSemester: SipetaContextValue["setActiveSemester"] = async (semester) => {
@@ -1626,7 +1809,7 @@ export function SipetaProvider({
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem("sipeta_profil_pesantren", JSON.stringify(updatedProfil));
       }
-    } catch {}
+    } catch { }
 
     // 6. Catat audit log HANYA setelah RPC benar-benar berhasil
     appendAuditLog(
@@ -1923,7 +2106,7 @@ export function SipetaProvider({
       const supabaseTaUuid = uuidRegex.test(resolvedTahunAjaranId)
         ? resolvedTahunAjaranId
         : tahunAjaranList.find((t) => t.is_active && uuidRegex.test(t.id))?.id ||
-          tahunAjaranList.find((t) => uuidRegex.test(t.id))?.id;
+        tahunAjaranList.find((t) => uuidRegex.test(t.id))?.id;
 
       try {
         const res = await fetch("/api/admin-santri", {
@@ -2355,7 +2538,7 @@ export function SipetaProvider({
       { kelas_lama_id: target.kelas_id, kamar_lama_id: target.kamar_id }
     );
 
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() || authMode === "supabase") {
       administrasiService
         .moveSantriPlacement(
           payload.santri_id,
@@ -2363,6 +2546,9 @@ export function SipetaProvider({
           payload.kamar_baru_id,
           payload.keterangan
         )
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
         .catch(console.error);
     }
 
@@ -2391,8 +2577,13 @@ export function SipetaProvider({
       { status: target.status }
     );
 
-    if (isSupabaseConfigured()) {
-      administrasiService.updateStatusSantri(santriId, statusBaru).catch(console.error);
+    if (isSupabaseConfigured() || authMode === "supabase") {
+      administrasiService
+        .updateStatusSantri(santriId, statusBaru)
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
     return {
       ok: true,
@@ -2689,40 +2880,38 @@ export function SipetaProvider({
     setJenisPembayaranList((prev) => [newJenis, ...prev]);
 
     // Jika Admin/Pengasuh langsung membuat, terbitkan tagihan aktif secara otomatis
-    if (isDirectAdmin) {
-      let targetSantri = santriList.filter((s) => s.status === "AKTIF");
-      if (newJenis.sasaran_santri === "KELAS_TERTENTU" && newJenis.sasaran_target_id) {
-        targetSantri = targetSantri.filter((s) => s.kelas_id === newJenis.sasaran_target_id);
-      } else if (newJenis.sasaran_santri === "KAMAR_TERTENTU" && newJenis.sasaran_target_id) {
-        targetSantri = targetSantri.filter((s) => s.kamar_id === newJenis.sasaran_target_id);
-      } else if (newJenis.sasaran_santri === "INDIVIDU" && newJenis.sasaran_target_id) {
-        targetSantri = targetSantri.filter((s) => s.id === newJenis.sasaran_target_id);
-      }
+    let targetSantri = santriList.filter((s) => s.status === "AKTIF");
+    if (newJenis.sasaran_santri === "KELAS_TERTENTU" && newJenis.sasaran_target_id) {
+      targetSantri = targetSantri.filter((s) => s.kelas_id === newJenis.sasaran_target_id);
+    } else if (newJenis.sasaran_santri === "KAMAR_TERTENTU" && newJenis.sasaran_target_id) {
+      targetSantri = targetSantri.filter((s) => s.kamar_id === newJenis.sasaran_target_id);
+    } else if (newJenis.sasaran_santri === "INDIVIDU" && newJenis.sasaran_target_id) {
+      targetSantri = targetSantri.filter((s) => s.id === newJenis.sasaran_target_id);
+    }
 
-      if (targetSantri.length > 0) {
-        const newBills: Tagihan[] = targetSantri.map((s, idx) => ({
-          id: `tgh-${Date.now()}-${idx}`,
-          nomor_tagihan: `INV-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Math.floor(100 + Math.random() * 900)}-${idx + 1}`,
-          santri_id: s.id,
-          jenis_pembayaran_id: newJenis.id,
-          judul_tagihan: newJenis.nama_pembayaran,
-          kategori: newJenis.kategori,
-          periode_label: newJenis.periode_pembayaran,
-          nominal_awal: newJenis.nominal,
-          nominal_penyesuaian: 0,
-          nominal_tagihan: newJenis.nominal,
-          total_terbayar: 0,
-          sisa_tagihan: newJenis.nominal,
-          kebijakan_cicilan_snapshot: newJenis.kebijakan_cicilan,
-          minimal_cicilan_snapshot: newJenis.minimal_nominal_cicilan,
-          tanggal_mulai: newJenis.tanggal_mulai,
-          tanggal_jatuh_tempo: newJenis.tanggal_jatuh_tempo,
-          status: "BELUM_BAYAR",
-          is_active: true,
-          created_at: new Date().toISOString(),
-        }));
-        setTagihanList((prev) => [...newBills, ...prev]);
-      }
+    if (isDirectAdmin && targetSantri.length > 0) {
+      const newBills: Tagihan[] = targetSantri.map((s, idx) => ({
+        id: `tgh-${Date.now()}-${idx}`,
+        nomor_tagihan: `INV-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Math.floor(100 + Math.random() * 900)}-${idx + 1}`,
+        santri_id: s.id,
+        jenis_pembayaran_id: newJenis.id,
+        judul_tagihan: newJenis.nama_pembayaran,
+        kategori: newJenis.kategori,
+        periode_label: newJenis.periode_pembayaran,
+        nominal_awal: newJenis.nominal,
+        nominal_penyesuaian: 0,
+        nominal_tagihan: newJenis.nominal,
+        total_terbayar: 0,
+        sisa_tagihan: newJenis.nominal,
+        kebijakan_cicilan_snapshot: newJenis.kebijakan_cicilan,
+        minimal_cicilan_snapshot: newJenis.minimal_nominal_cicilan,
+        tanggal_mulai: newJenis.tanggal_mulai,
+        tanggal_jatuh_tempo: newJenis.tanggal_jatuh_tempo,
+        status: "BELUM_BAYAR",
+        is_active: true,
+        created_at: new Date().toISOString(),
+      }));
+      setTagihanList((prev) => [...newBills, ...prev]);
     }
 
     appendAuditLog("PENGAJUAN_PEMBIAYAAN", "jenis_pembayaran", newJenis.id, {
@@ -2733,23 +2922,38 @@ export function SipetaProvider({
     });
 
     if (authMode === "supabase") {
-      administrasiService.createJenisPembayaran({
-        kode_pembayaran: newJenis.kode_pembayaran,
-        nama_pembayaran: newJenis.nama_pembayaran,
-        deskripsi: newJenis.deskripsi,
-        nominal: newJenis.nominal,
-        kategori: newJenis.kategori,
-        tahun_ajaran_id: newJenis.tahun_ajaran_id,
-        periode_pembayaran: newJenis.periode_pembayaran,
-        tanggal_mulai: newJenis.tanggal_mulai,
-        tanggal_jatuh_tempo: newJenis.tanggal_jatuh_tempo,
-        sasaran_santri: newJenis.sasaran_santri,
-        sasaran_target_id: newJenis.sasaran_target_id,
-        kebijakan_cicilan: newJenis.kebijakan_cicilan,
-        minimal_nominal_cicilan: newJenis.minimal_nominal_cicilan,
-        status_persetujuan: newJenis.status_persetujuan,
-        created_by: currentUser.id,
-      }).catch(console.error);
+      administrasiService
+        .createJenisPembayaran({
+          kode_pembayaran: newJenis.kode_pembayaran,
+          nama_pembayaran: newJenis.nama_pembayaran,
+          deskripsi: newJenis.deskripsi,
+          nominal: newJenis.nominal,
+          kategori: newJenis.kategori,
+          tahun_ajaran_id: newJenis.tahun_ajaran_id,
+          periode_pembayaran: newJenis.periode_pembayaran,
+          tanggal_mulai: newJenis.tanggal_mulai,
+          tanggal_jatuh_tempo: newJenis.tanggal_jatuh_tempo,
+          sasaran_santri: newJenis.sasaran_santri,
+          sasaran_target_id: newJenis.sasaran_target_id,
+          kebijakan_cicilan: newJenis.kebijakan_cicilan,
+          minimal_nominal_cicilan: newJenis.minimal_nominal_cicilan,
+          status_persetujuan: newJenis.status_persetujuan,
+          created_by: currentUser.id,
+        })
+        .then(async (res) => {
+          if (res.ok && res.data && isDirectAdmin && targetSantri.length > 0) {
+            await administrasiService.generateTagihan({
+              jenis_pembayaran_id: res.data.id,
+              periode_label: newJenis.periode_pembayaran,
+              tanggal_jatuh_tempo: newJenis.tanggal_jatuh_tempo,
+              target_santri_ids: targetSantri.map((s) => s.id),
+            });
+          }
+          if (res.ok) {
+            await refreshFromSupabase();
+          }
+        })
+        .catch(console.error);
     }
 
     return {
@@ -2803,7 +3007,12 @@ export function SipetaProvider({
     });
 
     if (authMode === "supabase") {
-      administrasiService.updateJenisPembayaran(id, cleanPayload).catch(console.error);
+      administrasiService
+        .updateJenisPembayaran(id, cleanPayload)
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: `Data pembiayaan "${existing.nama_pembayaran}" berhasil diperbarui.` };
@@ -2833,7 +3042,12 @@ export function SipetaProvider({
     });
 
     if (authMode === "supabase") {
-      administrasiService.deleteJenisPembayaran(id).catch(console.error);
+      administrasiService
+        .deleteJenisPembayaran(id)
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: `Pengajuan pembiayaan "${existing.nama_pembayaran}" berhasil dihapus.` };
@@ -2874,13 +3088,13 @@ export function SipetaProvider({
       prev.map((item) =>
         item.id === id
           ? {
-              ...item,
-              status_persetujuan: "DISETUJUI",
-              is_active: true,
-              catatan_persetujuan: approvedCatatan,
-              disetujui_oleh_nama: currentUser.nama_lengkap,
-              disetujui_at: approvedAt,
-            }
+            ...item,
+            status_persetujuan: "DISETUJUI",
+            is_active: true,
+            catatan_persetujuan: approvedCatatan,
+            disetujui_oleh_nama: currentUser.nama_lengkap,
+            disetujui_at: approvedAt,
+          }
           : item
       )
     );
@@ -2939,21 +3153,28 @@ export function SipetaProvider({
     });
 
     if (authMode === "supabase") {
-      administrasiService.approveJenisPembayaran(id, {
-        catatan: approvedCatatan,
-        approved_by: currentUser.id,
-        approved_by_name: currentUser.nama_lengkap,
-        periode_label: computedPeriode,
-      }).catch(console.error);
-
-      if (targetSantri.length > 0) {
-        administrasiService.generateTagihan({
-          jenis_pembayaran_id: target.id,
+      administrasiService
+        .approveJenisPembayaran(id, {
+          catatan: approvedCatatan,
+          approved_by: currentUser.id,
+          approved_by_name: currentUser.nama_lengkap,
           periode_label: computedPeriode,
-          tanggal_jatuh_tempo: target.tanggal_jatuh_tempo,
-          target_santri_ids: targetSantri.map((s) => s.id),
-        }).catch(console.error);
-      }
+        })
+        .then(async (res) => {
+          // Hanya panggil generateTagihan manual jika RPC belum menerbitkan tagihan secara atomik
+          if (res.ok && res.tagihan_diterbitkan === undefined && targetSantri.length > 0) {
+            await administrasiService.generateTagihan({
+              jenis_pembayaran_id: target.id,
+              periode_label: computedPeriode,
+              tanggal_jatuh_tempo: target.tanggal_jatuh_tempo,
+              target_santri_ids: targetSantri.map((s) => s.id),
+            });
+          }
+          if (res.ok) {
+            await refreshFromSupabase();
+          }
+        })
+        .catch(console.error);
     }
 
     return {
@@ -2977,13 +3198,13 @@ export function SipetaProvider({
       prev.map((item) =>
         item.id === id
           ? {
-              ...item,
-              status_persetujuan: "DITOLAK",
-              is_active: false,
-              catatan_persetujuan: catatan.trim(),
-              disetujui_oleh_nama: currentUser.nama_lengkap,
-              disetujui_at: new Date().toISOString(),
-            }
+            ...item,
+            status_persetujuan: "DITOLAK",
+            is_active: false,
+            catatan_persetujuan: catatan.trim(),
+            disetujui_oleh_nama: currentUser.nama_lengkap,
+            disetujui_at: new Date().toISOString(),
+          }
           : item
       )
     );
@@ -2995,11 +3216,16 @@ export function SipetaProvider({
     });
 
     if (authMode === "supabase") {
-      administrasiService.rejectJenisPembayaran(id, {
-        catatan: catatan.trim(),
-        rejected_by: currentUser.id,
-        rejected_by_name: currentUser.nama_lengkap,
-      }).catch(console.error);
+      administrasiService
+        .rejectJenisPembayaran(id, {
+          catatan: catatan.trim(),
+          rejected_by: currentUser.id,
+          rejected_by_name: currentUser.nama_lengkap,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return {
@@ -3077,6 +3303,20 @@ export function SipetaProvider({
       kebijakan_cicilan_snapshot: jenis.kebijakan_cicilan,
     });
 
+    if (authMode === "supabase") {
+      administrasiService
+        .generateTagihan({
+          jenis_pembayaran_id: jenis.id,
+          periode_label: payload.periode_label,
+          tanggal_jatuh_tempo: payload.tanggal_jatuh_tempo,
+          target_santri_ids: targetSantri.map((s) => s.id),
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
+
     return {
       ok: true,
       message: `Berhasil menerbitkan ${newBills.length} tagihan "${jenis.nama_pembayaran}" (Kebijakan cicilan disalin ke setiap tagihan).`,
@@ -3132,6 +3372,14 @@ export function SipetaProvider({
         payload.alasan_penyesuaian,
         { status: tagihan.status }
       );
+      if (authMode === "supabase") {
+        keuanganService
+          .penyesuaianTagihan(tagihan.id, 0, payload.alasan_penyesuaian.trim(), true)
+          .then((res) => {
+            if (res.ok) refreshFromSupabase();
+          })
+          .catch(console.error);
+      }
       return { ok: true, message: `Tagihan ${tagihan.nomor_tagihan} berhasil dibatalkan.` };
     }
 
@@ -3163,12 +3411,12 @@ export function SipetaProvider({
       prev.map((t) =>
         t.id === tagihan.id
           ? {
-              ...t,
-              nominal_penyesuaian: payload.nominal_penyesuaian,
-              nominal_tagihan: nominalBaru,
-              sisa_tagihan: sisaBaru,
-              status: statusBaru,
-            }
+            ...t,
+            nominal_penyesuaian: payload.nominal_penyesuaian,
+            nominal_tagihan: nominalBaru,
+            sisa_tagihan: sisaBaru,
+            status: statusBaru,
+          }
           : t
       )
     );
@@ -3181,6 +3429,14 @@ export function SipetaProvider({
       payload.alasan_penyesuaian,
       { nominal: tagihan.nominal_tagihan, status: tagihan.status }
     );
+    if (authMode === "supabase") {
+      keuanganService
+        .penyesuaianTagihan(tagihan.id, payload.nominal_penyesuaian, payload.alasan_penyesuaian.trim(), false)
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
     return {
       ok: true,
       message: `Tagihan ${tagihan.nomor_tagihan} berhasil disesuaikan. Nominal sekarang: Rp ${nominalBaru.toLocaleString(
@@ -3212,19 +3468,24 @@ export function SipetaProvider({
     appendAuditLog("BUAT_PENGUMUMAN", "pengumuman", item.id, { judul: item.judul, status: item.status_publikasi });
 
     if (authMode === "supabase") {
-      administrasiService.createPengumuman({
-        judul: item.judul,
-        kategori: item.kategori,
-        isi: item.isi,
-        is_penting: item.is_penting,
-        is_published: item.is_published,
-        created_by: currentUser.id,
-        created_by_nama: currentUser.nama_lengkap,
-        masa_berlaku: item.masa_berlaku,
-        sasaran: item.sasaran,
-        target_id: item.target_id,
-        status_publikasi: item.status_publikasi,
-      }).catch(console.error);
+      administrasiService
+        .createPengumuman({
+          judul: item.judul,
+          kategori: item.kategori,
+          isi: item.isi,
+          is_penting: item.is_penting,
+          is_published: item.is_published,
+          created_by: currentUser.id,
+          created_by_nama: currentUser.nama_lengkap,
+          masa_berlaku: item.masa_berlaku,
+          sasaran: item.sasaran,
+          target_id: item.target_id,
+          status_publikasi: item.status_publikasi,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: isPub ? "Pengumuman pesantren berhasil dipublikasikan." : "Pengumuman berhasil disimpan sebagai draf." };
@@ -3244,11 +3505,11 @@ export function SipetaProvider({
       prev.map((item) =>
         item.id === id
           ? {
-              ...item,
-              ...payload,
-              is_published: isPub,
-              status_publikasi: payload.status_publikasi ?? (isPub ? "PUBLIKASI" : "DRAF"),
-            }
+            ...item,
+            ...payload,
+            is_published: isPub,
+            status_publikasi: payload.status_publikasi ?? (isPub ? "PUBLIKASI" : "DRAF"),
+          }
           : item
       )
     );
@@ -3256,10 +3517,15 @@ export function SipetaProvider({
     appendAuditLog("UPDATE_PENGUMUMAN", "pengumuman", id, { judul: target.judul });
 
     if (authMode === "supabase") {
-      administrasiService.updatePengumuman(id, {
-        ...payload,
-        is_published: isPub,
-      }).catch(console.error);
+      administrasiService
+        .updatePengumuman(id, {
+          ...payload,
+          is_published: isPub,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: "Pengumuman berhasil diperbarui." };
@@ -3277,7 +3543,12 @@ export function SipetaProvider({
     appendAuditLog("HAPUS_PENGUMUMAN", "pengumuman", id, { judul: target.judul });
 
     if (authMode === "supabase") {
-      administrasiService.deletePengumuman(id).catch(console.error);
+      administrasiService
+        .deletePengumuman(id)
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: "Pengumuman berhasil dihapus." };
@@ -3389,6 +3660,7 @@ export function SipetaProvider({
       created_at: new Date().toISOString(),
     };
 
+    const cartItemsSnapshot = [...keranjang];
     setTransaksiPembayaranList((prev) => [newTrx, ...prev]);
     setKeranjang([]);
 
@@ -3397,6 +3669,20 @@ export function SipetaProvider({
       total_nominal: newTrx.total_nominal,
       jumlah_tagihan: alokasiItems.length,
     });
+
+    if (authMode === "supabase") {
+      keuanganService
+        .checkoutWithItems(activeSantriId, cartItemsSnapshot, {
+          tanggalTransfer: payload.tanggal_transfer,
+          namaPengirim: payload.nama_pengirim.trim(),
+          bankPengirim: payload.bank_pengirim.trim(),
+          buktiTransferPath: payload.bukti_transfer_url,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
 
     return {
       ok: true,
@@ -3431,13 +3717,13 @@ export function SipetaProvider({
       prev.map((t) =>
         t.id === payload.transaksi_id
           ? {
-              ...t,
-              tanggal_transfer: payload.tanggal_transfer,
-              nama_pengirim: payload.nama_pengirim.trim(),
-              bank_pengirim: payload.bank_pengirim.trim(),
-              bukti_transfer_url: payload.bukti_transfer_url,
-              status: "MENUNGGU_VERIFIKASI",
-            }
+            ...t,
+            tanggal_transfer: payload.tanggal_transfer,
+            nama_pengirim: payload.nama_pengirim.trim(),
+            bank_pengirim: payload.bank_pengirim.trim(),
+            bukti_transfer_url: payload.bukti_transfer_url,
+            status: "MENUNGGU_VERIFIKASI",
+          }
           : t
       )
     );
@@ -3446,6 +3732,20 @@ export function SipetaProvider({
       status: "MENUNGGU_VERIFIKASI",
       bukti_transfer_url: payload.bukti_transfer_url,
     });
+
+    if (authMode === "supabase") {
+      keuanganService
+        .unggahBuktiTransferSusulan(payload.transaksi_id, {
+          tanggalTransfer: payload.tanggal_transfer,
+          namaPengirim: payload.nama_pengirim.trim(),
+          bankPengirim: payload.bank_pengirim.trim(),
+          buktiTransferPath: payload.bukti_transfer_url,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
 
     return {
       ok: true,
@@ -3500,6 +3800,23 @@ export function SipetaProvider({
       nominal: newPengajuan.nominal,
     });
 
+    if (authMode === "supabase") {
+      keuanganService
+        .submitTopupUangSaku({
+          santriId: activeSantriId,
+          nominal: payload.nominal,
+          namaPengirim: payload.nama_pengirim.trim(),
+          bankPengirim: payload.bank_pengirim.trim(),
+          buktiTransferPath: payload.bukti_transfer_url,
+          rekeningSnapshot: newPengajuan.rekening_tujuan_snapshot,
+          keterangan: newPengajuan.keterangan,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
+
     return {
       ok: true,
       message: `Pengajuan uang saku ${nomorPengajuan} berhasil dikirim dan menunggu verifikasi Bendahara.`,
@@ -3510,6 +3827,9 @@ export function SipetaProvider({
     setNotifikasiList((prev) =>
       prev.map((n) => (n.id === notifikasiId ? { ...n, is_read: true } : n))
     );
+    if (authMode === "supabase") {
+      notifikasiService.markAsRead(notifikasiId).catch(console.error);
+    }
   };
 
   const markAllNotifikasiRead = () => {
@@ -3517,6 +3837,9 @@ export function SipetaProvider({
     setNotifikasiList((prev) =>
       prev.map((n) => (n.user_id === currentUser.id ? { ...n, is_read: true } : n))
     );
+    if (authMode === "supabase") {
+      notifikasiService.markAllAsRead().catch(console.error);
+    }
   };
 
   // ============================================================================
@@ -3583,16 +3906,16 @@ export function SipetaProvider({
       prev.map((t) =>
         t.id === transaksiId
           ? {
-              ...t,
-              status: keputusan,
-              verified_by_nama: currentUser.nama_lengkap,
-              verified_at: new Date().toISOString(),
-              catatan_verifikasi:
-                catatan.trim() ||
-                (keputusan === "DISETUJUI"
-                  ? "Bukti transfer sah dan dana telah diterima."
-                  : "Ditolak oleh Bendahara."),
-            }
+            ...t,
+            status: keputusan,
+            verified_by_nama: currentUser.nama_lengkap,
+            verified_at: new Date().toISOString(),
+            catatan_verifikasi:
+              catatan.trim() ||
+              (keputusan === "DISETUJUI"
+                ? "Bukti transfer sah dan dana telah diterima."
+                : "Ditolak oleh Bendahara."),
+          }
           : t
       )
     );
@@ -3605,8 +3928,8 @@ export function SipetaProvider({
         : `Pembayaran Ditolak (${trx.nomor_transaksi})`,
       keputusan === "DISETUJUI"
         ? `Pembayaran sebesar Rp ${trx.total_nominal.toLocaleString(
-            "id-ID"
-          )} telah diverifikasi dan kewajiban tagihan telah diperbarui.`
+          "id-ID"
+        )} telah diverifikasi dan kewajiban tagihan telah diperbarui.`
         : `Pengajuan pembayaran ${trx.nomor_transaksi} ditolak. Catatan: ${catatan}`,
       "/wali/pembayaran"
     );
@@ -3620,11 +3943,19 @@ export function SipetaProvider({
       { status: trx.status }
     );
 
+    if (authMode === "supabase") {
+      keuanganService
+        .verifikasiPembayaran(transaksiId, keputusan, catatan.trim())
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
+
     return {
       ok: true,
-      message: `Transaksi ${trx.nomor_transaksi} berhasil ${
-        keputusan === "DISETUJUI" ? "disetujui dan saldo tagihan diperbarui" : "ditolak"
-      }.`,
+      message: `Transaksi ${trx.nomor_transaksi} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan saldo tagihan diperbarui" : "ditolak"
+        }.`,
     };
   };
 
@@ -3679,14 +4010,14 @@ export function SipetaProvider({
       prev.map((p) =>
         p.id === pengajuanId
           ? {
-              ...p,
-              status: keputusan,
-              verified_by_nama: currentUser.nama_lengkap,
-              verified_at: new Date().toISOString(),
-              catatan_verifikasi:
-                catatan.trim() ||
-                (keputusan === "DISETUJUI" ? "Dana uang saku diterima." : "Ditolak"),
-            }
+            ...p,
+            status: keputusan,
+            verified_by_nama: currentUser.nama_lengkap,
+            verified_at: new Date().toISOString(),
+            catatan_verifikasi:
+              catatan.trim() ||
+              (keputusan === "DISETUJUI" ? "Dana uang saku diterima." : "Ditolak"),
+          }
           : p
       )
     );
@@ -3699,8 +4030,8 @@ export function SipetaProvider({
         : "Pengajuan Uang Saku Ditolak",
       keputusan === "DISETUJUI"
         ? `Uang saku sebesar Rp ${pengajuan.nominal.toLocaleString(
-            "id-ID"
-          )} telah masuk ke saldo santri.`
+          "id-ID"
+        )} telah masuk ke saldo santri.`
         : `Pengajuan uang saku ${pengajuan.nomor_pengajuan} ditolak. Catatan: ${catatan}`,
       "/wali/uang-saku"
     );
@@ -3713,13 +4044,22 @@ export function SipetaProvider({
       catatan
     );
 
+    if (authMode === "supabase") {
+      keuanganService
+        .verifikasiTopupUangSaku(pengajuanId, keputusan, catatan.trim())
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
+
     return {
       ok: true,
       message:
         keputusan === "DISETUJUI"
           ? `Top-up uang saku Rp ${pengajuan.nominal.toLocaleString(
-              "id-ID"
-            )} disetujui dan saldo santri telah bertambah.`
+            "id-ID"
+          )} disetujui dan saldo santri telah bertambah.`
           : `Pengajuan top-up uang saku telah ditolak.`,
     };
   };
@@ -3779,8 +4119,7 @@ export function SipetaProvider({
       payload.santri_id,
       "SAKU_DISERAHKAN",
       "Uang Saku Diserahkan kepada Santri",
-      `Penyerahan uang saku sebesar Rp ${payload.nominal.toLocaleString("id-ID")} (${
-        payload.keterangan
+      `Penyerahan uang saku sebesar Rp ${payload.nominal.toLocaleString("id-ID")} (${payload.keterangan
       }) telah dicatat lengkap dengan foto penyerahan.`,
       "/wali/uang-saku"
     );
@@ -3792,6 +4131,20 @@ export function SipetaProvider({
       saldo_sesudah: saldoSesudah,
       foto_penyerahan_terlampir: true,
     });
+
+    if (authMode === "supabase") {
+      keuanganService
+        .catatPenyerahanUangSaku({
+          santriId: payload.santri_id,
+          nominal: payload.nominal,
+          keterangan: payload.keterangan.trim(),
+          fotoPenyerahanPath: payload.foto_penyerahan_url,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
 
     return {
       ok: true,
@@ -3873,6 +4226,20 @@ export function SipetaProvider({
       payload.alasan_koreksi
     );
 
+    if (authMode === "supabase") {
+      keuanganService
+        .koreksiLedgerUangSaku(
+          payload.referensi_mutasi_id,
+          payload.jenis_mutasi,
+          payload.nominal,
+          payload.alasan_koreksi.trim()
+        )
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
+
     return {
       ok: true,
       message: `Jurnal penyesuaian ${nomorMutasi} berhasil dicatat tanpa mengubah/menghapus histori asli.`,
@@ -3915,18 +4282,23 @@ export function SipetaProvider({
     });
 
     if (authMode === "supabase") {
-      kepesantrenanService.catatPerkembanganMengaji({
-        santri_id: payload.santri_id,
-        tanggal_penilaian: payload.tanggal_penilaian,
-        pembimbing_name: payload.pembimbing_name,
-        metode_pembelajaran: payload.metode_pembelajaran,
-        tingkat_jilid: payload.tingkat_jilid,
-        materi_terakhir: payload.materi_terakhir,
-        kelancaran_bacaan: payload.kelancaran_bacaan,
-        makharijul_huruf: payload.makharijul_huruf,
-        tajwid: payload.tajwid,
-        catatan_perkembangan: payload.catatan_perkembangan,
-      }).catch(console.error);
+      kepesantrenanService
+        .catatPerkembanganMengaji({
+          santri_id: payload.santri_id,
+          tanggal_penilaian: payload.tanggal_penilaian,
+          pembimbing_name: payload.pembimbing_name,
+          metode_pembelajaran: payload.metode_pembelajaran,
+          tingkat_jilid: payload.tingkat_jilid,
+          materi_terakhir: payload.materi_terakhir,
+          kelancaran_bacaan: payload.kelancaran_bacaan,
+          makharijul_huruf: payload.makharijul_huruf,
+          tajwid: payload.tajwid,
+          catatan_perkembangan: payload.catatan_perkembangan,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: "Catatan perkembangan mengaji berhasil disimpan." };
@@ -3953,10 +4325,8 @@ export function SipetaProvider({
       payload.santri_id,
       "TAHFIDZ_UPDATE",
       `Setoran Tahfidz: ${payload.nama_surah} (${jumlahAyat} Ayat)`,
-      `Setoran ${payload.jenis_setoran === "HAFALAN_BARU" ? "Hafalan Baru" : "Murojaah"} ${
-        payload.nama_surah
-      } ayat ${payload.ayat_awal}-${payload.ayat_akhir} tercatat dengan predikat ${
-        payload.kualitas_hafalan
+      `Setoran ${payload.jenis_setoran === "HAFALAN_BARU" ? "Hafalan Baru" : "Murojaah"} ${payload.nama_surah
+      } ayat ${payload.ayat_awal}-${payload.ayat_akhir} tercatat dengan predikat ${payload.kualitas_hafalan
       }.`,
       "/wali/kepesantrenan"
     );
@@ -3965,6 +4335,27 @@ export function SipetaProvider({
       surah: item.nama_surah,
       jumlah_ayat: jumlahAyat,
     });
+
+    if (authMode === "supabase") {
+      kepesantrenanService
+        .catatSetoranTahfidz({
+          santri_id: payload.santri_id,
+          tanggal_setoran: payload.tanggal_setoran,
+          pembimbing_name: payload.pembimbing_name,
+          nama_surah: payload.nama_surah,
+          juz: payload.juz,
+          ayat_awal: payload.ayat_awal,
+          ayat_akhir: payload.ayat_akhir,
+          jenis_setoran: payload.jenis_setoran,
+          kualitas_hafalan: payload.kualitas_hafalan,
+          catatan_pembimbing: payload.catatan_pembimbing,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
+
     return { ok: true, message: "Setoran tahfidz santri berhasil disimpan." };
   };
 
@@ -3992,6 +4383,25 @@ export function SipetaProvider({
       nama_kegiatan: item.nama_kegiatan,
       peringkat: item.peringkat,
     });
+
+    if (authMode === "supabase") {
+      kepesantrenanService
+        .catatPrestasiSantri({
+          santri_id: payload.santri_id,
+          tanggal_prestasi: payload.tanggal_prestasi,
+          nama_kegiatan: payload.nama_kegiatan,
+          kategori: payload.kategori,
+          tingkat_prestasi: payload.tingkat_prestasi,
+          peringkat: payload.peringkat,
+          deskripsi: payload.deskripsi,
+          dokumentasi_path: payload.dokumentasi_url,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
+
     return { ok: true, message: "Data prestasi santri berhasil disimpan." };
   };
 
@@ -4045,16 +4455,21 @@ export function SipetaProvider({
     });
 
     if (authMode === "supabase") {
-      kepesantrenanService.catatKedisiplinan({
-        santri_id: payload.santri_id,
-        tanggal_kejadian: payload.tanggal_kejadian,
-        waktu_kejadian: payload.waktu_kejadian,
-        kategori_id: payload.kategori_id,
-        deskripsi: payload.deskripsi,
-        tindak_lanjut: payload.tindak_lanjut,
-        catatan_pembinaan: payload.catatan_pembinaan,
-        status_tindak_lanjut: payload.status_tindak_lanjut,
-      }).catch(console.error);
+      kepesantrenanService
+        .catatKedisiplinan({
+          santri_id: payload.santri_id,
+          tanggal_kejadian: payload.tanggal_kejadian,
+          waktu_kejadian: payload.waktu_kejadian,
+          kategori_id: payload.kategori_id,
+          deskripsi: payload.deskripsi,
+          tindak_lanjut: payload.tindak_lanjut,
+          catatan_pembinaan: payload.catatan_pembinaan,
+          status_tindak_lanjut: payload.status_tindak_lanjut,
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: "Catatan kedisiplinan & pembinaan berhasil disimpan." };
@@ -4081,7 +4496,12 @@ export function SipetaProvider({
     appendAuditLog("UPDATE_KEDISIPLINAN_SANTRI", "catatan_kedisiplinan", id, payload);
 
     if (authMode === "supabase") {
-      kepesantrenanService.updateCatatanKedisiplinan(id, payload).catch(console.error);
+      kepesantrenanService
+        .updateCatatanKedisiplinan(id, payload)
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: "Catatan kedisiplinan berhasil diperbarui." };
@@ -4109,7 +4529,12 @@ export function SipetaProvider({
     });
 
     if (authMode === "supabase") {
-      kepesantrenanService.deleteCatatanKedisiplinan(id).catch(console.error);
+      kepesantrenanService
+        .deleteCatatanKedisiplinan(id)
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
     }
 
     return { ok: true, message: "Catatan kedisiplinan berhasil dihapus secara aman." };
@@ -4148,12 +4573,12 @@ export function SipetaProvider({
       prev.map((c) =>
         c.id === target.id
           ? {
-              ...c,
-              tindak_lanjut: payload.tindak_lanjut_baru.trim(),
-              catatan_pembinaan: payload.catatan_pembinaan_baru.trim(),
-              status_tindak_lanjut: payload.status_baru,
-              riwayat_perubahan: [riwayatItem, ...c.riwayat_perubahan],
-            }
+            ...c,
+            tindak_lanjut: payload.tindak_lanjut_baru.trim(),
+            catatan_pembinaan: payload.catatan_pembinaan_baru.trim(),
+            status_tindak_lanjut: payload.status_baru,
+            riwayat_perubahan: [riwayatItem, ...c.riwayat_perubahan],
+          }
           : c
       )
     );
@@ -4166,6 +4591,20 @@ export function SipetaProvider({
       payload.alasan_perubahan,
       { status_sebelum: target.status_tindak_lanjut }
     );
+
+    if (authMode === "supabase") {
+      kepesantrenanService
+        .updateTindakLanjutKedisiplinan(target.id, {
+          status_tindak_lanjut: payload.status_baru,
+          tindak_lanjut: payload.tindak_lanjut_baru.trim(),
+          catatan_pembinaan: payload.catatan_pembinaan_baru.trim(),
+          alasan_perubahan: payload.alasan_perubahan.trim() || "Pembaruan status pembinaan",
+        })
+        .then((res) => {
+          if (res.ok) refreshFromSupabase();
+        })
+        .catch(console.error);
+    }
 
     return {
       ok: true,

@@ -51,6 +51,7 @@ export function MasterTahunAjaranView() {
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const canManageSemester = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const activeMasterTa = tahunAjaranList.find((t) => t.is_active);
 
   // Validasi Form
   const isDuplicate = tahunAjaranList.some(
@@ -62,7 +63,7 @@ export function MasterTahunAjaranView() {
     Boolean(namaTahun.trim() && tanggalMulai && tanggalSelesai && !isDateInvalid && !isDuplicate);
 
   const handleOpenAddModal = () => {
-    setNamaTahun("2026/2027");
+    setNamaTahun(profilPesantren?.tahun_pelajaran_aktif || "2026/2027");
     // Tanggal sengaja dibiarkan KOSONG sesuai aturan: tidak mengisi perkiraan secara otomatis
     setTanggalMulai("");
     setTanggalSelesai("");
@@ -221,7 +222,7 @@ export function MasterTahunAjaranView() {
                 Tahun Pelajaran Aktif (Profil Lembaga)
               </p>
               <p className="text-base font-extrabold text-emerald-950 mt-0.5">
-                {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"}
+                {activeMasterTa?.nama || profilPesantren?.tahun_pelajaran_aktif || "2024/2025"}
               </p>
             </div>
             <div className="flex items-center gap-2">

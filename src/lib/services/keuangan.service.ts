@@ -66,7 +66,10 @@ export class KeuanganService {
       console.warn(`Gagal memuat tagihan: ${error.message}`);
       return [];
     }
-    return (data as Tagihan[]) ?? [];
+    return ((data as any[]) ?? []).map((row) => ({
+      ...row,
+      kategori: row.kategori || row.jenis_pembayaran?.kategori || "Lainnya",
+    })) as Tagihan[];
   }
 
   async penyesuaianTagihan(
@@ -121,15 +124,54 @@ export class KeuanganService {
 
     const { error } = await this.client.from("keranjang_pembayaran").upsert(
       {
-        user_id: user?.id,
+        wali_user_id: user?.id,
         santri_id: santriId,
         tagihan_id: tagihanId,
         nominal_bayar: nominalBayar,
       },
-      { onConflict: "user_id,santri_id,tagihan_id" }
+      { onConflict: "wali_user_id,tagihan_id" }
     );
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: "Tagihan dimasukkan ke dalam keranjang." };
+  }
+
+  async checkoutWithItems(
+    santriId: string,
+    items: KeranjangItem[],
+    params: CheckoutParams
+  ): Promise<{ ok: boolean; transaksiId?: string; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return { ok: false, message: "Koneksi Supabase belum aktif." };
+    }
+    const {
+      data: { user },
+    } = await this.client.auth.getUser();
+    if (!user?.id) {
+      return { ok: false, message: "Sesi autentikasi tidak ditemukan." };
+    }
+
+    await this.client
+      .from("keranjang_pembayaran")
+      .delete()
+      .eq("wali_user_id", user.id)
+      .eq("santri_id", santriId);
+
+    if (items.length > 0) {
+      const rows = items.map((item) => ({
+        wali_user_id: user.id,
+        santri_id: santriId,
+        tagihan_id: item.tagihan_id,
+        nominal_bayar: item.nominal_bayar,
+      }));
+      const { error: cartErr } = await this.client
+        .from("keranjang_pembayaran")
+        .upsert(rows, { onConflict: "wali_user_id,tagihan_id" });
+      if (cartErr) {
+        return { ok: false, message: cartErr.message };
+      }
+    }
+
+    return this.checkoutPembayaran(params);
   }
 
   async hapusDariKeranjang(itemId: string): Promise<{ ok: boolean; message: string }> {
@@ -254,6 +296,12 @@ export class KeuanganService {
       ...row,
       bukti_transfer_url: row.bukti_transfer_url || row.bukti_transfer_path || "",
       bukti_transfer_path: row.bukti_transfer_path || row.bukti_transfer_url || "",
+      alokasi: Array.isArray(row.alokasi)
+        ? row.alokasi.map((a: any) => ({
+            ...a,
+            judul_tagihan: a.judul_tagihan || a.tagihan?.judul_tagihan || "Tagihan Santri",
+          }))
+        : [],
     })) as TransaksiPembayaran[];
   }
 
@@ -270,17 +318,28 @@ export class KeuanganService {
     return (data as SaldoUangSaku) ?? null;
   }
 
-  async getMutasiUangSaku(santriId: string, limit = 50): Promise<MutasiUangSaku[]> {
+  async getMutasiUangSaku(santriId?: string, limit = 150): Promise<MutasiUangSaku[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data, error } = await this.client
+    let query = this.client
       .from("mutasi_uang_saku")
       .select("*, petugas:petugas_id(*)")
-      .eq("santri_id", santriId)
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error) throw new Error(`Gagal memuat mutasi uang saku: ${error.message}`);
-    return (data as MutasiUangSaku[]) ?? [];
+    if (santriId) {
+      query = query.eq("santri_id", santriId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn(`Gagal memuat mutasi uang saku: ${error.message}`);
+      return [];
+    }
+    return ((data as any[]) ?? []).map((row) => ({
+      ...row,
+      petugas_nama: row.petugas_nama || row.petugas?.nama_lengkap || "Bendahara",
+      foto_penyerahan_url: row.foto_penyerahan_url || row.foto_penyerahan_path || undefined,
+    })) as MutasiUangSaku[];
   }
 
   async getPengajuanTopup(santriId?: string, status?: StatusTransaksi): Promise<PengajuanUangSaku[]> {

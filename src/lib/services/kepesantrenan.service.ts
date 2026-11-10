@@ -14,6 +14,7 @@ import type {
   RiwayatPerubahanKedisiplinan,
   SetoranTahfidz,
   StatusTindakLanjut,
+  TingkatPrestasi,
 } from "@/types/database";
 
 export interface CatatMengajiParams {
@@ -47,7 +48,7 @@ export interface CatatPrestasiParams {
   tanggal_prestasi?: string;
   nama_kegiatan: string;
   kategori: string;
-  tingkat_prestasi: "INTERNAL" | "KECAMATAN" | "KABUPATEN_KOTA" | "PROVINSI" | "NASIONAL" | "INTERNASIONAL";
+  tingkat_prestasi: TingkatPrestasi | "KABUPATEN_KOTA";
   peringkat: string;
   deskripsi: string;
   dokumentasi_path?: string;
@@ -84,8 +85,14 @@ export class KepesantrenanService {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`Gagal memuat data mengaji: ${error.message}`);
-    return (data as PerkembanganMengaji[]) ?? [];
+    if (error) {
+      console.warn(`Gagal memuat data mengaji: ${error.message}`);
+      return [];
+    }
+    return ((data as any[]) ?? []).map((row) => ({
+      ...row,
+      petugas_nama: row.petugas_nama || row.petugas?.nama_lengkap || row.pembimbing_name || "Asatidz",
+    })) as PerkembanganMengaji[];
   }
 
   async catatPerkembanganMengaji(params: CatatMengajiParams): Promise<{ ok: boolean; message: string }> {
@@ -129,8 +136,16 @@ export class KepesantrenanService {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`Gagal memuat setoran tahfidz: ${error.message}`);
-    return (data as SetoranTahfidz[]) ?? [];
+    if (error) {
+      console.warn(`Gagal memuat setoran tahfidz: ${error.message}`);
+      return [];
+    }
+    return ((data as any[]) ?? []).map((row) => ({
+      ...row,
+      jumlah_ayat: row.jumlah_ayat ?? (row.ayat_akhir - row.ayat_awal + 1),
+      catatan_pembimbing: row.catatan_pembimbing || "",
+      petugas_nama: row.petugas_nama || row.petugas?.nama_lengkap || row.pembimbing_name || "Asatidz",
+    })) as SetoranTahfidz[];
   }
 
   async catatSetoranTahfidz(params: CatatTahfidzParams): Promise<{ ok: boolean; message: string }> {
@@ -174,8 +189,15 @@ export class KepesantrenanService {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`Gagal memuat prestasi santri: ${error.message}`);
-    return (data as PrestasiSantri[]) ?? [];
+    if (error) {
+      console.warn(`Gagal memuat prestasi santri: ${error.message}`);
+      return [];
+    }
+    return ((data as any[]) ?? []).map((row) => ({
+      ...row,
+      dokumentasi_url: row.dokumentasi_url || row.dokumentasi_path || undefined,
+      petugas_nama: row.petugas_nama || row.petugas?.nama_lengkap || "Asatidz",
+    })) as PrestasiSantri[];
   }
 
   async catatPrestasiSantri(params: CatatPrestasiParams): Promise<{ ok: boolean; message: string }> {
@@ -368,7 +390,7 @@ export class KepesantrenanService {
     if (!isSupabaseConfigured()) return [];
     let query = this.client
       .from("catatan_kedisiplinan")
-      .select("*, santri:santri_id(*), kategori:kategori_id(*), petugas:petugas_id(*)")
+      .select("*, santri:santri_id(*), kategori:kategori_id(*), petugas:petugas_id(*), riwayat:riwayat_perubahan_kedisiplinan(*, pengubah:diubah_oleh(*))")
       .order("tanggal_kejadian", { ascending: false });
 
     if (santriId) {
@@ -376,8 +398,25 @@ export class KepesantrenanService {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`Gagal memuat catatan kedisiplinan: ${error.message}`);
-    return (data as CatatanKedisiplinan[]) ?? [];
+    if (error) {
+      console.warn(`Gagal memuat catatan kedisiplinan: ${error.message}`);
+      return [];
+    }
+    return ((data as any[]) ?? []).map((row) => ({
+      ...row,
+      nama_kategori: row.nama_kategori || row.kategori?.nama_kategori || "Pelanggaran",
+      tingkat_pelanggaran: row.tingkat_pelanggaran || row.kategori?.tingkat_pelanggaran || "RINGAN",
+      petugas_nama: row.petugas_nama || row.petugas?.nama_lengkap || "Petugas Pembinaan",
+      dokumentasi_url: row.dokumentasi_url || row.dokumentasi_path || undefined,
+      riwayat_perubahan: Array.isArray(row.riwayat_perubahan)
+        ? row.riwayat_perubahan
+        : Array.isArray(row.riwayat)
+        ? row.riwayat.map((r: any) => ({
+            ...r,
+            diubah_oleh_nama: r.diubah_oleh_nama || r.pengubah?.nama_lengkap || "Petugas",
+          }))
+        : [],
+    })) as CatatanKedisiplinan[];
   }
 
   async catatKedisiplinan(params: CatatKedisiplinanParams): Promise<{ ok: boolean; message: string }> {

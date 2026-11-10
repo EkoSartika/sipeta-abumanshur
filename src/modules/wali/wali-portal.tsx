@@ -67,8 +67,10 @@ export function WaliPortal({
 }: WaliPortalProps = {}) {
   const {
     currentUser,
+    authMode,
     profilPesantren,
     santriList,
+    waliList,
     kelasList,
     kamarList,
     rekeningResmi,
@@ -175,15 +177,40 @@ export function WaliPortal({
   const [uploadBuktiUrl, setUploadBuktiUrl] = useState(SAMPLE_TRANSFER_PROOF_1);
   const [uploadFilename, setUploadFilename] = useState("bukti-transfer-susulan.jpg");
 
-  // Relasi 1:1 Akun Orang Tua -> Hanya melihat 1 santri yang terhubung
+  // Relasi 1:1 Akun Orang Tua -> Hanya melihat 1 santri yang terhubung (Isolasi ketat pada mode Supabase)
   const santri: Santri = useMemo(() => {
-    const targetId = currentUser?.santri_id ?? "snt-001";
+    const linkedId =
+      currentUser?.santri_id ||
+      waliList.find((w) => w.user_id === currentUser?.id)?.santri_id;
+
+    if (authMode === "supabase") {
+      const matched = linkedId ? santriList.find((s) => s.id === linkedId) : undefined;
+      if (matched) return matched;
+      return {
+        id: linkedId || "unlinked-santri",
+        nis: currentUser?.username || "-",
+        nama_lengkap:
+          currentUser?.nama_lengkap?.replace(/\s*\(Wali.*\)/i, "") || "Santri Terhubung",
+        tempat_lahir: "-",
+        tanggal_lahir: "",
+        jenis_kelamin: "L",
+        alamat: "-",
+        tahun_masuk: new Date().getFullYear(),
+        tahun_ajaran_id: "",
+        kelas_id: "",
+        kamar_id: "",
+        status: "AKTIF",
+        created_at: new Date().toISOString(),
+      };
+    }
+
+    const targetId = linkedId ?? "snt-001";
     return (
       santriList.find((s) => s.id === targetId) ??
       santriList[0] ??
       INITIAL_SANTRI[0]!
     );
-  }, [currentUser?.santri_id, santriList]);
+  }, [authMode, currentUser?.id, currentUser?.santri_id, currentUser?.username, currentUser?.nama_lengkap, waliList, santriList]);
 
   const kelas = santri.kelas_id ? kelasList.find((k) => k.id === santri.kelas_id) : undefined;
   const kamar = santri.kamar_id ? kamarList.find((k) => k.id === santri.kamar_id) : undefined;

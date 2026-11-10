@@ -7,6 +7,7 @@
 
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
+  AuditLogItem,
   JenisPembayaran,
   Kamar,
   Kelas,
@@ -102,10 +103,26 @@ export class AdministrasiService {
         return { ok: false, message: error.message };
       }
 
+      let finalData = data as TahunAjaran;
+      // Jika belum ada satu pun tahun pelajaran aktif di database, aktifkan secara atomik via RPC resmi
+      const { count: activeCount } = await this.client
+        .from("tahun_ajaran")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true);
+
+      if ((activeCount ?? 0) === 0 && finalData?.id) {
+        const activateRes = await this.setActiveTahunAjaran(finalData.id);
+        if (activateRes.ok) {
+          finalData = { ...finalData, is_active: true };
+        }
+      }
+
       return {
         ok: true,
-        message: `Tahun pelajaran ${cleanNama} berhasil ditambahkan ke database.`,
-        data: data as TahunAjaran,
+        message: finalData.is_active
+          ? `Tahun pelajaran ${cleanNama} berhasil ditambahkan dan ditetapkan sebagai tahun pelajaran aktif.`
+          : `Tahun pelajaran ${cleanNama} berhasil ditambahkan ke database.`,
+        data: finalData,
       };
     } catch (err) {
       return {
@@ -170,31 +187,44 @@ export class AdministrasiService {
 
   async setActiveTahunAjaran(tahunAjaranId: string): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!tahunAjaranId || !uuidRegex.test(tahunAjaranId.trim())) {
+      return {
+        ok: false,
+        message:
+          "ID Tahun Pelajaran tidak valid (bukan UUID database resmi). Silakan tambahkan tahun pelajaran ke database terlebih dahulu.",
+      };
+    }
     try {
-      // 1. Coba via RPC atomik jika telah termigrasi di Supabase
+      // Aktivasi tahun pelajaran HANYA boleh dilakukan melalui RPC atomik resmi rpc_set_active_tahun_ajaran
       const { data: rpcData, error: rpcError } = await this.client.rpc("rpc_set_active_tahun_ajaran", {
-        p_tahun_ajaran_id: tahunAjaranId,
+        p_tahun_ajaran_id: tahunAjaranId.trim(),
       });
-      if (!rpcError && rpcData) {
+      if (rpcError) {
         return {
-          ok: true,
-          message: (rpcData as { message?: string })?.message || "Tahun ajaran aktif berhasil diperbarui.",
+          ok: false,
+          message: rpcError.message || "Gagal memperbarui tahun pelajaran aktif melalui RPC database.",
         };
       }
-      if (rpcError && !rpcError.message.includes("does not exist") && (rpcError as { code?: string }).code !== "PGRST202") {
-        return { ok: false, message: rpcError.message };
+      if (!rpcData) {
+        return {
+          ok: false,
+          message: "Tidak ada respons dari RPC rpc_set_active_tahun_ajaran.",
+        };
       }
-
-      // 2. Fallback update tabel langsung (hanya jika RPC belum termigrasi di dev)
-      await this.client.from("tahun_ajaran").update({ is_active: false }).neq("id", tahunAjaranId);
-      const { error } = await this.client
-        .from("tahun_ajaran")
-        .update({ is_active: true })
-        .eq("id", tahunAjaranId);
-      if (error) return { ok: false, message: error.message };
-      return { ok: true, message: "Tahun ajaran aktif berhasil diperbarui." };
+      const resObj = rpcData as { success?: boolean; message?: string };
+      if (resObj.success === false) {
+        return {
+          ok: false,
+          message: resObj.message || "Aktivasi tahun pelajaran ditolak oleh RPC database.",
+        };
+      }
+      return {
+        ok: true,
+        message: resObj.message || "Tahun pelajaran aktif berhasil diperbarui dan disinkronkan.",
+      };
     } catch (err) {
-      return { ok: false, message: err instanceof Error ? err.message : "Gagal memperbarui tahun ajaran aktif." };
+      return { ok: false, message: err instanceof Error ? err.message : "Gagal memperbarui tahun pelajaran aktif." };
     }
   }
 
@@ -288,10 +318,16 @@ export class AdministrasiService {
         .maybeSingle();
 
       const targetId = existing?.id || singletonId;
+      // Jaga integritas Single Source of Truth: tahun_pelajaran_aktif & semester_aktif hanya diubah oleh RPC resmi
+      const safePayload = { ...payload };
+      delete safePayload.id;
+      delete safePayload.tahun_pelajaran_aktif;
+      delete safePayload.semester_aktif;
+
       const { error } = await this.client
         .from("profil_pesantren")
         .update({
-          ...payload,
+          ...safePayload,
           updated_at: new Date().toISOString(),
         })
         .eq("id", targetId);
@@ -512,10 +548,47 @@ export class AdministrasiService {
 
   async getRiwayatPenempatanList(santriId?: string): Promise<RiwayatPenempatanSantri[]> {
     if (!isSupabaseConfigured()) return [];
-    let query = this.client.from("riwayat_penempatan_santri").select("*").order("created_at", { ascending: false });
+    let query = this.client
+      .from("riwayat_penempatan_santri")
+      .select("*, petugas:petugas_id(nama_lengkap)")
+      .order("created_at", { ascending: false });
     if (santriId) query = query.eq("santri_id", santriId);
-    const { data } = await query;
-    return (data as RiwayatPenempatanSantri[]) ?? [];
+    const { data, error } = await query;
+    if (error || !data) return [];
+    return (data as any[]).map((row) => ({
+      ...row,
+      tanggal_efektif:
+        row.tanggal_efektif ||
+        (row.created_at ? String(row.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10)),
+      petugas_nama: row.petugas_nama || row.petugas?.nama_lengkap || "Tata Usaha",
+    })) as RiwayatPenempatanSantri[];
+  }
+
+  async getAuditLogs(limit = 150): Promise<AuditLogItem[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const { data, error } = await this.client
+        .from("audit_logs")
+        .select("*, user:user_id(nama_lengkap, role)")
+        .order("waktu", { ascending: false })
+        .limit(limit);
+      if (error || !data) return [];
+      return (data as any[]).map((row) => ({
+        id: row.id,
+        user_id: row.user_id || "",
+        user_nama: row.user_nama || row.user?.nama_lengkap || "Sistem SIPETA",
+        user_role: (row.user_role || row.user?.role || "superadmin") as any,
+        aktivitas: row.aktivitas || "",
+        jenis_objek: row.jenis_objek || "",
+        objek_id: String(row.objek_id || ""),
+        data_sebelum: row.data_sebelum || undefined,
+        data_sesudah: row.data_sesudah || undefined,
+        alasan_perubahan: row.alasan_perubahan || undefined,
+        waktu: row.waktu || row.created_at || new Date().toISOString(),
+      }));
+    } catch {
+      return [];
+    }
   }
 
   async resolveActiveTahunAjaranUuid(candidateId?: string): Promise<string | null> {
@@ -701,8 +774,16 @@ export class AdministrasiService {
 
   async createJenisPembayaran(payload: Omit<JenisPembayaran, "id" | "is_active" | "created_at" | "updated_at">): Promise<{ ok: boolean; message: string; data?: JenisPembayaran }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    const resolvedTaId = await this.resolveActiveTahunAjaranUuid(payload.tahun_ajaran_id);
+    if (!resolvedTaId) {
+      return {
+        ok: false,
+        message: "Pengajuan pembiayaan dihentikan: Tahun Pelajaran aktif belum ditemukan di database.",
+      };
+    }
     const { data, error } = await this.client.from("jenis_pembayaran").insert({
       ...payload,
+      tahun_ajaran_id: resolvedTaId,
       is_active: payload.status_persetujuan === "DISETUJUI",
     }).select().single();
     if (error) return { ok: false, message: error.message };
