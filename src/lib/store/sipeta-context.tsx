@@ -2299,8 +2299,28 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     const target = jenisPembayaranList.find((j) => j.id === id);
     if (!target) return { ok: false, message: "Data pembiayaan tidak ditemukan." };
 
+    if (target.status_persetujuan === "DISETUJUI") {
+      return { ok: false, message: "Pembiayaan ini sudah disetujui sebelumnya." };
+    }
+
     const approvedAt = new Date().toISOString();
     const approvedCatatan = catatan || "Disetujui oleh Pengasuh/Admin.";
+
+    // Format periode_label yang deskriptif dan konsisten (misal: "November 2026")
+    const namaBulanIndo = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    let computedPeriode: string = target.periode_pembayaran;
+    if (target.tanggal_mulai) {
+      const tDate = new Date(target.tanggal_mulai);
+      if (!isNaN(tDate.getTime())) {
+        const m = tDate.getMonth();
+        if (m >= 0 && m < 12) {
+          computedPeriode = `${namaBulanIndo[m]} ${tDate.getFullYear()}`;
+        }
+      }
+    }
 
     setJenisPembayaranList((prev) =>
       prev.map((item) =>
@@ -2333,9 +2353,9 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         nomor_tagihan: `INV-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Math.floor(100 + Math.random() * 900)}-${idx + 1}`,
         santri_id: s.id,
         jenis_pembayaran_id: target.id,
-        judul_tagihan: target.nama_pembayaran,
+        judul_tagihan: `${target.nama_pembayaran} (${computedPeriode})`,
         kategori: target.kategori,
-        periode_label: target.periode_pembayaran,
+        periode_label: computedPeriode,
         nominal_awal: target.nominal,
         nominal_penyesuaian: 0,
         nominal_tagihan: target.nominal,
@@ -2367,6 +2387,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       nama: target.nama_pembayaran,
       disetujui_oleh: currentUser.nama_lengkap,
       tagihan_diterbitkan: targetSantri.length,
+      periode_label: computedPeriode,
     });
 
     if (authMode === "supabase") {
@@ -2374,12 +2395,13 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         catatan: approvedCatatan,
         approved_by: currentUser.id,
         approved_by_name: currentUser.nama_lengkap,
+        periode_label: computedPeriode,
       }).catch(console.error);
 
       if (targetSantri.length > 0) {
         administrasiService.generateTagihan({
           jenis_pembayaran_id: target.id,
-          periode_label: target.periode_pembayaran,
+          periode_label: computedPeriode,
           tanggal_jatuh_tempo: target.tanggal_jatuh_tempo,
           target_santri_ids: targetSantri.map((s) => s.id),
         }).catch(console.error);

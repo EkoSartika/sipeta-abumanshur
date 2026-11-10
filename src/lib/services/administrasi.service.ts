@@ -345,14 +345,35 @@ export class AdministrasiService {
 
   async approveJenisPembayaran(
     id: string,
-    payload: { catatan?: string; approved_by: string; approved_by_name: string }
-  ): Promise<{ ok: boolean; message: string }> {
+    payload: { catatan?: string; approved_by: string; approved_by_name: string; periode_label?: string }
+  ): Promise<{ ok: boolean; message: string; tagihan_diterbitkan?: number }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
 
+    // 1. Eksekusi melalui RPC Atomik PostgreSQL jika tersedia
+    try {
+      const { data: rpcData, error: rpcErr } = await this.client.rpc("rpc_approve_jenis_pembayaran", {
+        p_jenis_pembayaran_id: id,
+        p_catatan: payload.catatan || null,
+        p_periode_label: payload.periode_label || null,
+      });
+
+      if (!rpcErr && rpcData) {
+        return {
+          ok: rpcData.ok ?? true,
+          message: rpcData.message ?? "Pengajuan pembiayaan berhasil disetujui dan tagihan diterbitkan secara atomik.",
+          tagihan_diterbitkan: rpcData.tagihan_diterbitkan,
+        };
+      }
+    } catch {
+      // Abaikan dan lanjut ke direct update jika RPC belum termigrasi di database
+    }
+
+    // 2. Fallback Direct Update
     const { error } = await this.client.from("jenis_pembayaran").update({
       status_persetujuan: "DISETUJUI",
       is_active: true,
       catatan_persetujuan: payload.catatan || "Disetujui oleh Pengasuh/Admin.",
+      disetujui_oleh: payload.approved_by,
       disetujui_oleh_nama: payload.approved_by_name,
       disetujui_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -371,10 +392,29 @@ export class AdministrasiService {
       return { ok: false, message: "Pengasuh/Admin wajib menyertakan catatan evaluasi penolakan pembiayaan." };
     }
 
+    // 1. Eksekusi melalui RPC Atomik PostgreSQL jika tersedia
+    try {
+      const { data: rpcData, error: rpcErr } = await this.client.rpc("rpc_reject_jenis_pembayaran", {
+        p_jenis_pembayaran_id: id,
+        p_catatan: payload.catatan.trim(),
+      });
+
+      if (!rpcErr && rpcData) {
+        return {
+          ok: rpcData.ok ?? true,
+          message: rpcData.message ?? "Pengajuan pembiayaan telah ditolak dengan catatan evaluasi.",
+        };
+      }
+    } catch {
+      // Abaikan dan lanjut ke direct update jika RPC belum termigrasi
+    }
+
+    // 2. Fallback Direct Update
     const { error } = await this.client.from("jenis_pembayaran").update({
       status_persetujuan: "DITOLAK",
       is_active: false,
       catatan_persetujuan: payload.catatan,
+      disetujui_oleh: payload.rejected_by,
       disetujui_oleh_nama: payload.rejected_by_name,
       disetujui_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

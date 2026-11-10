@@ -106,6 +106,7 @@ export function AdminPortal({
   const [rejectTargetItem, setRejectTargetItem] = useState<JenisPembayaran | null>(null);
   const [rejectCatatan, setRejectCatatan] = useState("");
   const [approvalFeedback, setApprovalFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   // Filter Santri di Pengawasan Santri & Asrama
   const [santriSearch, setSantriSearch] = useState("");
@@ -701,13 +702,20 @@ export function AdminPortal({
                           </button>
                           <button
                             type="button"
+                            disabled={approvingId === fee.id}
                             onClick={() => {
-                              const res = approveJenisPembayaran(fee.id);
-                              setApprovalFeedback({ ok: res.ok, text: res.message });
+                              if (approvingId) return;
+                              setApprovingId(fee.id);
+                              try {
+                                const res = approveJenisPembayaran(fee.id);
+                                setApprovalFeedback({ ok: res.ok, text: res.message });
+                              } finally {
+                                setApprovingId(null);
+                              }
                             }}
-                            className="rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition shadow-sm cursor-pointer"
+                            className="rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            Setujui &amp; Terbitkan Tagihan
+                            {approvingId === fee.id ? "Memproses..." : "Setujui & Terbitkan Tagihan"}
                           </button>
                         </div>
                       </div>

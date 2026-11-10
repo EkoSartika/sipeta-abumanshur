@@ -302,11 +302,11 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
         tanggal_lahir: "2013-05-10",
         alamat: "Plered, Cirebon",
         tahun_masuk: 2026,
+        tahun_ajaran_id: "ta-2026",
         status: "AKTIF",
         kelas_id: "kls-7a",
         kamar_id: "kmr-01",
         created_at: "2026-07-01",
-        updated_at: "2026-07-01",
       };
 
       const allAnnouncements: Pengumuman[] = [
@@ -320,6 +320,7 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
           is_published: true,
           status_publikasi: "PUBLIKASI",
           sasaran: "SEMUA",
+          created_by_nama: "Staf TU",
           tanggal_publikasi: "2026-11-01",
           masa_berlaku: "2026-11-30",
         },
@@ -334,6 +335,7 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
           status_publikasi: "PUBLIKASI",
           sasaran: "KELAS",
           target_id: "kls-7a",
+          created_by_nama: "Staf TU",
           tanggal_publikasi: "2026-11-01",
           masa_berlaku: "2026-11-30",
         },
@@ -348,6 +350,7 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
           status_publikasi: "PUBLIKASI",
           sasaran: "KELAS",
           target_id: "kls-9b",
+          created_by_nama: "Staf TU",
           tanggal_publikasi: "2026-11-01",
           masa_berlaku: "2026-11-30",
         },
@@ -361,6 +364,7 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
           is_published: false,
           status_publikasi: "DRAF",
           sasaran: "SEMUA",
+          created_by_nama: "Staf TU",
           tanggal_publikasi: "2026-11-01",
         },
         // 5. Pengumuman Kadaluarsa -> TIDAK Boleh Terlihat
@@ -373,6 +377,7 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
           is_published: true,
           status_publikasi: "PUBLIKASI",
           sasaran: "SEMUA",
+          created_by_nama: "Staf TU",
           tanggal_publikasi: "2026-09-01",
           masa_berlaku: "2026-09-30",
         },
@@ -402,6 +407,7 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
         santri_id: "snt-001",
         tanggal_penilaian: "2026-11-10",
         pembimbing_name: "Ustadz H. Fauzan Azima, Lc.",
+        petugas_nama: "Ustadz H. Fauzan Azima, Lc.",
         metode_pembelajaran: "Al-Qur'an Bin-Nadzor & Tahsin",
         tingkat_jilid: "Tahsin Juz 15",
         materi_terakhir: "QS. Al-Isra 1-20",
@@ -409,6 +415,7 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
         makharijul_huruf: "Fasih & Tepat (A)",
         tajwid: "Sangat Baik (A)",
         catatan_perkembangan: "Makhraj stabil dan tartil.",
+        created_at: "2026-11-10T08:00:00Z",
       };
 
       const validKelancaran = [
@@ -495,6 +502,7 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
       expect(sqlContent).toContain("status_persetujuan");
       expect(sqlContent).toContain("catatan_persetujuan");
       expect(sqlContent).toContain("disetujui_oleh");
+      expect(sqlContent).toContain("disetujui_oleh_nama");
       expect(sqlContent).toContain("disetujui_at");
       expect(sqlContent).toContain("sasaran_target_id");
 
@@ -504,14 +512,26 @@ describe("SIPETA — TU, Asatidz, & Bendahara Features Suite", () => {
       expect(sqlContent).toContain("target_id");
       expect(sqlContent).toContain("status_publikasi");
 
+      // Periksa pencegahan tagihan ganda (Anti Duplicate Bills)
+      expect(sqlContent).toContain("uq_tagihan_santri_jenis_periode");
+      expect(sqlContent).toContain("chk_tagihan_periode_label_not_empty");
+
       // Periksa granular RLS policies
       expect(sqlContent).toContain('CREATE POLICY "Jenis Pembayaran: TU ajukan pembiayaan"');
-      expect(sqlContent).toContain('CREATE POLICY "Mengaji: Bendahara catat evaluasi mengaji"');
-      expect(sqlContent).toContain('CREATE POLICY "Master Pelanggaran: TU kelola kategori"');
+      expect(sqlContent).toContain('CREATE POLICY "Jenis Pembayaran: staf dan pengasuh baca semua pembiayaan"');
+      expect(sqlContent).toContain('CREATE POLICY "Mengaji: kelola evaluasi oleh asatidz, bendahara, admin, superadmin"');
+      expect(sqlContent).toContain('CREATE POLICY "Master Pelanggaran: kelola kategori"');
+      expect(sqlContent).toContain('CREATE POLICY "Pengumuman: wali santri baca pengumuman bertarget"');
       expect(sqlContent).toContain('CREATE POLICY "Tagihan: TU baca rekapitulasi tagihan santri"');
 
-      // Pastikan ada anti-bypass guard (TU tidak bisa approve sendiri)
+      // Periksa RPC Atomik persetujuan pembiayaan
+      expect(sqlContent).toContain("FUNCTION public.rpc_approve_jenis_pembayaran");
+      expect(sqlContent).toContain("FUNCTION public.rpc_reject_jenis_pembayaran");
+
+      // Pastikan ada anti-bypass guard (TU tidak bisa approve sendiri dan is_active tetap false)
       expect(sqlContent).toContain("status_persetujuan = 'MENUNGGU_PERSETUJUAN'");
+      expect(sqlContent).toContain("is_active = false");
+      expect(sqlContent).toContain("disetujui_oleh IS NULL");
     });
   });
 });
