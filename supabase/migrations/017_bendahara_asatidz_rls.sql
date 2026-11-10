@@ -11,6 +11,9 @@ BEGIN;
 
 -- ============================================================================
 -- 1. Penyelarasan RLS untuk tabel-tabel kepesantrenan (Asatidz/pengelola & Bendahara)
+-- Prinsip Least Privilege:
+--   - Hak mutasi (CRUD) kepesantrenan HANYA untuk: Asatidz (pengelola), Bendahara, dan Superadmin.
+--   - TU dan Admin (Pengasuh) tidak diberi hak mutasi yang tidak diperlukan (fokus TU: administrasi; fokus Pengasuh: pengawasan).
 -- ============================================================================
 
 -- 1.1 Perkembangan Mengaji
@@ -25,7 +28,7 @@ CREATE POLICY "asatidz_bendahara_all_mengaji" ON public.perkembangan_mengaji
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -33,7 +36,7 @@ CREATE POLICY "asatidz_bendahara_all_mengaji" ON public.perkembangan_mengaji
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -49,7 +52,7 @@ CREATE POLICY "asatidz_bendahara_all_tahfidz" ON public.setoran_tahfidz
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -57,7 +60,7 @@ CREATE POLICY "asatidz_bendahara_all_tahfidz" ON public.setoran_tahfidz
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -73,7 +76,7 @@ CREATE POLICY "asatidz_bendahara_all_prestasi" ON public.prestasi_santri
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -81,7 +84,7 @@ CREATE POLICY "asatidz_bendahara_all_prestasi" ON public.prestasi_santri
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -99,7 +102,7 @@ CREATE POLICY "asatidz_bendahara_all_kedisiplinan" ON public.catatan_kedisiplina
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -107,7 +110,7 @@ CREATE POLICY "asatidz_bendahara_all_kedisiplinan" ON public.catatan_kedisiplina
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -115,6 +118,7 @@ CREATE POLICY "asatidz_bendahara_all_kedisiplinan" ON public.catatan_kedisiplina
 -- 1.5 Riwayat Perubahan Kedisiplinan (STRICTLY READ-ONLY / APPEND-ONLY HISTORI PEMBINAAN)
 -- * Baris baru HANYA dimasukkan secara otomatis oleh trigger trg_before_kedisiplinan_update
 -- * DILARANG KERAS di-UPDATE atau di-DELETE oleh role siapa pun demi integritas audit trail
+-- * Akses baca (SELECT) diberikan kepada Asatidz, Bendahara, Pengasuh (Admin) untuk pengawasan, dan Superadmin
 -- * Bersihkan policy lama (008, 014) untuk menutup celah akses wali ke histori internal pembinaan
 DROP POLICY IF EXISTS "Riwayat Kedisiplinan: baca sesuai akses kedisiplinan" ON public.riwayat_perubahan_kedisiplinan;
 DROP POLICY IF EXISTS "Riwayat Kedisiplinan: TU baca histori pembinaan" ON public.riwayat_perubahan_kedisiplinan;
@@ -128,7 +132,7 @@ CREATE POLICY "asatidz_bendahara_select_riwayat_kedisiplinan" ON public.riwayat_
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'admin', 'superadmin')
         AND profiles.is_active = true
     )
   );
@@ -146,7 +150,7 @@ CREATE POLICY "asatidz_bendahara_all_master_kategori" ON public.master_kategori_
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   )
@@ -154,7 +158,7 @@ CREATE POLICY "asatidz_bendahara_all_master_kategori" ON public.master_kategori_
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('pengelola', 'bendahara', 'tu', 'admin', 'superadmin')
+        AND profiles.role IN ('pengelola', 'bendahara', 'superadmin')
         AND profiles.is_active = true
     )
   );

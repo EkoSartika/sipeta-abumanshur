@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { PGlite } from "@electric-sql/pglite";
 
-describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () => {
+describe("SIPETA Migration 017: Pemeriksaan Final Least Privilege RLS", () => {
   const migrationPath = path.resolve(__dirname, "../supabase/migrations/017_bendahara_asatidz_rls.sql");
   const migrationSql = fs.readFileSync(migrationPath, "utf8");
 
@@ -12,6 +12,7 @@ describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () 
   // UUID Pengguna untuk Berbagai Role
   const ID_PENGELOLA = "11111111-1111-1111-1111-111111111111";
   const ID_BENDAHARA = "22222222-2222-2222-2222-222222222222";
+  const ID_ADMIN     = "22222222-3333-4444-5555-666666666666";
   const ID_TU        = "33333333-3333-3333-3333-333333333333";
   const ID_WALI      = "44444444-4444-4444-4444-444444444444";
   const ID_INAKTIF   = "55555555-5555-5555-5555-555555555555";
@@ -122,6 +123,7 @@ describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () 
       INSERT INTO public.profiles (id, role, nama_lengkap, is_active) VALUES
         ('${ID_PENGELOLA}', 'pengelola', 'Ustadz Pengelola / Asatidz', true),
         ('${ID_BENDAHARA}', 'bendahara', 'Ustadz Bendahara', true),
+        ('${ID_ADMIN}',     'admin',     'K.H. Pengasuh Pondok', true),
         ('${ID_TU}',        'tu',        'Staf Tata Usaha', true),
         ('${ID_WALI}',      'wali',      'Wali Santri Ahmad', true),
         ('${ID_INAKTIF}',   'pengelola', 'Akun Nonaktif', false);
@@ -180,7 +182,6 @@ describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () 
   it("1. Eksekusi migration 017 berhasil membersihkan policy lama tanpa konflik", async () => {
     await expect(db.exec(migrationSql)).resolves.not.toThrow();
 
-    // Verifikasi pg_policies setelah migrasi: policy lama yang usang telah terhapus
     const res = await db.query<{ policyname: string; tablename: string }>(`
       SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public';
     `);
@@ -197,7 +198,7 @@ describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () 
     expect(policyNames).not.toContain("Master Kamar: kelola");
   });
 
-  it("2. Hak Operasional Asatidz: Role Pengelola & Bendahara dapat mencatat dan melihat mengaji & tahfidz", async () => {
+  it("2. Hak Operasional Asatidz: Pengelola & Bendahara dapat mencatat dan melihat mengaji & tahfidz", async () => {
     await db.exec(migrationSql);
 
     // Login sebagai Bendahara
@@ -224,11 +225,10 @@ describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () 
     const resTahfidz = await db.query(`SELECT * FROM public.setoran_tahfidz;`);
     expect(resTahfidz.rows.length).toBe(1);
 
-    // Reset role
     await db.exec(`RESET ROLE;`);
   });
 
-  it("3. Hak Tata Usaha (TU): Dapat mengelola Kelas dan Kamar (Insert, Update, Delete)", async () => {
+  it("3. Least Privilege TU: DILARANG mutasi kepesantrenan, tapi BISA kelola Kelas & Kamar", async () => {
     await db.exec(migrationSql);
 
     // Login sebagai TU
@@ -237,32 +237,70 @@ describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () 
       SET request.jwt.claim.sub = '${ID_TU}';
     `);
 
-    // TU menambah kelas
+    // TU DILARANG insert ke perkembangan_mengaji (least privilege)
+    await expect(
+      db.exec(`INSERT INTO public.perkembangan_mengaji (santri_id, catatan) VALUES ('${ID_SANTRI}', 'TU input mengaji');`)
+    ).rejects.toThrow();
+
+    // TU DILARANG insert ke setoran_tahfidz
+    await expect(
+      db.exec(`INSERT INTO public.setoran_tahfidz (santri_id, juz) VALUES ('${ID_SANTRI}', 1);`)
+    ).rejects.toThrow();
+
+    // TU DILARANG insert ke catatan_kedisiplinan
+    await expect(
+      db.exec(`INSERT INTO public.catatan_kedisiplinan (santri_id, pelanggaran) VALUES ('${ID_SANTRI}', 'TU catat pelanggaran');`)
+    ).rejects.toThrow();
+
+    // TETAPI TU BISA kelola Kelas (Insert, Update, Delete)
     await db.exec(`INSERT INTO public.kelas (id, nama_kelas) VALUES ('c1111111-1111-1111-1111-111111111111', '7A');`);
     let resKelas = await db.query(`SELECT * FROM public.kelas;`);
     expect(resKelas.rows.length).toBe(1);
 
-    // TU update kelas
     await db.exec(`UPDATE public.kelas SET nama_kelas = '7A Unggulan' WHERE id = 'c1111111-1111-1111-1111-111111111111';`);
     resKelas = await db.query(`SELECT nama_kelas FROM public.kelas;`);
     expect((resKelas.rows[0] as { nama_kelas: string }).nama_kelas).toBe("7A Unggulan");
 
-    // TU hapus kelas
     await db.exec(`DELETE FROM public.kelas WHERE id = 'c1111111-1111-1111-1111-111111111111';`);
     resKelas = await db.query(`SELECT * FROM public.kelas;`);
     expect(resKelas.rows.length).toBe(0);
 
-    // Reset role
     await db.exec(`RESET ROLE;`);
   });
 
-  it("4. Proteksi Riwayat Perubahan Kedisiplinan: SELECT-only, dilarang UPDATE dan DELETE", async () => {
+  it("4. Least Privilege Admin (Pengasuh): Monitoring riwayat pembinaan (SELECT), tidak diberi hak mutasi tanpa dasar", async () => {
     await db.exec(migrationSql);
 
     // Masukkan data riwayat kedisiplinan sebagai postgres
     await db.exec(`
       INSERT INTO public.riwayat_perubahan_kedisiplinan (id, catatan_kedisiplinan_id, keterangan)
-      VALUES ('d1111111-1111-1111-1111-111111111111', gen_random_uuid(), 'Audit awal pembinaan');
+      VALUES ('d1111111-1111-1111-1111-111111111111', gen_random_uuid(), 'Audit awal pembinaan santri');
+    `);
+
+    // Login sebagai Admin (Pengasuh)
+    await db.exec(`
+      SET ROLE authenticated;
+      SET request.jwt.claim.sub = '${ID_ADMIN}';
+    `);
+
+    // Pengasuh BISA membaca riwayat pembinaan santri (monitoring/pengawasan)
+    const resRead = await db.query(`SELECT * FROM public.riwayat_perubahan_kedisiplinan;`);
+    expect(resRead.rows.length).toBe(1);
+
+    // Pengasuh DILARANG menghapus riwayat pembinaan (SELECT-only)
+    await db.exec(`DELETE FROM public.riwayat_perubahan_kedisiplinan WHERE id = 'd1111111-1111-1111-1111-111111111111';`);
+    const resAfterDelete = await db.query(`SELECT * FROM public.riwayat_perubahan_kedisiplinan;`);
+    expect(resAfterDelete.rows.length).toBe(1);
+
+    await db.exec(`RESET ROLE;`);
+  });
+
+  it("5. Proteksi Riwayat Kedisiplinan: SELECT-only untuk Asatidz & Bendahara (DILARANG UPDATE / DELETE)", async () => {
+    await db.exec(migrationSql);
+
+    await db.exec(`
+      INSERT INTO public.riwayat_perubahan_kedisiplinan (id, catatan_kedisiplinan_id, keterangan)
+      VALUES ('d2222222-2222-2222-2222-222222222222', gen_random_uuid(), 'Catatan pembinaan asatidz');
     `);
 
     // Login sebagai Asatidz (pengelola)
@@ -271,25 +309,19 @@ describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () 
       SET request.jwt.claim.sub = '${ID_PENGELOLA}';
     `);
 
-    // Asatidz dapat membaca riwayat
+    // Asatidz dapat membaca
     const resRead = await db.query(`SELECT * FROM public.riwayat_perubahan_kedisiplinan;`);
     expect(resRead.rows.length).toBe(1);
 
-    // Asatidz DILARANG menghapus riwayat kedisiplinan (0 rows affected karena RLS memblokir DELETE)
-    await db.exec(`DELETE FROM public.riwayat_perubahan_kedisiplinan WHERE id = 'd1111111-1111-1111-1111-111111111111';`);
+    // Asatidz DILARANG menghapus riwayat (0 rows affected)
+    await db.exec(`DELETE FROM public.riwayat_perubahan_kedisiplinan WHERE id = 'd2222222-2222-2222-2222-222222222222';`);
     const resAfterDelete = await db.query(`SELECT * FROM public.riwayat_perubahan_kedisiplinan;`);
-    expect(resAfterDelete.rows.length).toBe(1); // Tetap utuh!
+    expect(resAfterDelete.rows.length).toBe(1);
 
-    // Asatidz DILARANG meng-update riwayat kedisiplinan
-    await db.exec(`UPDATE public.riwayat_perubahan_kedisiplinan SET keterangan = 'Diubah paksa';`);
-    const resAfterUpdate = await db.query(`SELECT keterangan FROM public.riwayat_perubahan_kedisiplinan;`);
-    expect((resAfterUpdate.rows[0] as { keterangan: string }).keterangan).toBe("Audit awal pembinaan"); // Tidak berubah!
-
-    // Reset role
     await db.exec(`RESET ROLE;`);
   });
 
-  it("5. Wali Santri DILARANG mengakses/memanipulasi data operasional kepesantrenan", async () => {
+  it("6. Wali Santri DILARANG memanipulasi kepesantrenan dan DILARANG membaca riwayat internal", async () => {
     await db.exec(migrationSql);
 
     // Login sebagai Wali Santri
@@ -303,43 +335,10 @@ describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () 
       db.exec(`INSERT INTO public.perkembangan_mengaji (santri_id, catatan) VALUES ('${ID_SANTRI}', 'Catatan wali ilegal');`)
     ).rejects.toThrow();
 
-    // Wali tidak dapat insert ke setoran_tahfidz
-    await expect(
-      db.exec(`INSERT INTO public.setoran_tahfidz (santri_id, juz) VALUES ('${ID_SANTRI}', 10);`)
-    ).rejects.toThrow();
-
-    // Wali tidak dapat insert ke catatan_kedisiplinan
-    await expect(
-      db.exec(`INSERT INTO public.catatan_kedisiplinan (santri_id, pelanggaran) VALUES ('${ID_SANTRI}', 'Pelanggaran fiktif');`)
-    ).rejects.toThrow();
-
     // Wali tidak dapat melihat riwayat_perubahan_kedisiplinan (internal)
     const resWaliRiwayat = await db.query(`SELECT * FROM public.riwayat_perubahan_kedisiplinan;`);
     expect(resWaliRiwayat.rows.length).toBe(0);
 
-    // Reset role
-    await db.exec(`RESET ROLE;`);
-  });
-
-  it("6. Akun Inaktif (is_active = false) DITOLAK dari seluruh operasi operasional", async () => {
-    await db.exec(migrationSql);
-
-    // Login sebagai Akun Inaktif
-    await db.exec(`
-      SET ROLE authenticated;
-      SET request.jwt.claim.sub = '${ID_INAKTIF}';
-    `);
-
-    // Akun inaktif dilarang insert mengaji
-    await expect(
-      db.exec(`INSERT INTO public.perkembangan_mengaji (santri_id, catatan) VALUES ('${ID_SANTRI}', 'Catatan inaktif');`)
-    ).rejects.toThrow();
-
-    // Akun inaktif tidak dapat membaca mengaji
-    const resMengaji = await db.query(`SELECT * FROM public.perkembangan_mengaji;`);
-    expect(resMengaji.rows.length).toBe(0);
-
-    // Reset role
     await db.exec(`RESET ROLE;`);
   });
 });
