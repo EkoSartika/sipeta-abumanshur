@@ -42,7 +42,7 @@ describe("SIPETA Migration 016: Fitur Manajemen Semester Akademik & RPC Perganti
   });
 
   it("6. Validasi nilai semester: hanya 'Ganjil' atau 'Genap'", () => {
-    expect(migrationSql).toContain("IF v_clean_semester NOT IN ('Ganjil', 'Genap') THEN");
+    expect(migrationSql).toContain("trim(p_semester) NOT IN ('Ganjil', 'Genap')");
     expect(migrationSql).toContain("Nilai semester tidak valid");
   });
 
@@ -61,7 +61,15 @@ describe("SIPETA Migration 016: Fitur Manajemen Semester Akademik & RPC Perganti
     expect(migrationSql).toContain("GRANT EXECUTE ON FUNCTION public.rpc_set_active_semester(TEXT) TO authenticated;");
   });
 
-  it("9. Eksekusi runtime PGlite: simulasi RPC dan penegakan keamanan role", async () => {
+  it("9. Trigger guard terpasang untuk mencegah direct UPDATE pada semester_aktif", () => {
+    expect(migrationSql).toContain("CREATE OR REPLACE FUNCTION public.prevent_direct_profil_pesantren_semester_update()");
+    expect(migrationSql).toContain("GET DIAGNOSTICS v_context = PG_CONTEXT;");
+    expect(migrationSql).toContain("IF v_context !~ '(^|\\n)PL/pgSQL function (public\\.)?rpc_set_active_semester\\('");
+    expect(migrationSql).toContain("CREATE TRIGGER trg_guard_direct_profil_pesantren_semester_update");
+    expect(migrationSql).toContain("BEFORE UPDATE ON public.profil_pesantren");
+  });
+
+  it("10. Eksekusi runtime PGlite: simulasi RPC, trigger guard, dan penegakan keamanan role", async () => {
     const db = new PGlite();
 
     // 1. Setup skema dasar
@@ -220,6 +228,17 @@ describe("SIPETA Migration 016: Fitur Manajemen Semester Akademik & RPC Perganti
       `SELECT semester_aktif FROM public.profil_pesantren;`
     );
     expect(untouchedProfil.rows[0]?.semester_aktif).toBe("Ganjil");
+
+    // Skenario H: Trigger Guard mencegah direct UPDATE pada semester_aktif
+    await db.exec(`SET "request.jwt.claim.sub" = '${tuId}';`);
+    await expect(
+      db.exec(`UPDATE public.profil_pesantren SET semester_aktif = 'Genap';`)
+    ).rejects.toThrow(/Semester aktif HANYA dapat diubah melalui rpc_set_active_semester/);
+
+    // Skenario I: Direct UPDATE pada identitas profil (tanpa mengubah semester_aktif) tetap diizinkan
+    await expect(
+      db.exec(`UPDATE public.profil_pesantren SET nama_resmi = 'Pondok Pesantren Modern Abu Manshur Cirebon';`)
+    ).resolves.not.toThrow();
 
     await db.close();
   }, 30000);
