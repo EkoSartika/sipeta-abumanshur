@@ -535,9 +535,9 @@ export function SipetaProvider({
         administrasiService.getRiwayatPenempatanList(),
         administrasiService.getJenisPembayaranList(),
         keuanganService.getTagihanBySantri(),
-        // Gunakan API route server-side agar RLS tidak memblokir pembacaan transaksi oleh Wali/Bendahara
-        fetch("/api/keuangan/transaksi").then((r) => r.ok ? r.json() : Promise.resolve({ ok: false })).then((d) => d.ok ? (d.transaksiPembayaranList ?? []) : keuanganService.getRiwayatTransaksi()),
-        fetch("/api/keuangan/transaksi").then((r) => r.ok ? r.json() : Promise.resolve({ ok: false })).then((d) => d.ok ? (d.pengajuanUangSakuList ?? []) : keuanganService.getPengajuanTopup()),
+        // Gunakan API route server-side agar RLS tidak memblokir pembacaan transaksi oleh Wali/Bendahara (Role TU/Pengelola otomatis fallback ke [])
+        fetch("/api/keuangan/transaksi").then((r) => r.ok ? r.json() : Promise.resolve({ ok: false })).then((d) => d.ok ? (d.transaksiPembayaranList ?? []) : []),
+        fetch("/api/keuangan/transaksi").then((r) => r.ok ? r.json() : Promise.resolve({ ok: false })).then((d) => d.ok ? (d.pengajuanUangSakuList ?? []) : []),
         keuanganService.getMutasiUangSaku(),
         kepesantrenanService.getPerkembanganMengaji(),
         kepesantrenanService.getSetoranTahfidz(),

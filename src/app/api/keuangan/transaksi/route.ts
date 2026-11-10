@@ -126,7 +126,30 @@ export async function GET(request: NextRequest) {
 
   if (!profile || !profile.is_active) {
     return NextResponse.json(
-      { ok: false, message: "Profil pengguna tidak aktif." },
+      { ok: false, message: "Profil pengguna tidak aktif atau tidak ditemukan." },
+      { status: 403 }
+    );
+  }
+
+  // VALIDASI ROLE SERVER-SIDE KETAT
+  // Role 'pengelola' (Asatidz) dan 'tu' DILARANG KERAS mengakses data transaksi keuangan
+  if (profile.role === "pengelola") {
+    return NextResponse.json(
+      { ok: false, message: "Akses ditolak: Role Asatidz (Pengelola) tidak memiliki wewenang mengakses data transaksi keuangan." },
+      { status: 403 }
+    );
+  }
+
+  if (profile.role === "tu") {
+    return NextResponse.json(
+      { ok: false, message: "Akses ditolak: Role Tata Usaha (TU) tidak memiliki wewenang mengakses data transaksi keuangan." },
+      { status: 403 }
+    );
+  }
+
+  if (!["wali", "bendahara", "admin", "superadmin"].includes(profile.role)) {
+    return NextResponse.json(
+      { ok: false, message: "Akses ditolak: Role Anda tidak memiliki wewenang mengakses modul keuangan." },
       { status: 403 }
     );
   }
@@ -136,15 +159,16 @@ export async function GET(request: NextRequest) {
     const santriIdParam = url.searchParams.get("santri_id");
 
     let santriFilter: string | null = santriIdParam;
+    let waliSantriIds: string[] = [];
 
-    // Jika wali, kunci pada santri miliknya
+    // Jika wali, kunci ketat pada santri miliknya
     if (profile.role === "wali") {
       const { data: waliSantriList } = await adminClient
         .from("wali_santri")
         .select("santri_id")
         .eq("user_id", user.id);
 
-      const waliSantriIds = (waliSantriList ?? []).map((w: any) => w.santri_id);
+      waliSantriIds = (waliSantriList ?? []).map((w: any) => w.santri_id);
       if (waliSantriIds.length === 0) {
         return NextResponse.json({
           ok: true,
@@ -153,8 +177,17 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      if (!santriFilter || !waliSantriIds.includes(santriFilter)) {
-        santriFilter = waliSantriIds[0];
+      if (santriIdParam) {
+        // Tolak jika wali mencoba memanipulasi santri_id milik wali lain
+        if (!waliSantriIds.includes(santriIdParam)) {
+          return NextResponse.json(
+            { ok: false, message: "Akses ditolak: Anda tidak memiliki akses ke data santri tersebut." },
+            { status: 403 }
+          );
+        }
+        santriFilter = santriIdParam;
+      } else {
+        santriFilter = null;
       }
     }
 
@@ -164,7 +197,13 @@ export async function GET(request: NextRequest) {
       .select("*, santri:santri_id(id, nis, nama_lengkap), alokasi:alokasi_pembayaran(*, tagihan:tagihan_id(id, judul_tagihan, sisa_tagihan, nominal_tagihan))")
       .order("created_at", { ascending: false });
 
-    if (santriFilter) {
+    if (profile.role === "wali") {
+      if (santriFilter) {
+        trxQuery = trxQuery.eq("santri_id", santriFilter);
+      } else {
+        trxQuery = trxQuery.in("santri_id", waliSantriIds);
+      }
+    } else if (santriFilter) {
       trxQuery = trxQuery.eq("santri_id", santriFilter);
     }
 
@@ -177,7 +216,13 @@ export async function GET(request: NextRequest) {
       .select("*, santri:santri_id(id, nis, nama_lengkap), wali:wali_user_id(id, nama_lengkap, email)")
       .order("created_at", { ascending: false });
 
-    if (santriFilter) {
+    if (profile.role === "wali") {
+      if (santriFilter) {
+        topupQuery = topupQuery.eq("santri_id", santriFilter);
+      } else {
+        topupQuery = topupQuery.in("santri_id", waliSantriIds);
+      }
+    } else if (santriFilter) {
       topupQuery = topupQuery.eq("santri_id", santriFilter);
     }
 
