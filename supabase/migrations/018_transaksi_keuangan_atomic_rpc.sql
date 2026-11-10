@@ -39,6 +39,7 @@ DECLARE
     v_seen_tagihan_ids UUID[] := '{}';
     v_pending_alokasi NUMERIC(15, 2) := 0;
     v_sisa_tersedia NUMERIC(15, 2) := 0;
+    v_expired_trx RECORD;
 BEGIN
     -- 1. Validasi Autentikasi Pengguna
     IF v_user_id IS NULL THEN
@@ -104,7 +105,58 @@ BEGIN
         RAISE EXCEPTION 'Rekening resmi pesantren belum dikonfigurasi atau tidak aktif.';
     END IF;
 
-    -- 7. Validasi Setiap Tagihan dengan ROW LOCK (FOR UPDATE)
+    -- 7. Rekonsiliasi Otomatis Transaksi MENUNGGU_TRANSFER yang Menggantung (> 24 Jam)
+    -- Hanya menyasar transaksi MENUNGGU_TRANSFER (transaksi MENUNGGU_VERIFIKASI tidak pernah kedaluwarsa otomatis).
+    -- Menggunakan SKIP LOCKED agar tidak mengganggu transaksi yang sedang diproses konkuren.
+    -- Mencatat status KEDALUWARSA, mengirim notifikasi ke wali santri, dan mencatat riwayat ke audit_logs.
+    FOR v_expired_trx IN
+        SELECT id, nomor_transaksi, santri_id, wali_user_id, total_nominal
+        FROM public.transaksi_pembayaran
+        WHERE status = 'MENUNGGU_TRANSFER'
+          AND created_at < now() - INTERVAL '24 hours'
+        FOR UPDATE SKIP LOCKED
+    LOOP
+        UPDATE public.transaksi_pembayaran
+        SET status = 'KEDALUWARSA'::public.status_transaksi,
+            catatan_verifikasi = 'Batas waktu transfer 24 jam telah berakhir tanpa bukti pembayaran.',
+            updated_at = now()
+        WHERE id = v_expired_trx.id;
+
+        -- Kirim notifikasi kedaluwarsa kepada Wali Santri
+        INSERT INTO public.notifikasi (
+            user_id, santri_id, jenis_notifikasi, judul, pesan, tautan
+        ) VALUES (
+            v_expired_trx.wali_user_id,
+            v_expired_trx.santri_id,
+            'PEMBAYARAN_DITOLAK',
+            'Batas Waktu Pembayaran Berakhir',
+            'Pengajuan pembayaran ' || v_expired_trx.nomor_transaksi || ' sebesar Rp ' || to_char(v_expired_trx.total_nominal, 'FM999,999,999') || ' telah kedaluwarsa karena tidak ada konfirmasi transfer dalam 24 jam.',
+            '/pembayaran'
+        );
+
+        -- Catat ke Audit Log
+        INSERT INTO public.audit_logs (
+            user_id,
+            user_role,
+            aktivitas,
+            jenis_objek,
+            objek_id,
+            data_sebelum,
+            data_sesudah,
+            alasan_perubahan
+        ) VALUES (
+            v_expired_trx.wali_user_id,
+            'wali'::public.user_role,
+            'TRANSAKSI_KEDALUWARSA_OTOMATIS',
+            'transaksi_pembayaran',
+            v_expired_trx.id::text,
+            jsonb_build_object('status', 'MENUNGGU_TRANSFER'),
+            jsonb_build_object('status', 'KEDALUWARSA'),
+            'Batas waktu transfer 24 jam terlampaui tanpa konfirmasi bukti'
+        );
+    END LOOP;
+
+    -- 8. Validasi Setiap Tagihan dengan ROW LOCK (FOR UPDATE)
     -- Mengurutkan berdasarkan tagihan_id (UUID ASC) secara konsisten untuk mencegah deadlock antartransaksi multi-tagihan
     FOR v_item IN
         SELECT elem
@@ -240,11 +292,14 @@ BEGIN
         );
     END LOOP;
 
-    -- 11. Hapus Tagihan Terkait dari Keranjang Pembayaran
+    -- 12. Hapus HANYA Tagihan yang Dibayar dari Keranjang Pembayaran
+    -- Menjamin item lain yang belum dipilih/belum dibayar tetap tersimpan di keranjang
     DELETE FROM public.keranjang_pembayaran
-    WHERE wali_user_id = v_user_id AND santri_id = p_santri_id;
+    WHERE wali_user_id = v_user_id
+      AND santri_id = p_santri_id
+      AND tagihan_id = ANY(v_seen_tagihan_ids);
 
-    -- 12. Catat Audit Log (Menyertakan objek_id secara eksplisit)
+    -- 13. Catat Audit Log (Menyertakan objek_id secara eksplisit)
     INSERT INTO public.audit_logs (
         user_id,
         user_role,

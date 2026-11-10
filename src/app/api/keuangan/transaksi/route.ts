@@ -9,11 +9,77 @@
 // ============================================================================
 
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
 } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  isSupabaseConfigured,
+  getSupabaseUrl,
+  getSupabasePublishableKey,
+} from "@/lib/supabase/client";
+
+// Helper sanitasi pesan error dari PostgreSQL RPC agar informatif dan user-friendly
+function sanitizeRpcError(errorMessage: string | undefined): string {
+  if (!errorMessage) return "Terjadi kesalahan pada pemrosesan transaksi di database.";
+
+  let clean = errorMessage;
+  // Tangkap pesan dari PL/pgSQL RAISE EXCEPTION
+  const match =
+    clean.match(/RAISE EXCEPTION\s+['"]?([^'"]+)['"]?/i) ||
+    clean.match(/ERROR:\s+(.+)$/m);
+  if (match && match[1]) {
+    clean = match[1].trim();
+  }
+
+  // Jika error masih mengandung detail constraint database internal
+  if (clean.includes("violates check constraint") || clean.includes("violates foreign key")) {
+    return "Data transaksi tidak memenuhi validasi aturan bisnis pesantren.";
+  }
+
+  return clean;
+}
+
+// Helper untuk mendapatkan client Supabase yang membawa identitas JWT pengguna asli
+async function getAuthenticatedUserClient(request: NextRequest) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { user: null, client: null, error: "Akses ditolak: Anda harus login terlebih dahulu." };
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const authHeader = request.headers.get("authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+  const accessToken = session?.access_token || bearerToken;
+
+  // Jika access token tersedia eksplisit, ikat ke header Authorization pada client
+  if (accessToken && isSupabaseConfigured()) {
+    const userClient = createClient(getSupabaseUrl(), getSupabasePublishableKey(), {
+      global: {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    return { user, client: userClient, error: null };
+  }
+
+  // Fallback ke server client SSR berbasis cookie
+  return { user, client: supabase, error: null };
+}
 
 // Helper untuk memastikan rekening resmi pesantren selalu tersedia
 async function ensureRekeningResmiAktif(adminClient: any) {
@@ -261,15 +327,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, message: "Supabase belum dihubungkan." }, { status: 400 });
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  // Ambil user dan Supabase client yang membawa identitas JWT pengguna asli
+  const { user, client: userClient, error: clientErr } = await getAuthenticatedUserClient(request);
+  if (clientErr || !user || !userClient) {
     return NextResponse.json(
-      { ok: false, message: "Akses ditolak: Anda harus login terlebih dahulu." },
+      { ok: false, message: clientErr || "Akses ditolak: Anda harus login terlebih dahulu." },
       { status: 401 }
     );
   }
@@ -292,12 +354,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // VALIDASI ROLE SERVER-SIDE KETAT
+  // Role 'pengelola' (Asatidz) dan 'tu' DILARANG KERAS melakukan aksi transaksi keuangan
+  if (profile.role === "pengelola") {
+    return NextResponse.json(
+      { ok: false, message: "Akses ditolak: Role Asatidz (Pengelola) tidak memiliki wewenang transaksi keuangan." },
+      { status: 403 }
+    );
+  }
+
+  if (profile.role === "tu") {
+    return NextResponse.json(
+      { ok: false, message: "Akses ditolak: Role Tata Usaha (TU) tidak memiliki wewenang transaksi keuangan." },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await request.json();
     const action = body.action;
 
     // =========================================================================
-    // AKSI 1: CHECKOUT PEMBAYARAN TAGIHAN
+    // AKSI 1: CHECKOUT PEMBAYARAN TAGIHAN (ATOMIC RPC MIGRATION 018)
     // =========================================================================
     if (action === "CHECKOUT_PEMBAYARAN") {
       let santriId = String(body.santri_id || "").trim();
@@ -332,152 +410,60 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Pastikan rekening pesantren tersedia
-      const rekening = await ensureRekeningResmiAktif(adminClient);
-
-      // Upload bukti transfer jika berupa base64
+      // Upload bukti transfer jika berupa base64 ke Supabase Storage (pertahankan file jika terjadi error RPC)
       let storagePath = buktiTransfer;
       if (buktiTransfer.startsWith("data:")) {
         const filename = `${santriId}/${Date.now()}-bukti-bayar.jpg`;
         storagePath = await uploadBase64ToStorage(adminClient, "bukti-pembayaran", filename, buktiTransfer);
       }
 
-      // Validasi setiap tagihan di database
-      let totalNominal = 0;
-      const verifiedAlokasi: Array<{ tagihan_id: string; nominal_alokasi: number; judul_tagihan: string }> = [];
-
-      for (const item of items) {
-        const { data: tagihan, error: tghErr } = await adminClient
-          .from("tagihan")
-          .select("id, santri_id, judul_tagihan, sisa_tagihan, status, nominal_tagihan")
-          .eq("id", item.tagihan_id)
-          .maybeSingle();
-
-        if (tghErr || !tagihan) {
-          return NextResponse.json(
-            { ok: false, message: `Tagihan ID "${item.tagihan_id}" tidak ditemukan di database.` },
-            { status: 400 }
-          );
-        }
-
-        if (tagihan.status === "LUNAS" || tagihan.sisa_tagihan <= 0) {
-          return NextResponse.json(
-            { ok: false, message: `Tagihan "${tagihan.judul_tagihan}" sudah lunas.` },
-            { status: 400 }
-          );
-        }
-
-        const nominal = Number(item.nominal_bayar);
-        if (isNaN(nominal) || nominal <= 0) {
-          return NextResponse.json({ ok: false, message: "Nominal pembayaran tagihan tidak valid." }, { status: 400 });
-        }
-
-        if (nominal > tagihan.sisa_tagihan) {
-          return NextResponse.json(
-            { ok: false, message: `Nominal pembayaran Rp ${nominal.toLocaleString("id-ID")} melebihi sisa tagihan "${tagihan.judul_tagihan}" (Rp ${tagihan.sisa_tagihan.toLocaleString("id-ID")}).` },
-            { status: 400 }
-          );
-        }
-
-        totalNominal += nominal;
-        verifiedAlokasi.push({
-          tagihan_id: tagihan.id,
-          nominal_alokasi: nominal,
-          judul_tagihan: tagihan.judul_tagihan,
-        });
-      }
-
-      if (totalNominal <= 0) {
-        return NextResponse.json({ ok: false, message: "Total nominal pembayaran harus lebih dari 0." }, { status: 400 });
-      }
-
-      // Nomor transaksi resmi atomik
-      const tanggalCode = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const nomorTransaksi = `TRX-BYR-${tanggalCode}-${randomSuffix}`;
-      const statusAwal = storagePath && storagePath.trim().length > 0 ? "MENUNGGU_VERIFIKASI" : "MENUNGGU_TRANSFER";
-
-      // 1. Simpan Transaksi Pembayaran ke Supabase
-      const { data: newTrx, error: insertTrxErr } = await adminClient
-        .from("transaksi_pembayaran")
-        .insert({
-          nomor_transaksi: nomorTransaksi,
-          santri_id: santriId,
-          wali_user_id: user.id,
-          total_nominal: totalNominal,
-          rekening_tujuan_snapshot: {
-            nama_bank: rekening.nama_bank,
-            nomor_rekening: rekening.nomor_rekening,
-            atas_nama: rekening.atas_nama,
-          },
-          tanggal_transfer: tanggalTransfer,
-          nama_pengirim: namaPengirim,
-          bank_pengirim: bankPengirim || "Bank Transfer",
-          bukti_transfer_path: storagePath,
-          status: statusAwal,
-        })
-        .select()
-        .single();
-
-      if (insertTrxErr || !newTrx) {
-        return NextResponse.json(
-          { ok: false, message: `Gagal menyimpan transaksi ke database: ${insertTrxErr?.message || "Unknown error"}` },
-          { status: 500 }
-        );
-      }
-
-      // 2. Simpan Alokasi Pembayaran
-      const alokasiRows = verifiedAlokasi.map((a) => ({
-        transaksi_id: newTrx.id,
-        tagihan_id: a.tagihan_id,
-        nominal_alokasi: a.nominal_alokasi,
+      // Format payload items untuk RPC
+      const rpcItems = items.map((it) => ({
+        tagihan_id: it.tagihan_id,
+        nominal_bayar: Number(it.nominal_bayar),
       }));
 
-      const { error: alokasiErr } = await adminClient
-        .from("alokasi_pembayaran")
-        .insert(alokasiRows);
+      // Panggil RPC rpc_checkout_pembayaran_v2 secara atomik menggunakan userClient (membawa auth.uid())
+      const { data: rpcRes, error: rpcErr } = await userClient.rpc("rpc_checkout_pembayaran_v2", {
+        p_santri_id: santriId,
+        p_items: rpcItems,
+        p_tanggal_transfer: tanggalTransfer,
+        p_nama_pengirim: namaPengirim,
+        p_bank_pengirim: bankPengirim || "Bank Transfer",
+        p_bukti_transfer_path: storagePath || null,
+      });
 
-      if (alokasiErr) {
-        // Rollback transaksi jika alokasi gagal
-        await adminClient.from("transaksi_pembayaran").delete().eq("id", newTrx.id);
+      if (rpcErr) {
         return NextResponse.json(
-          { ok: false, message: `Gagal menyimpan alokasi tagihan: ${alokasiErr.message}` },
-          { status: 500 }
+          { ok: false, message: sanitizeRpcError(rpcErr.message) },
+          { status: 400 }
         );
       }
 
-      // 3. Bersihkan keranjang
-      await adminClient
-        .from("keranjang_pembayaran")
-        .delete()
-        .eq("wali_user_id", user.id)
-        .eq("santri_id", santriId);
-
-      // 4. Catat Audit Log
-      await adminClient.from("audit_logs").insert({
-        user_id: user.id,
-        user_role: profile.role,
-        aktivitas: "CHECKOUT_PEMBAYARAN",
-        jenis_objek: "transaksi_pembayaran",
-        objek_id: newTrx.id,
-        data_sesudah: {
-          nomor_transaksi: nomorTransaksi,
-          total_nominal: totalNominal,
-          status: statusAwal,
-          alokasi_count: verifiedAlokasi.length,
-        },
-        alasan_perubahan: `Pengajuan pembayaran tagihan via portal wali (${nomorTransaksi})`,
-      });
+      if (!rpcRes || !rpcRes.ok) {
+        return NextResponse.json(
+          { ok: false, message: rpcRes?.message || "Gagal melakukan checkout pembayaran." },
+          { status: 400 }
+        );
+      }
 
       return NextResponse.json({
         ok: true,
-        nomor_transaksi: nomorTransaksi,
+        transaksi_id: rpcRes.transaksi_id,
+        nomor_transaksi: rpcRes.nomor_transaksi,
+        total_nominal: rpcRes.total_nominal,
+        status: rpcRes.status,
         transaksi: {
-          ...newTrx,
+          id: rpcRes.transaksi_id,
+          nomor_transaksi: rpcRes.nomor_transaksi,
+          santri_id: santriId,
+          total_nominal: rpcRes.total_nominal,
+          status: rpcRes.status,
+          bukti_transfer_path: storagePath,
           bukti_transfer_url: storagePath,
-          alokasi: verifiedAlokasi,
+          items: rpcItems,
         },
-        message: `Pengajuan pembayaran ${nomorTransaksi} sebesar Rp ${totalNominal.toLocaleString("id-ID")} berhasil disimpan permanen ke database dan menunggu verifikasi Bendahara.`,
+        message: rpcRes.message || `Pengajuan pembayaran ${rpcRes.nomor_transaksi} berhasil disimpan permanen ke database dan menunggu verifikasi Bendahara.`,
       });
     }
 
@@ -588,11 +574,14 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // AKSI 3: VERIFIKASI PEMBAYARAN OLEH BENDAHARA
+    // AKSI 3: VERIFIKASI PEMBAYARAN OLEH BENDAHARA (ATOMIC RPC MIGRATION 018)
     // =========================================================================
     if (action === "VERIFIKASI_PEMBAYARAN") {
       if (profile.role !== "bendahara" && profile.role !== "superadmin") {
-        return NextResponse.json({ ok: false, message: "Akses ditolak: Hanya Bendahara yang berwenang memverifikasi pembayaran." }, { status: 403 });
+        return NextResponse.json(
+          { ok: false, message: "Akses ditolak: Hanya Bendahara yang berwenang memverifikasi pembayaran." },
+          { status: 403 }
+        );
       }
 
       const transaksiId = String(body.transaksi_id || "").trim();
@@ -600,99 +589,57 @@ export async function POST(request: NextRequest) {
       const catatan = String(body.catatan || "").trim();
 
       if (!transaksiId || !["DISETUJUI", "DITOLAK"].includes(keputusan)) {
-        return NextResponse.json({ ok: false, message: "ID transaksi dan keputusan valid (DISETUJUI / DITOLAK) wajib disertakan." }, { status: 400 });
-      }
-
-      if (keputusan === "DITOLAK" && catatan.length < 3) {
-        return NextResponse.json({ ok: false, message: "Alasan penolakan wajib diisi minimal 3 karakter." }, { status: 400 });
-      }
-
-      // Ambil transaksi
-      const { data: trx, error: trxErr } = await adminClient
-        .from("transaksi_pembayaran")
-        .select("*, alokasi:alokasi_pembayaran(*)")
-        .eq("id", transaksiId)
-        .maybeSingle();
-
-      if (trxErr || !trx) {
-        return NextResponse.json({ ok: false, message: "Transaksi pembayaran tidak ditemukan." }, { status: 404 });
-      }
-
-      if (trx.status !== "MENUNGGU_VERIFIKASI") {
         return NextResponse.json(
-          { ok: false, message: `Transaksi ${trx.nomor_transaksi} sudah diproses sebelumnya dengan status ${trx.status}.` },
+          { ok: false, message: "ID transaksi dan keputusan valid (DISETUJUI / DITOLAK) wajib disertakan." },
           { status: 400 }
         );
       }
 
-      if (keputusan === "DISETUJUI") {
-        // Periksa dan perbarui setiap tagihan yang dialokasikan
-        const alokasiList = trx.alokasi || [];
-        for (const alk of alokasiList) {
-          const { data: bill } = await adminClient
-            .from("tagihan")
-            .select("id, judul_tagihan, total_terbayar, nominal_tagihan, sisa_tagihan")
-            .eq("id", alk.tagihan_id)
-            .maybeSingle();
-
-          if (!bill) continue;
-
-          const totalTerbayarBaru = Number(bill.total_terbayar) + Number(alk.nominal_alokasi);
-          const sisaBaru = Number(bill.nominal_tagihan) - totalTerbayarBaru;
-          const statusBaru = sisaBaru <= 0 ? "LUNAS" : "DIBAYAR_SEBAGIAN";
-
-          // Sisa_tagihan adalah kolom generated selalu di Postgres, jadi update hanya total_terbayar dan status
-          await adminClient
-            .from("tagihan")
-            .update({
-              total_terbayar: totalTerbayarBaru,
-              status: statusBaru,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", bill.id);
-        }
+      if (keputusan === "DITOLAK" && catatan.length < 3) {
+        return NextResponse.json(
+          { ok: false, message: "Alasan penolakan wajib diisi minimal 3 karakter." },
+          { status: 400 }
+        );
       }
 
-      // Update status transaksi pembayaran
-      const { error: updateTrxErr } = await adminClient
-        .from("transaksi_pembayaran")
-        .update({
-          status: keputusan,
-          verified_by: user.id,
-          verified_at: new Date().toISOString(),
-          catatan_verifikasi: catatan || (keputusan === "DISETUJUI" ? "Bukti transfer sah dan dana diterima." : "Ditolak oleh Bendahara."),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", transaksiId);
-
-      if (updateTrxErr) {
-        return NextResponse.json({ ok: false, message: `Gagal memperbarui status transaksi: ${updateTrxErr.message}` }, { status: 500 });
-      }
-
-      // Audit Log
-      await adminClient.from("audit_logs").insert({
-        user_id: user.id,
-        user_role: profile.role,
-        aktivitas: `VERIFIKASI_PEMBAYARAN_${keputusan}`,
-        jenis_objek: "transaksi_pembayaran",
-        objek_id: transaksiId,
-        data_sebelum: { status: trx.status },
-        data_sesudah: { status: keputusan, verified_by: user.id },
-        alasan_perubahan: catatan || `Verifikasi pembayaran oleh ${profile.nama_lengkap}`,
+      // Panggil RPC rpc_verifikasi_pembayaran_v2 secara atomik menggunakan userClient (membawa auth.uid())
+      const { data: rpcRes, error: rpcErr } = await userClient.rpc("rpc_verifikasi_pembayaran_v2", {
+        p_transaksi_id: transaksiId,
+        p_keputusan: keputusan,
+        p_catatan: catatan || (keputusan === "DISETUJUI" ? "Bukti transfer sah dan dana diterima." : "Ditolak oleh Bendahara."),
       });
+
+      if (rpcErr) {
+        return NextResponse.json(
+          { ok: false, message: sanitizeRpcError(rpcErr.message) },
+          { status: 400 }
+        );
+      }
+
+      if (!rpcRes || !rpcRes.ok) {
+        return NextResponse.json(
+          { ok: false, message: rpcRes?.message || "Gagal memproses verifikasi transaksi." },
+          { status: 400 }
+        );
+      }
 
       return NextResponse.json({
         ok: true,
-        message: `Transaksi ${trx.nomor_transaksi} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan tagihan santri telah diperbarui" : "ditolak"}.`,
+        nomor_transaksi: rpcRes.nomor_transaksi,
+        status: rpcRes.status,
+        message: rpcRes.message || `Transaksi ${rpcRes.nomor_transaksi} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan tagihan santri telah diperbarui" : "ditolak"}.`,
       });
     }
 
     // =========================================================================
-    // AKSI 4: VERIFIKASI TOP-UP UANG SAKU OLEH BENDAHARA
+    // AKSI 4: VERIFIKASI TOP-UP UANG SAKU OLEH BENDAHARA (ATOMIC RPC MIGRATION 018)
     // =========================================================================
     if (action === "VERIFIKASI_TOPUP") {
       if (profile.role !== "bendahara" && profile.role !== "superadmin") {
-        return NextResponse.json({ ok: false, message: "Akses ditolak: Hanya Bendahara yang berwenang memverifikasi top-up uang saku." }, { status: 403 });
+        return NextResponse.json(
+          { ok: false, message: "Akses ditolak: Hanya Bendahara yang berwenang memverifikasi top-up uang saku." },
+          { status: 403 }
+        );
       }
 
       const pengajuanId = String(body.pengajuan_id || "").trim();
@@ -700,99 +647,47 @@ export async function POST(request: NextRequest) {
       const catatan = String(body.catatan || "").trim();
 
       if (!pengajuanId || !["DISETUJUI", "DITOLAK"].includes(keputusan)) {
-        return NextResponse.json({ ok: false, message: "ID pengajuan dan keputusan valid wajib disertakan." }, { status: 400 });
-      }
-
-      const { data: pengajuan, error: pErr } = await adminClient
-        .from("pengajuan_uang_saku")
-        .select("*")
-        .eq("id", pengajuanId)
-        .maybeSingle();
-
-      if (pErr || !pengajuan) {
-        return NextResponse.json({ ok: false, message: "Pengajuan top-up uang saku tidak ditemukan." }, { status: 404 });
-      }
-
-      if (pengajuan.status !== "MENUNGGU_VERIFIKASI") {
         return NextResponse.json(
-          { ok: false, message: `Pengajuan ${pengajuan.nomor_pengajuan} sudah diproses sebelumnya (${pengajuan.status}).` },
+          { ok: false, message: "ID pengajuan dan keputusan valid wajib disertakan." },
           { status: 400 }
         );
       }
 
-      if (keputusan === "DISETUJUI") {
-        const nominal = Number(pengajuan.nominal);
-
-        // Ambil atau buat saldo uang saku
-        const { data: saldoExisting } = await adminClient
-          .from("saldo_uang_saku")
-          .select("*")
-          .eq("santri_id", pengajuan.santri_id)
-          .maybeSingle();
-
-        const saldoSebelum = Number(saldoExisting?.saldo_saat_ini || 0);
-        const totalMasukLama = Number(saldoExisting?.total_masuk || 0);
-        const totalKeluarLama = Number(saldoExisting?.total_keluar || 0);
-        const totalPenyesuaianLama = Number(saldoExisting?.total_penyesuaian || 0);
-
-        const saldoSesudah = saldoSebelum + nominal;
-        const totalMasukBaru = totalMasukLama + nominal;
-
-        // Upsert saldo uang saku
-        await adminClient.from("saldo_uang_saku").upsert(
-          {
-            santri_id: pengajuan.santri_id,
-            saldo_saat_ini: saldoSesudah,
-            total_masuk: totalMasukBaru,
-            total_keluar: totalKeluarLama,
-            total_penyesuaian: totalPenyesuaianLama,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "santri_id" }
+      if (keputusan === "DITOLAK" && catatan.length < 3) {
+        return NextResponse.json(
+          { ok: false, message: "Alasan penolakan wajib diisi minimal 3 karakter." },
+          { status: 400 }
         );
-
-        // Catat ke Mutasi Ledger Uang Saku
-        const nomorMutasi = `MUT-TOP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-        await adminClient.from("mutasi_uang_saku").insert({
-          nomor_transaksi: nomorMutasi,
-          santri_id: pengajuan.santri_id,
-          jenis_mutasi: "TOPUP",
-          nominal: nominal,
-          saldo_sebelum: saldoSebelum,
-          saldo_sesudah: saldoSesudah,
-          keterangan: `Top-up disetujui: ${pengajuan.nomor_pengajuan}`,
-          petugas_id: user.id,
-          referensi_pengajuan_id: pengajuan.id,
-        });
       }
 
-      // Update status pengajuan
-      await adminClient
-        .from("pengajuan_uang_saku")
-        .update({
-          status: keputusan,
-          verified_by: user.id,
-          verified_at: new Date().toISOString(),
-          catatan_verifikasi: catatan || (keputusan === "DISETUJUI" ? "Top-up disetujui dan saldo santri telah ditambahkan." : "Ditolak oleh Bendahara."),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", pengajuanId);
-
-      // Audit Log
-      await adminClient.from("audit_logs").insert({
-        user_id: user.id,
-        user_role: profile.role,
-        aktivitas: `VERIFIKASI_TOPUP_SAKU_${keputusan}`,
-        jenis_objek: "pengajuan_uang_saku",
-        objek_id: pengajuanId,
-        data_sebelum: { status: pengajuan.status },
-        data_sesudah: { status: keputusan, verified_by: user.id },
-        alasan_perubahan: catatan || `Verifikasi top-up uang saku oleh ${profile.nama_lengkap}`,
+      // Panggil RPC rpc_verifikasi_topup_uang_saku_v2 secara atomik menggunakan userClient (membawa auth.uid())
+      const { data: rpcRes, error: rpcErr } = await userClient.rpc("rpc_verifikasi_topup_uang_saku_v2", {
+        p_pengajuan_id: pengajuanId,
+        p_keputusan: keputusan,
+        p_catatan: catatan || (keputusan === "DISETUJUI" ? "Top-up disetujui dan saldo santri telah ditambahkan." : "Ditolak oleh Bendahara."),
       });
+
+      if (rpcErr) {
+        return NextResponse.json(
+          { ok: false, message: sanitizeRpcError(rpcErr.message) },
+          { status: 400 }
+        );
+      }
+
+      if (!rpcRes || !rpcRes.ok) {
+        return NextResponse.json(
+          { ok: false, message: rpcRes?.message || "Gagal memproses verifikasi top-up." },
+          { status: 400 }
+        );
+      }
 
       return NextResponse.json({
         ok: true,
-        message: `Pengajuan top-up ${pengajuan.nomor_pengajuan} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan saldo santri telah ditambahkan" : "ditolak"}.`,
+        nomor_pengajuan: rpcRes.nomor_pengajuan,
+        status: rpcRes.status,
+        mutasi_id: rpcRes.mutasi_id,
+        saldo_akhir: rpcRes.saldo_akhir,
+        message: rpcRes.message || `Pengajuan top-up ${rpcRes.nomor_pengajuan} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan saldo santri telah ditambahkan" : "ditolak"}.`,
       });
     }
 

@@ -750,5 +750,135 @@ describe("SIPETA Migration 018: Validasi Atomisitas & Keamanan RPC Transaksi Keu
     const alokasiRows = await db.query(`SELECT * FROM public.alokasi_pembayaran WHERE tagihan_id = '${tgh1Id}';`);
     expect(alokasiRows.rows.length).toBe(0);
   });
+
+  it("8. rpc_checkout_pembayaran_v2: Hanya menghapus item yang dibayar dari keranjang, item lain tetap tersimpan", async () => {
+    const tghA = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, kebijakan_cicilan_snapshot)
+      VALUES ('TGH-CART-A', '${ID_SANTRI_1}', 'Uang Makan Nov', 150000, 'BEBAS')
+      RETURNING id;
+    `);
+    const tghAId = (tghA.rows[0] as any).id;
+
+    const tghB = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, kebijakan_cicilan_snapshot)
+      VALUES ('TGH-CART-B', '${ID_SANTRI_1}', 'Uang Asrama Nov', 250000, 'BEBAS')
+      RETURNING id;
+    `);
+    const tghBId = (tghB.rows[0] as any).id;
+
+    // Masukkan kedua tagihan ke keranjang
+    await db.query(`
+      INSERT INTO public.keranjang_pembayaran (wali_user_id, santri_id, tagihan_id, nominal_bayar)
+      VALUES
+        ('${ID_WALI}', '${ID_SANTRI_1}', '${tghAId}', 150000),
+        ('${ID_WALI}', '${ID_SANTRI_1}', '${tghBId}', 250000);
+    `);
+
+    // Wali HANYA checkout tagihan A (tagihan B belum dibayar/disimpan untuk nanti)
+    await asUser(ID_WALI);
+    const checkoutRes = await db.query(`
+      SELECT public.rpc_checkout_pembayaran_v2(
+        '${ID_SANTRI_1}',
+        '[{"tagihan_id": "${tghAId}", "nominal_bayar": 150000}]'::jsonb,
+        CURRENT_DATE,
+        'Wali Parsial',
+        'BSI',
+        NULL
+      ) AS res;
+    `);
+    expect((checkoutRes.rows[0] as any).res.ok).toBe(true);
+
+    // Verifikasi keranjang: Tagihan A terhapus, Tagihan B TETAP ADA di keranjang!
+    const remainingCart = await db.query(`
+      SELECT tagihan_id, nominal_bayar FROM public.keranjang_pembayaran
+      WHERE wali_user_id = '${ID_WALI}' AND santri_id = '${ID_SANTRI_1}';
+    `);
+    expect(remainingCart.rows.length).toBe(1);
+    expect((remainingCart.rows[0] as any).tagihan_id).toBe(tghBId);
+    expect(Number((remainingCart.rows[0] as any).nominal_bayar)).toBe(250000);
+  });
+
+  it("9. rpc_checkout_pembayaran_v2: Transaksi MENUNGGU_TRANSFER > 24 jam otomatis KEDALUWARSA dan alokasi dilepas", async () => {
+    const tghExpire = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, kebijakan_cicilan_snapshot)
+      VALUES ('TGH-EXPIRE-TEST', '${ID_SANTRI_1}', 'Kegiatan Ekstrakurikuler', 300000, 'BEBAS')
+      RETURNING id;
+    `);
+    const tghExpireId = (tghExpire.rows[0] as any).id;
+
+    // Buat transaksi MENUNGGU_TRANSFER lama (created_at 30 jam yang lalu)
+    const oldTrxRes = await db.query(`
+      INSERT INTO public.transaksi_pembayaran (
+        nomor_transaksi, santri_id, wali_user_id, total_nominal, rekening_tujuan_snapshot, status, created_at
+      ) VALUES (
+        'TRX-OLD-ABANDONED', '${ID_SANTRI_1}', '${ID_WALI}', 300000, '{}'::jsonb, 'MENUNGGU_TRANSFER', now() - INTERVAL '30 hours'
+      ) RETURNING id;
+    `);
+    const oldTrxId = (oldTrxRes.rows[0] as any).id;
+
+    await db.query(`
+      INSERT INTO public.alokasi_pembayaran (transaksi_id, tagihan_id, nominal_alokasi)
+      VALUES ('${oldTrxId}', '${tghExpireId}', 300000);
+    `);
+
+    // Sekarang wali melakukan checkout baru pada tagihan yang sama
+    // Transaksi lama harus otomatis berubah menjadi KEDALUWARSA dan checkout baru berhasil tanpa over-allocation error!
+    await asUser(ID_WALI);
+    const checkoutRes = await db.query(`
+      SELECT public.rpc_checkout_pembayaran_v2(
+        '${ID_SANTRI_1}',
+        '[{"tagihan_id": "${tghExpireId}", "nominal_bayar": 300000}]'::jsonb,
+        CURRENT_DATE,
+        'Wali Baru',
+        'BSI',
+        NULL
+      ) AS res;
+    `);
+    expect((checkoutRes.rows[0] as any).res.ok).toBe(true);
+
+    // Cek status transaksi lama telah menjadi KEDALUWARSA
+    const oldTrxCheck = await db.query(`SELECT status FROM public.transaksi_pembayaran WHERE id = '${oldTrxId}';`);
+    expect((oldTrxCheck.rows[0] as any).status).toBe("KEDALUWARSA");
+
+    // Pastikan notifikasi kedaluwarsa diterima wali
+    const notifCheck = await db.query(`
+      SELECT * FROM public.notifikasi
+      WHERE user_id = '${ID_WALI}' AND judul = 'Batas Waktu Pembayaran Berakhir';
+    `);
+    expect(notifCheck.rows.length).toBe(1);
+
+    // Pastikan audit log tercatat
+    const auditCheck = await db.query(`
+      SELECT * FROM public.audit_logs
+      WHERE jenis_objek = 'transaksi_pembayaran' AND aktivitas = 'TRANSAKSI_KEDALUWARSA_OTOMATIS' AND objek_id = '${oldTrxId}';
+    `);
+    expect(auditCheck.rows.length).toBe(1);
+
+    // Pastikan transaksi MENUNGGU_VERIFIKASI tidak pernah ikut kedaluwarsa
+    const verifTrxRes = await db.query(`
+      INSERT INTO public.transaksi_pembayaran (
+        nomor_transaksi, santri_id, wali_user_id, total_nominal, rekening_tujuan_snapshot, status, created_at
+      ) VALUES (
+        'TRX-OLD-VERIF', '${ID_SANTRI_1}', '${ID_WALI}', 100000, '{}'::jsonb, 'MENUNGGU_VERIFIKASI', now() - INTERVAL '72 hours'
+      ) RETURNING id;
+    `);
+    const verifTrxId = (verifTrxRes.rows[0] as any).id;
+
+    // Trigger checkout lain
+    await db.query(`
+      SELECT public.rpc_checkout_pembayaran_v2(
+        '${ID_SANTRI_1}',
+        '[{"tagihan_id": "${tghExpireId}", "nominal_bayar": 10000}]'::jsonb,
+        CURRENT_DATE,
+        'Wali Trigger',
+        'BSI',
+        NULL
+      );
+    `).catch(() => {}); // Biarkan jika nominal melebihi sisa
+
+    // Pastikan status TRX-OLD-VERIF tetap MENUNGGU_VERIFIKASI
+    const verifCheck = await db.query(`SELECT status FROM public.transaksi_pembayaran WHERE id = '${verifTrxId}';`);
+    expect((verifCheck.rows[0] as any).status).toBe("MENUNGGU_VERIFIKASI");
+  });
 });
 
