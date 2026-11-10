@@ -640,5 +640,115 @@ describe("SIPETA Migration 018: Validasi Atomisitas & Keamanan RPC Transaksi Keu
     const saldoAfter = await db.query(`SELECT saldo_saat_ini FROM public.saldo_uang_saku WHERE santri_id = '${ID_SANTRI_1}';`);
     expect(Number((saldoAfter.rows[0] as any).saldo_saat_ini)).toBe(150000);
   });
+
+  // --------------------------------------------------------------------------
+  // UJI 5: Validasi Objek Penyimpanan (Storage.objects) & Rollback Atomik
+  // --------------------------------------------------------------------------
+  it("6. rpc_checkout_pembayaran_v2: Memvalidasi keberadaan file di storage.objects jika schema storage terpasang", async () => {
+    // Siapkan schema storage dan table storage.objects seperti di Supabase Cloud
+    await db.exec(`
+      CREATE SCHEMA IF NOT EXISTS storage;
+      CREATE TABLE IF NOT EXISTS storage.objects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        bucket_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        owner UUID,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+    `);
+
+    const tagihanRes = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, kebijakan_cicilan_snapshot)
+      VALUES ('TGH-STORAGE-TEST', '${ID_SANTRI_1}', 'Infaq', 200000, 'BEBAS')
+      RETURNING id;
+    `);
+    const tagihanId = (tagihanRes.rows[0] as any).id;
+
+    await asUser(ID_WALI);
+    const validPath = `${ID_SANTRI_1}/bukti-transfer-asli.jpg`;
+
+    // 1. File belum diunggah ke storage -> DITOLAK
+    await expect(
+      db.query(`
+        SELECT public.rpc_checkout_pembayaran_v2(
+          '${ID_SANTRI_1}',
+          '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 200000}]'::jsonb,
+          CURRENT_DATE,
+          'Wali Sah',
+          'BSI',
+          '${validPath}'
+        );
+      `)
+    ).rejects.toThrow(/tidak ditemukan pada penyimpanan pesantren \(bucket bukti-pembayaran\)/);
+
+    // 2. File diunggah ke storage.objects pada bucket bukti-pembayaran
+    await db.query(`
+      INSERT INTO storage.objects (bucket_id, name, owner)
+      VALUES ('bukti-pembayaran', '${validPath}', '${ID_WALI}');
+    `);
+
+    // Sekarang checkout BERHASIL
+    const okRes = await db.query(`
+      SELECT public.rpc_checkout_pembayaran_v2(
+        '${ID_SANTRI_1}',
+        '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 200000}]'::jsonb,
+        CURRENT_DATE,
+        'Wali Sah',
+        'BSI',
+        '${validPath}'
+      ) AS res;
+    `);
+    expect((okRes.rows[0] as any).res.ok).toBe(true);
+  });
+
+  it("7. rpc_checkout_pembayaran_v2: Rollback penuh jika salah satu tagihan gagal dalam transaksi multi-item", async () => {
+    const tgh1 = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, kebijakan_cicilan_snapshot)
+      VALUES ('TGH-ROLLBACK-1', '${ID_SANTRI_1}', 'Biaya Buku', 100000, 'BEBAS')
+      RETURNING id;
+    `);
+    const tgh1Id = (tgh1.rows[0] as any).id;
+
+    // Tagihan 2 berstatus LUNAS sehingga tidak bisa dibayar
+    const tgh2 = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, total_terbayar, status)
+      VALUES ('TGH-ROLLBACK-2', '${ID_SANTRI_1}', 'Biaya Lab', 100000, 100000, 'LUNAS')
+      RETURNING id;
+    `);
+    const tgh2Id = (tgh2.rows[0] as any).id;
+
+    // Masukkan tagihan 1 ke keranjang
+    await db.query(`
+      INSERT INTO public.keranjang_pembayaran (wali_user_id, santri_id, tagihan_id, nominal_bayar)
+      VALUES ('${ID_WALI}', '${ID_SANTRI_1}', '${tgh1Id}', 100000);
+    `);
+
+    await asUser(ID_WALI);
+    // Checkout 2 tagihan di mana tagihan 2 tidak valid
+    await expect(
+      db.query(`
+        SELECT public.rpc_checkout_pembayaran_v2(
+          '${ID_SANTRI_1}',
+          '[{"tagihan_id": "${tgh1Id}", "nominal_bayar": 100000}, {"tagihan_id": "${tgh2Id}", "nominal_bayar": 100000}]'::jsonb,
+          CURRENT_DATE,
+          'Wali Rollback Test',
+          'BSI',
+          NULL
+        );
+      `)
+    ).rejects.toThrow(/sudah lunas atau tidak aktif/);
+
+    // Integritas Database: Keranjang TIDAK terhapus (Rollback bekerja penuh)
+    const keranjangRows = await db.query(`SELECT * FROM public.keranjang_pembayaran WHERE wali_user_id = '${ID_WALI}';`);
+    expect(keranjangRows.rows.length).toBe(1);
+
+    // Tidak ada transaksi baru yang terbentuk
+    const trxRows = await db.query(`SELECT * FROM public.transaksi_pembayaran WHERE nama_pengirim = 'Wali Rollback Test';`);
+    expect(trxRows.rows.length).toBe(0);
+
+    // Tidak ada alokasi baru yang terbentuk
+    const alokasiRows = await db.query(`SELECT * FROM public.alokasi_pembayaran WHERE tagihan_id = '${tgh1Id}';`);
+    expect(alokasiRows.rows.length).toBe(0);
+  });
 });
 

@@ -68,10 +68,28 @@ BEGIN
         RAISE EXCEPTION 'Keranjang pembayaran kosong atau tidak ada tagihan yang dipilih.';
     END IF;
 
-    -- 5. Validasi Isolasi Path Bukti Transfer Storage (Mencegah pencurian/pemalsuan path santri lain)
+    -- 5. Validasi Isolasi Path Bukti Transfer Storage (Mencegah manipulasi/pemalsuan path santri lain)
     IF p_bukti_transfer_path IS NOT NULL AND length(trim(p_bukti_transfer_path)) > 0 THEN
         IF split_part(p_bukti_transfer_path, '/', 1) != p_santri_id::text THEN
             RAISE EXCEPTION 'Akses ditolak: Bukti transfer tidak valid atau tidak terisolasi dalam folder santri yang bersangkutan.';
+        END IF;
+
+        -- Validasi Keberadaan Objek di storage.objects jika schema storage terpasang di runtime
+        IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'storage' AND table_name = 'objects'
+        ) THEN
+            DECLARE
+                v_file_exists BOOLEAN := false;
+            BEGIN
+                EXECUTE 'SELECT EXISTS (SELECT 1 FROM storage.objects WHERE bucket_id = ''bukti-pembayaran'' AND name = $1)'
+                INTO v_file_exists
+                USING p_bukti_transfer_path;
+
+                IF NOT v_file_exists THEN
+                    RAISE EXCEPTION 'Berkas bukti transfer "%" tidak ditemukan pada penyimpanan pesantren (bucket bukti-pembayaran).', p_bukti_transfer_path;
+                END IF;
+            END;
         END IF;
     END IF;
 
@@ -87,7 +105,11 @@ BEGIN
     END IF;
 
     -- 7. Validasi Setiap Tagihan dengan ROW LOCK (FOR UPDATE)
-    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    -- Mengurutkan berdasarkan tagihan_id (UUID ASC) secara konsisten untuk mencegah deadlock antartransaksi multi-tagihan
+    FOR v_item IN
+        SELECT elem
+        FROM jsonb_array_elements(p_items) AS elem
+        ORDER BY (elem->>'tagihan_id')::UUID ASC
     LOOP
         v_tagihan_id := (v_item->>'tagihan_id')::UUID;
         v_nominal_bayar := (v_item->>'nominal_bayar')::NUMERIC;
@@ -202,7 +224,10 @@ BEGIN
     ) RETURNING id INTO v_transaksi_id;
 
     -- 10. INSERT Rincian Alokasi Tagihan (Menjamin total alokasi persis sama dengan total transaksi)
-    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    FOR v_item IN
+        SELECT elem
+        FROM jsonb_array_elements(p_items) AS elem
+        ORDER BY (elem->>'tagihan_id')::UUID ASC
     LOOP
         INSERT INTO public.alokasi_pembayaran (
             transaksi_id,
@@ -334,10 +359,12 @@ BEGIN
     END IF;
 
     -- 6. Jika Disetujui, Perbarui Seluruh Tagihan yang Dialokasikan
+    -- Mengunci tagihan dengan urutan tagihan_id ASC untuk mencegah deadlock
     IF p_keputusan = 'DISETUJUI' THEN
         FOR v_alokasi IN
             SELECT * FROM public.alokasi_pembayaran
             WHERE transaksi_id = p_transaksi_id
+            ORDER BY tagihan_id ASC
         LOOP
             -- Kunci baris tagihan
             SELECT * INTO v_tagihan
