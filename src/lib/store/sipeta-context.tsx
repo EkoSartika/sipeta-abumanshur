@@ -11,7 +11,7 @@
 // - Jejak Audit (Audit Log) & Notifikasi Real-Time
 // ============================================================================
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AuditLogItem,
   CatatanKedisiplinan,
@@ -239,12 +239,12 @@ interface SipetaContextValue {
     keterangan: string;
   }) => ActionResponse;
   updateStatusSantri: (santriId: string, statusBaru: StatusSantri) => ActionResponse;
-  createKelas: (payload: Omit<Kelas, "id" | "is_active">) => ActionResponse;
-  updateKelas: (id: string, payload: Partial<Kelas>) => ActionResponse;
-  deleteKelas: (id: string) => ActionResponse;
-  createKamar: (payload: Omit<Kamar, "id" | "is_active">) => ActionResponse;
-  updateKamar: (id: string, payload: Partial<Kamar>) => ActionResponse;
-  deleteKamar: (id: string) => ActionResponse;
+  createKelas: (payload: Omit<Kelas, "id" | "is_active">) => Promise<ActionResponse>;
+  updateKelas: (id: string, payload: Partial<Kelas>) => Promise<ActionResponse>;
+  deleteKelas: (id: string) => Promise<ActionResponse>;
+  createKamar: (payload: Omit<Kamar, "id" | "is_active">) => Promise<ActionResponse>;
+  updateKamar: (id: string, payload: Partial<Kamar>) => Promise<ActionResponse>;
+  deleteKamar: (id: string) => Promise<ActionResponse>;
   createJenisPembayaran: (payload: Omit<JenisPembayaran, "id" | "is_active">) => ActionResponse;
   createPengajuanPembiayaan: (payload: {
     nama_pembayaran: string;
@@ -391,10 +391,20 @@ const SipetaContext = createContext<SipetaContextValue | null>(null);
 
 const STORAGE_KEY = "sipeta_abu_manshur_state_v1";
 
-export function SipetaProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [authMode, setAuthMode] = useState<"supabase" | "demo" | "unauthenticated">("unauthenticated");
+export function SipetaProvider({
+  children,
+  initialUser,
+  initialAuthMode,
+}: {
+  children: React.ReactNode;
+  initialUser?: UserProfile | null;
+  initialAuthMode?: "supabase" | "demo" | "unauthenticated";
+}) {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(initialUser ?? null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(Boolean(initialUser));
+  const [authMode, setAuthMode] = useState<"supabase" | "demo" | "unauthenticated">(
+    initialAuthMode ?? (initialUser ? "demo" : "unauthenticated")
+  );
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -404,6 +414,10 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
   const tahunAjaranAktif = useMemo(() => tahunAjaranList.find((t) => t.is_active) || tahunAjaranList[0], [tahunAjaranList]);
   const [kelasList, setKelasList] = useState<Kelas[]>(INITIAL_KELAS);
   const [kamarList, setKamarList] = useState<Kamar[]>(INITIAL_KAMAR);
+  const kelasListRef = useRef<Kelas[]>(INITIAL_KELAS);
+  const kamarListRef = useRef<Kamar[]>(INITIAL_KAMAR);
+  kelasListRef.current = kelasList;
+  kamarListRef.current = kamarList;
   const [santriList, setSantriList] = useState<Santri[]>(INITIAL_SANTRI);
   const [waliList, setWaliList] = useState<WaliSantri[]>(INITIAL_WALI_SANTRI);
   const [riwayatPenempatan, setRiwayatPenempatan] = useState<RiwayatPenempatanSantri[]>(
@@ -2316,37 +2330,88 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
-  const createKelas: SipetaContextValue["createKelas"] = (payload) => {
+  const createKelas: SipetaContextValue["createKelas"] = async (payload) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
-      return { ok: false, message: "Tidak memiliki hak akses." };
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menambah kelas." };
     }
-    const item: Kelas = { ...payload, id: `kls-${Date.now()}`, is_active: true };
-    setKelasList((prev) => [...prev, item]);
+    const cleanKode = payload.kode_kelas.trim().toUpperCase();
+    const cleanNama = payload.nama_kelas.trim();
+
+    if (!cleanKode || !cleanNama) {
+      return { ok: false, message: "Kode kelas dan nama kelas wajib diisi." };
+    }
+    if (kelasListRef.current.some((k) => k.kode_kelas.toUpperCase() === cleanKode)) {
+      return { ok: false, message: `Kode kelas '${cleanKode}' sudah digunakan.` };
+    }
+
+    if (authMode === "supabase") {
+      const res = await administrasiService.createKelas({
+        ...payload,
+        kode_kelas: cleanKode,
+        nama_kelas: cleanNama,
+      });
+      if (res.ok && res.data) {
+        const nextList = [...kelasListRef.current.filter((k) => k.id !== res.data!.id), res.data!];
+        kelasListRef.current = nextList;
+        setKelasList(nextList);
+        appendAuditLog("TAMBAH_MASTER_KELAS", "kelas", res.data.id, { ...res.data });
+        return { ok: true, message: `Kelas ${res.data.nama_kelas} berhasil ditambahkan.` };
+      }
+      if (!res.ok) {
+        return { ok: false, message: res.message || "Gagal menyimpan kelas ke Supabase." };
+      }
+    }
+
+    const item: Kelas = {
+      ...payload,
+      id: `kls-${Date.now()}`,
+      kode_kelas: cleanKode,
+      nama_kelas: cleanNama,
+      is_active: true,
+    };
+    const nextList = [...kelasListRef.current, item];
+    kelasListRef.current = nextList;
+    setKelasList(nextList);
     appendAuditLog("TAMBAH_MASTER_KELAS", "kelas", item.id, { ...item });
     return { ok: true, message: `Kelas ${item.nama_kelas} berhasil ditambahkan.` };
   };
 
-  const updateKelas: SipetaContextValue["updateKelas"] = (id, payload) => {
+  const updateKelas: SipetaContextValue["updateKelas"] = async (id, payload) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang memperbarui kelas." };
     }
-    const target = kelasList.find((k) => k.id === id);
+    const target = kelasListRef.current.find((k) => k.id === id);
     if (!target) return { ok: false, message: "Kelas tidak ditemukan." };
 
-    setKelasList((prev) => prev.map((k) => (k.id === id ? { ...k, ...payload } : k)));
-    appendAuditLog("UPDATE_MASTER_KELAS", "kelas", id, payload, undefined, { ...target });
+    const updatePayload = { ...payload };
+    if (updatePayload.kode_kelas) {
+      const cleanKode = updatePayload.kode_kelas.trim().toUpperCase();
+      if (kelasListRef.current.some((k) => k.id !== id && k.kode_kelas.toUpperCase() === cleanKode)) {
+        return { ok: false, message: `Kode kelas '${cleanKode}' sudah digunakan oleh kelas lain.` };
+      }
+      updatePayload.kode_kelas = cleanKode;
+    }
+    if (updatePayload.nama_kelas) {
+      updatePayload.nama_kelas = updatePayload.nama_kelas.trim();
+    }
 
     if (authMode === "supabase") {
-      administrasiService.updateKelas(id, payload).catch(console.error);
+      const res = await administrasiService.updateKelas(id, updatePayload);
+      if (!res.ok) return { ok: false, message: res.message || "Gagal memperbarui kelas di Supabase." };
     }
-    return { ok: true, message: `Data kelas '${target.nama_kelas}' berhasil diperbarui.` };
+
+    const nextList = kelasListRef.current.map((k) => (k.id === id ? { ...k, ...updatePayload } : k));
+    kelasListRef.current = nextList;
+    setKelasList(nextList);
+    appendAuditLog("UPDATE_MASTER_KELAS", "kelas", id, updatePayload, undefined, { ...target });
+    return { ok: true, message: `Data kelas '${updatePayload.nama_kelas || target.nama_kelas}' berhasil diperbarui.` };
   };
 
-  const deleteKelas: SipetaContextValue["deleteKelas"] = (id) => {
+  const deleteKelas: SipetaContextValue["deleteKelas"] = async (id) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menghapus kelas." };
     }
-    const target = kelasList.find((k) => k.id === id);
+    const target = kelasListRef.current.find((k) => k.id === id);
     if (!target) return { ok: false, message: "Kelas tidak ditemukan." };
 
     const activeCount = santriList.filter((s) => s.kelas_id === id && s.status === "AKTIF").length;
@@ -2357,46 +2422,121 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    setKelasList((prev) => prev.filter((k) => k.id !== id));
-    appendAuditLog("DELETE_MASTER_KELAS", "kelas", id, undefined, `Penghapusan master kelas '${target.nama_kelas}'`, { ...target });
+    if (currentUser.role === "tu") {
+      if (authMode === "supabase") {
+        const res = await administrasiService.updateKelas(id, { is_active: false });
+        if (!res.ok) return { ok: false, message: res.message || "Gagal menonaktifkan kelas di Supabase." };
+      }
+      const nextList = kelasListRef.current.filter((k) => k.id !== id);
+      kelasListRef.current = nextList;
+      setKelasList(nextList);
+      appendAuditLog("NONAKTIF_MASTER_KELAS", "kelas", id, { is_active: false }, `Penonaktifan kelas '${target.nama_kelas}' oleh TU`, { ...target });
+      return { ok: true, message: `Kelas '${target.nama_kelas}' berhasil dinonaktifkan.` };
+    }
 
     if (authMode === "supabase") {
-      administrasiService.deleteKelas(id).catch(console.error);
+      const res = await administrasiService.deleteKelas(id);
+      if (!res.ok) return { ok: false, message: res.message || "Gagal menghapus kelas dari Supabase." };
     }
+
+    const nextList = kelasListRef.current.filter((k) => k.id !== id);
+    kelasListRef.current = nextList;
+    setKelasList(nextList);
+    appendAuditLog("DELETE_MASTER_KELAS", "kelas", id, undefined, `Penghapusan master kelas '${target.nama_kelas}'`, { ...target });
     return { ok: true, message: `Kelas '${target.nama_kelas}' berhasil dihapus.` };
   };
 
-  const createKamar: SipetaContextValue["createKamar"] = (payload) => {
+  const createKamar: SipetaContextValue["createKamar"] = async (payload) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
-      return { ok: false, message: "Tidak memiliki hak akses." };
+      return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menambah kamar." };
     }
-    const item: Kamar = { ...payload, id: `kmr-${Date.now()}`, is_active: true };
-    setKamarList((prev) => [...prev, item]);
+    const cleanKode = payload.kode_kamar.trim().toUpperCase();
+    const cleanNama = payload.nama_kamar.trim();
+    const cleanGedung = payload.gedung_asrama.trim();
+
+    if (!cleanKode || !cleanNama || !cleanGedung) {
+      return { ok: false, message: "Kode kamar, nama kamar, dan gedung asrama wajib diisi." };
+    }
+    if (payload.jenis_asrama !== "L" && payload.jenis_asrama !== "P") {
+      return { ok: false, message: "Jenis asrama wajib dipilih antara Putra (L) atau Putri (P)." };
+    }
+    if (kamarListRef.current.some((k) => k.kode_kamar.toUpperCase() === cleanKode)) {
+      return { ok: false, message: `Kode kamar '${cleanKode}' sudah digunakan.` };
+    }
+
+    if (authMode === "supabase") {
+      const res = await administrasiService.createKamar({
+        ...payload,
+        kode_kamar: cleanKode,
+        nama_kamar: cleanNama,
+        gedung_asrama: cleanGedung,
+      });
+      if (res.ok && res.data) {
+        const nextList = [...kamarListRef.current.filter((k) => k.id !== res.data!.id), res.data!];
+        kamarListRef.current = nextList;
+        setKamarList(nextList);
+        appendAuditLog("TAMBAH_MASTER_KAMAR", "kamar", res.data.id, { ...res.data });
+        return { ok: true, message: `Kamar ${res.data.nama_kamar} berhasil ditambahkan.` };
+      }
+      if (!res.ok) {
+        return { ok: false, message: res.message || "Gagal menyimpan kamar ke Supabase." };
+      }
+    }
+
+    const item: Kamar = {
+      ...payload,
+      id: `kmr-${Date.now()}`,
+      kode_kamar: cleanKode,
+      nama_kamar: cleanNama,
+      gedung_asrama: cleanGedung,
+      is_active: true,
+    };
+    const nextList = [...kamarListRef.current, item];
+    kamarListRef.current = nextList;
+    setKamarList(nextList);
     appendAuditLog("TAMBAH_MASTER_KAMAR", "kamar", item.id, { ...item });
     return { ok: true, message: `Kamar ${item.nama_kamar} berhasil ditambahkan.` };
   };
 
-  const updateKamar: SipetaContextValue["updateKamar"] = (id, payload) => {
+  const updateKamar: SipetaContextValue["updateKamar"] = async (id, payload) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang memperbarui kamar." };
     }
-    const target = kamarList.find((k) => k.id === id);
+    const target = kamarListRef.current.find((k) => k.id === id);
     if (!target) return { ok: false, message: "Kamar asrama tidak ditemukan." };
 
-    setKamarList((prev) => prev.map((k) => (k.id === id ? { ...k, ...payload } : k)));
-    appendAuditLog("UPDATE_MASTER_KAMAR", "kamar", id, payload, undefined, { ...target });
+    const updatePayload = { ...payload };
+    if (updatePayload.kode_kamar) {
+      const cleanKode = updatePayload.kode_kamar.trim().toUpperCase();
+      if (kamarListRef.current.some((k) => k.id !== id && k.kode_kamar.toUpperCase() === cleanKode)) {
+        return { ok: false, message: `Kode kamar '${cleanKode}' sudah digunakan oleh kamar lain.` };
+      }
+      updatePayload.kode_kamar = cleanKode;
+    }
+    if (updatePayload.nama_kamar) {
+      updatePayload.nama_kamar = updatePayload.nama_kamar.trim();
+    }
+    if (updatePayload.gedung_asrama) {
+      updatePayload.gedung_asrama = updatePayload.gedung_asrama.trim();
+    }
 
     if (authMode === "supabase") {
-      administrasiService.updateKamar(id, payload).catch(console.error);
+      const res = await administrasiService.updateKamar(id, updatePayload);
+      if (!res.ok) return { ok: false, message: res.message || "Gagal memperbarui kamar di Supabase." };
     }
-    return { ok: true, message: `Data kamar '${target.nama_kamar}' berhasil diperbarui.` };
+
+    const nextList = kamarListRef.current.map((k) => (k.id === id ? { ...k, ...updatePayload } : k));
+    kamarListRef.current = nextList;
+    setKamarList(nextList);
+    appendAuditLog("UPDATE_MASTER_KAMAR", "kamar", id, updatePayload, undefined, { ...target });
+    return { ok: true, message: `Data kamar '${updatePayload.nama_kamar || target.nama_kamar}' berhasil diperbarui.` };
   };
 
-  const deleteKamar: SipetaContextValue["deleteKamar"] = (id) => {
+  const deleteKamar: SipetaContextValue["deleteKamar"] = async (id) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Hanya Tata Usaha (TU), Admin, atau Superadmin yang berwenang menghapus kamar." };
     }
-    const target = kamarList.find((k) => k.id === id);
+    const target = kamarListRef.current.find((k) => k.id === id);
     if (!target) return { ok: false, message: "Kamar asrama tidak ditemukan." };
 
     const activeCount = santriList.filter((s) => s.kamar_id === id && s.status === "AKTIF").length;
@@ -2407,12 +2547,27 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    setKamarList((prev) => prev.filter((k) => k.id !== id));
-    appendAuditLog("DELETE_MASTER_KAMAR", "kamar", id, undefined, `Penghapusan master kamar asrama '${target.nama_kamar}'`, { ...target });
+    if (currentUser.role === "tu") {
+      if (authMode === "supabase") {
+        const res = await administrasiService.updateKamar(id, { is_active: false });
+        if (!res.ok) return { ok: false, message: res.message || "Gagal menonaktifkan kamar di Supabase." };
+      }
+      const nextList = kamarListRef.current.filter((k) => k.id !== id);
+      kamarListRef.current = nextList;
+      setKamarList(nextList);
+      appendAuditLog("NONAKTIF_MASTER_KAMAR", "kamar", id, { is_active: false }, `Penonaktifan kamar '${target.nama_kamar}' oleh TU`, { ...target });
+      return { ok: true, message: `Kamar '${target.nama_kamar}' berhasil dinonaktifkan.` };
+    }
 
     if (authMode === "supabase") {
-      administrasiService.deleteKamar(id).catch(console.error);
+      const res = await administrasiService.deleteKamar(id);
+      if (!res.ok) return { ok: false, message: res.message || "Gagal menghapus kamar dari Supabase." };
     }
+
+    const nextList = kamarListRef.current.filter((k) => k.id !== id);
+    kamarListRef.current = nextList;
+    setKamarList(nextList);
+    appendAuditLog("DELETE_MASTER_KAMAR", "kamar", id, undefined, `Penghapusan master kamar asrama '${target.nama_kamar}'`, { ...target });
     return { ok: true, message: `Kamar '${target.nama_kamar}' berhasil dihapus.` };
   };
 

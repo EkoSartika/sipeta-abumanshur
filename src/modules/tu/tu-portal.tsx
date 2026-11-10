@@ -138,8 +138,10 @@ export function TuPortal({
     updateStatusSantri,
     createKelas,
     updateKelas,
+    deleteKelas,
     createKamar,
     updateKamar,
+    deleteKamar,
   } = useSipeta();
 
   const [internalTab, setInternalTab] = useState<TuTab>("dashboard");
@@ -203,12 +205,21 @@ export function TuPortal({
   const [namaKelasInput, setNamaKelasInput] = useState("");
   const [tingkatKelasInput, setTingkatKelasInput] = useState("7");
   const [kodeKelasInput, setKodeKelasInput] = useState("");
+  const [waliKelasInput, setWaliKelasInput] = useState("");
+  const [kapasitasKelasInput, setKapasitasKelasInput] = useState(30);
+  const [kelasSubmitting, setKelasSubmitting] = useState(false);
+  const [deleteKelasConfirmModal, setDeleteKelasConfirmModal] = useState<Kelas | null>(null);
 
   const [modalKamarOpen, setModalKamarOpen] = useState(false);
   const [editingKamar, setEditingKamar] = useState<Kamar | null>(null);
   const [namaKamarInput, setNamaKamarInput] = useState("");
   const [kodeKamarInput, setKodeKamarInput] = useState("");
+  const [gedungKamarInput, setGedungKamarInput] = useState("Gedung Putra Al-Faruq");
+  const [jenisAsramaInput, setJenisAsramaInput] = useState<"L" | "P">("L");
+  const [musyrifKamarInput, setMusyrifKamarInput] = useState("");
   const [kapasitasKamarInput, setKapasitasKamarInput] = useState(20);
+  const [kamarSubmitting, setKamarSubmitting] = useState(false);
+  const [deleteKamarConfirmModal, setDeleteKamarConfirmModal] = useState<Kamar | null>(null);
 
   // Detail Santri Modal
   const [detailSantri, setDetailSantri] = useState<Santri | null>(null);
@@ -473,6 +484,113 @@ export function TuPortal({
     } finally {
       setMoveSubmitting(false);
     }
+  };
+
+  // Handle Submit Tambah/Edit Master Kelas
+  const handleSaveKelasSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!namaKelasInput.trim() || !kodeKelasInput.trim()) {
+      setFeedback({ ok: false, text: "Kode kelas dan nama kelas wajib diisi." });
+      return;
+    }
+    const t = parseInt(tingkatKelasInput, 10) || 7;
+    const k = kapasitasKelasInput > 0 ? kapasitasKelasInput : 30;
+
+    setKelasSubmitting(true);
+    try {
+      if (editingKelas) {
+        const res = await updateKelas(editingKelas.id, {
+          nama_kelas: namaKelasInput.trim(),
+          kode_kelas: kodeKelasInput.trim().toUpperCase(),
+          tingkat: t,
+          wali_kelas: waliKelasInput.trim() || undefined,
+          kapasitas: k,
+        });
+        setFeedback({ ok: res.ok, text: res.message });
+        if (res.ok) {
+          setModalKelasOpen(false);
+          setEditingKelas(null);
+        }
+      } else {
+        const res = await createKelas({
+          nama_kelas: namaKelasInput.trim(),
+          kode_kelas: kodeKelasInput.trim().toUpperCase(),
+          tingkat: t,
+          wali_kelas: waliKelasInput.trim(),
+          kapasitas: k,
+        });
+        setFeedback({ ok: res.ok, text: res.message });
+        if (res.ok) {
+          setModalKelasOpen(false);
+          setNamaKelasInput("");
+          setKodeKelasInput("");
+          setWaliKelasInput("");
+        }
+      }
+    } finally {
+      setKelasSubmitting(false);
+    }
+  };
+
+  const handleConfirmDeleteKelas = async () => {
+    if (!deleteKelasConfirmModal) return;
+    const res = await deleteKelas(deleteKelasConfirmModal.id);
+    setFeedback({ ok: res.ok, text: res.message });
+    setDeleteKelasConfirmModal(null);
+  };
+
+  // Handle Submit Tambah/Edit Master Kamar
+  const handleSaveKamarSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!namaKamarInput.trim() || !kodeKamarInput.trim() || !gedungKamarInput.trim()) {
+      setFeedback({ ok: false, text: "Kode kamar, nama kamar, dan nama gedung asrama wajib diisi." });
+      return;
+    }
+    const kap = kapasitasKamarInput > 0 ? kapasitasKamarInput : 20;
+
+    setKamarSubmitting(true);
+    try {
+      if (editingKamar) {
+        const res = await updateKamar(editingKamar.id, {
+          nama_kamar: namaKamarInput.trim(),
+          kode_kamar: kodeKamarInput.trim().toUpperCase(),
+          gedung_asrama: gedungKamarInput.trim(),
+          jenis_asrama: jenisAsramaInput,
+          musyrif: musyrifKamarInput.trim() || undefined,
+          kapasitas: kap,
+        });
+        setFeedback({ ok: res.ok, text: res.message });
+        if (res.ok) {
+          setModalKamarOpen(false);
+          setEditingKamar(null);
+        }
+      } else {
+        const res = await createKamar({
+          nama_kamar: namaKamarInput.trim(),
+          kode_kamar: kodeKamarInput.trim().toUpperCase(),
+          gedung_asrama: gedungKamarInput.trim(),
+          jenis_asrama: jenisAsramaInput,
+          musyrif: musyrifKamarInput.trim(),
+          kapasitas: kap,
+        });
+        setFeedback({ ok: res.ok, text: res.message });
+        if (res.ok) {
+          setModalKamarOpen(false);
+          setNamaKamarInput("");
+          setKodeKamarInput("");
+          setMusyrifKamarInput("");
+        }
+      }
+    } finally {
+      setKamarSubmitting(false);
+    }
+  };
+
+  const handleConfirmDeleteKamar = async () => {
+    if (!deleteKamarConfirmModal) return;
+    const res = await deleteKamar(deleteKamarConfirmModal.id);
+    setFeedback({ ok: res.ok, text: res.message });
+    setDeleteKamarConfirmModal(null);
   };
 
   // Handle Submit Registrasi Santri Baru
@@ -1829,7 +1947,7 @@ export function TuPortal({
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">Daftar Master Kelas</h3>
+                  <h3 className="font-extrabold text-sm text-slate-900">Daftar Master Kelas ({kelasList.length})</h3>
                 </div>
                 <button
                   type="button"
@@ -1837,6 +1955,9 @@ export function TuPortal({
                     setEditingKelas(null);
                     setNamaKelasInput("");
                     setKodeKelasInput("");
+                    setWaliKelasInput("");
+                    setTingkatKelasInput("7");
+                    setKapasitasKelasInput(30);
                     setModalKelasOpen(true);
                   }}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-800 transition min-h-[38px] cursor-pointer"
@@ -1846,23 +1967,81 @@ export function TuPortal({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {kelasList.map((k) => {
-                  const studentCount = santriList.filter((s) => s.kelas_id === k.id && s.status === "AKTIF").length;
-                  return (
-                    <div key={k.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded">
-                          {k.kode_kelas}
-                        </span>
-                        <span className="text-xs text-slate-500 font-semibold">{studentCount} Santri Aktif</span>
+              {kelasList.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center space-y-3 bg-slate-50/50">
+                  <Building2 className="h-10 w-10 text-slate-400 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-800">Belum Ada Master Ruang Kelas</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Tambahkan master kelas pertama (misal: Kelas VII-A, VIII-A, dst.) untuk memulai registrasi dan penempatan santri.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingKelas(null);
+                      setNamaKelasInput("");
+                      setKodeKelasInput("");
+                      setWaliKelasInput("");
+                      setTingkatKelasInput("7");
+                      setKapasitasKelasInput(30);
+                      setModalKelasOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition shadow-sm cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Tambah Ruang Kelas Sekarang</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {kelasList.map((k) => {
+                    const studentCount = santriList.filter((s) => s.kelas_id === k.id && s.status === "AKTIF").length;
+                    return (
+                      <div key={k.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2.5 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-xs font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded">
+                              {k.kode_kelas}
+                            </span>
+                            <span className="text-xs text-slate-500 font-semibold">{studentCount} / {k.kapasitas || 30} Santri</span>
+                          </div>
+                          <h4 className="font-extrabold text-sm text-slate-900">{k.nama_kelas}</h4>
+                          <div className="text-[11px] text-slate-500 space-y-0.5">
+                            <p>Tingkat {k.tingkat}</p>
+                            {k.wali_kelas && <p className="truncate">Wali: <strong className="text-slate-700">{k.wali_kelas}</strong></p>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingKelas(k);
+                              setNamaKelasInput(k.nama_kelas);
+                              setKodeKelasInput(k.kode_kelas);
+                              setTingkatKelasInput(String(k.tingkat));
+                              setWaliKelasInput(k.wali_kelas || "");
+                              setKapasitasKelasInput(k.kapasitas || 30);
+                              setModalKelasOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 cursor-pointer"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteKelasConfirmModal(k)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 hover:text-rose-900 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200 cursor-pointer"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Hapus</span>
+                          </button>
+                        </div>
                       </div>
-                      <h4 className="font-extrabold text-sm text-slate-900">{k.nama_kelas}</h4>
-                      <p className="text-[11px] text-slate-500">Tingkat {k.tingkat}</p>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1871,7 +2050,7 @@ export function TuPortal({
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">Daftar Master Kamar Asrama</h3>
+                  <h3 className="font-extrabold text-sm text-slate-900">Daftar Master Kamar Asrama ({kamarList.length})</h3>
                 </div>
                 <button
                   type="button"
@@ -1879,6 +2058,10 @@ export function TuPortal({
                     setEditingKamar(null);
                     setNamaKamarInput("");
                     setKodeKamarInput("");
+                    setGedungKamarInput("Gedung Putra Al-Faruq");
+                    setJenisAsramaInput("L");
+                    setMusyrifKamarInput("");
+                    setKapasitasKamarInput(20);
                     setModalKamarOpen(true);
                   }}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-800 transition min-h-[38px] cursor-pointer"
@@ -1888,30 +2071,101 @@ export function TuPortal({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {kamarList.map((km) => {
-                  const occupants = santriList.filter((s) => s.kamar_id === km.id && s.status === "AKTIF").length;
-                  return (
-                    <div key={km.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded">
-                          {km.kode_kamar}
-                        </span>
-                        <span className="text-xs text-slate-500 font-semibold">
-                          {occupants} / {km.kapasitas} Santri
-                        </span>
+              {kamarList.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center space-y-3 bg-slate-50/50">
+                  <Building2 className="h-10 w-10 text-slate-400 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-800">Belum Ada Master Kamar Asrama</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Tambahkan kamar asrama pertama untuk santri putra atau putri sebagai penempatan tempat tinggal santri.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingKamar(null);
+                      setNamaKamarInput("");
+                      setKodeKamarInput("");
+                      setGedungKamarInput("Gedung Putra Al-Faruq");
+                      setJenisAsramaInput("L");
+                      setMusyrifKamarInput("");
+                      setKapasitasKamarInput(20);
+                      setModalKamarOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition shadow-sm cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Tambah Kamar Asrama Sekarang</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {kamarList.map((km) => {
+                    const occupants = santriList.filter((s) => s.kamar_id === km.id && s.status === "AKTIF").length;
+                    return (
+                      <div key={km.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2.5 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded">
+                              {km.kode_kamar}
+                            </span>
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                              km.jenis_asrama === "L" ? "bg-blue-50 text-blue-800 border-blue-200" : "bg-pink-50 text-pink-800 border-pink-200"
+                            }`}>
+                              {km.jenis_asrama === "L" ? "Asrama Putra" : "Asrama Putri"}
+                            </span>
+                          </div>
+                          <h4 className="font-extrabold text-sm text-slate-900">{km.nama_kamar}</h4>
+                          <div className="text-[11px] text-slate-500 space-y-0.5">
+                            <p>{km.gedung_asrama}</p>
+                            {km.musyrif && <p className="truncate">Musyrif: <strong className="text-slate-700">{km.musyrif}</strong></p>}
+                          </div>
+                          <div className="pt-1">
+                            <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+                              <span>Kapasitas</span>
+                              <span className="font-semibold text-slate-700">{occupants} / {km.kapasitas} Santri</span>
+                            </div>
+                            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  occupants >= km.kapasitas ? "bg-rose-600" : "bg-indigo-600"
+                                }`}
+                                style={{ width: `${Math.min(100, (occupants / km.kapasitas) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingKamar(km);
+                              setNamaKamarInput(km.nama_kamar);
+                              setKodeKamarInput(km.kode_kamar);
+                              setGedungKamarInput(km.gedung_asrama);
+                              setJenisAsramaInput(km.jenis_asrama || "L");
+                              setMusyrifKamarInput(km.musyrif || "");
+                              setKapasitasKamarInput(km.kapasitas || 20);
+                              setModalKamarOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-200 cursor-pointer"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteKamarConfirmModal(km)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 hover:text-rose-900 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200 cursor-pointer"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Hapus</span>
+                          </button>
+                        </div>
                       </div>
-                      <h4 className="font-extrabold text-sm text-slate-900">{km.nama_kamar}</h4>
-                      <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1">
-                        <div
-                          className="bg-indigo-600 h-full rounded-full"
-                          style={{ width: `${Math.min(100, (occupants / km.kapasitas) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -4613,6 +4867,302 @@ export function TuPortal({
                 type="button"
                 onClick={handleDeletePengumumanConfirm}
                 className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800"
+              >
+                Hapus Sekarang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 11. Modal Tambah/Edit Master Kelas */}
+      {modalKelasOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-blue-700" />
+                <h3 className="text-base font-bold text-slate-900">
+                  {editingKelas ? "Edit Ruang Kelas" : "Tambah Ruang Kelas Baru"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalKelasOpen(false);
+                  setEditingKelas(null);
+                }}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveKelasSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700">Kode Kelas *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="contoh: KLS-7A, VII-B, X-IPA"
+                  value={kodeKelasInput}
+                  onChange={(e) => setKodeKelasInput(e.target.value.toUpperCase())}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 uppercase font-mono font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700">Nama Kelas *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="contoh: Kelas VII-A (MTs Putra)"
+                  value={namaKelasInput}
+                  onChange={(e) => setNamaKelasInput(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700">Tingkat Pendidikan *</label>
+                  <select
+                    value={tingkatKelasInput}
+                    onChange={(e) => setTingkatKelasInput(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white text-slate-900 focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="7">Kelas 7 (MTs / SMP)</option>
+                    <option value="8">Kelas 8 (MTs / SMP)</option>
+                    <option value="9">Kelas 9 (MTs / SMP)</option>
+                    <option value="10">Kelas 10 (MA / SMA)</option>
+                    <option value="11">Kelas 11 (MA / SMA)</option>
+                    <option value="12">Kelas 12 (MA / SMA)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700">Kapasitas Maksimal</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={kapasitasKelasInput}
+                    onChange={(e) => setKapasitasKelasInput(parseInt(e.target.value, 10) || 30)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700">Wali Kelas / Pembina</label>
+                <input
+                  type="text"
+                  placeholder="contoh: Ustadz Fauzan Azima, Lc."
+                  value={waliKelasInput}
+                  onChange={(e) => setWaliKelasInput(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalKelasOpen(false);
+                    setEditingKelas(null);
+                  }}
+                  className="rounded-xl bg-slate-100 px-4 py-2 font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={kelasSubmitting}
+                  className="rounded-xl bg-blue-700 px-5 py-2 font-bold text-white hover:bg-blue-800 disabled:opacity-50 cursor-pointer"
+                >
+                  {kelasSubmitting ? "Menyimpan..." : editingKelas ? "Simpan Perubahan" : "Simpan Kelas"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 12. Modal Konfirmasi Hapus Master Kelas */}
+      {deleteKelasConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-2 text-rose-700">
+              <AlertTriangle className="h-5 w-5" />
+              <h3 className="text-base font-bold">Hapus Master Kelas</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Apakah Anda yakin ingin menghapus kelas <strong>{deleteKelasConfirmModal.nama_kelas}</strong> ({deleteKelasConfirmModal.kode_kelas})?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteKelasConfirmModal(null)}
+                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteKelas}
+                className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 cursor-pointer"
+              >
+                Hapus Sekarang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 13. Modal Tambah/Edit Master Kamar Asrama */}
+      {modalKamarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-indigo-700" />
+                <h3 className="text-base font-bold text-slate-900">
+                  {editingKamar ? "Edit Kamar Asrama" : "Tambah Kamar Asrama Baru"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalKamarOpen(false);
+                  setEditingKamar(null);
+                }}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveKamarSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700">Kode Kamar *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="contoh: ASR-AB-01, KMR-01, P-02"
+                  value={kodeKamarInput}
+                  onChange={(e) => setKodeKamarInput(e.target.value.toUpperCase())}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 uppercase font-mono font-bold text-slate-900 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700">Nama Kamar Asrama *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="contoh: Kamar Abu Bakar Ash-Shiddiq 01"
+                  value={namaKamarInput}
+                  onChange={(e) => setNamaKamarInput(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-900 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700">Gedung Asrama *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="contoh: Gedung Putra Al-Faruq / Gedung Putri Khadijah"
+                  value={gedungKamarInput}
+                  onChange={(e) => setGedungKamarInput(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-900 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700">Penghuni Asrama *</label>
+                  <select
+                    value={jenisAsramaInput}
+                    onChange={(e) => setJenisAsramaInput(e.target.value as "L" | "P")}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="L">Putra (Ikhwan)</option>
+                    <option value="P">Putri (Akhwat)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700">Kapasitas Maksimal (Santri)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={kapasitasKamarInput}
+                    onChange={(e) => setKapasitasKamarInput(parseInt(e.target.value, 10) || 20)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700">Musyrif / Pembina Kamar</label>
+                <input
+                  type="text"
+                  placeholder="contoh: Ustadz Rizki Ramadhan"
+                  value={musyrifKamarInput}
+                  onChange={(e) => setMusyrifKamarInput(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-900 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalKamarOpen(false);
+                    setEditingKamar(null);
+                  }}
+                  className="rounded-xl bg-slate-100 px-4 py-2 font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={kamarSubmitting}
+                  className="rounded-xl bg-indigo-700 px-5 py-2 font-bold text-white hover:bg-indigo-800 disabled:opacity-50 cursor-pointer"
+                >
+                  {kamarSubmitting ? "Menyimpan..." : editingKamar ? "Simpan Perubahan" : "Simpan Kamar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 14. Modal Konfirmasi Hapus Master Kamar */}
+      {deleteKamarConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-2 text-rose-700">
+              <AlertTriangle className="h-5 w-5" />
+              <h3 className="text-base font-bold">Hapus Master Kamar</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Apakah Anda yakin ingin menghapus kamar <strong>{deleteKamarConfirmModal.nama_kamar}</strong> ({deleteKamarConfirmModal.kode_kamar})?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteKamarConfirmModal(null)}
+                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteKamar}
+                className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 cursor-pointer"
               >
                 Hapus Sekarang
               </button>

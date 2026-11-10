@@ -307,20 +307,72 @@ export class AdministrasiService {
   // --------------------------------------------------------------------------
   async getKelasList(): Promise<Kelas[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data } = await this.client.from("kelas").select("*").order("tingkat");
+    const { data } = await this.client
+      .from("kelas")
+      .select("*")
+      .eq("is_active", true)
+      .order("tingkat")
+      .order("kode_kelas");
     return (data as Kelas[]) ?? [];
   }
 
   async createKelas(payload: Omit<Kelas, "id" | "is_active" | "created_at" | "updated_at">): Promise<{ ok: boolean; data?: Kelas; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { data, error } = await this.client.from("kelas").insert(payload).select().single();
+
+    const cleanKode = payload.kode_kelas.trim().toUpperCase();
+    const cleanNama = payload.nama_kelas.trim();
+    if (!cleanKode || !cleanNama) {
+      return { ok: false, message: "Kode kelas dan nama kelas wajib diisi." };
+    }
+
+    // Periksa apakah kode_kelas sudah ada (termasuk yang pernah dinonaktifkan oleh TU)
+    const { data: existing } = await this.client
+      .from("kelas")
+      .select("*")
+      .ilike("kode_kelas", cleanKode)
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.is_active) {
+        return { ok: false, message: `Kode kelas '${cleanKode}' sudah digunakan oleh kelas aktif '${existing.nama_kelas}'.` };
+      }
+      // Reaktivasi baris kelas yang sebelumnya dinonaktifkan
+      const { data: reactivated, error: reactivateErr } = await this.client
+        .from("kelas")
+        .update({
+          ...payload,
+          kode_kelas: cleanKode,
+          nama_kelas: cleanNama,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+      if (reactivateErr) return { ok: false, message: reactivateErr.message };
+      return { ok: true, data: reactivated as Kelas, message: `Kelas ${cleanNama} berhasil diaktifkan kembali dan disimpan.` };
+    }
+
+    const { data, error } = await this.client
+      .from("kelas")
+      .insert({
+        ...payload,
+        kode_kelas: cleanKode,
+        nama_kelas: cleanNama,
+        is_active: true,
+      })
+      .select()
+      .single();
     if (error) return { ok: false, message: error.message };
     return { ok: true, data: data as Kelas, message: "Kelas baru berhasil dibuat." };
   }
 
   async updateKelas(id: string, payload: Partial<Kelas>): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { error } = await this.client.from("kelas").update(payload).eq("id", id);
+    const { error } = await this.client
+      .from("kelas")
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq("id", id);
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: "Data kelas berhasil diperbarui." };
   }
@@ -349,20 +401,74 @@ export class AdministrasiService {
 
   async getKamarList(): Promise<Kamar[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data } = await this.client.from("kamar").select("*").order("kode_kamar");
+    const { data } = await this.client
+      .from("kamar")
+      .select("*")
+      .eq("is_active", true)
+      .order("kode_kamar");
     return (data as Kamar[]) ?? [];
   }
 
   async createKamar(payload: Omit<Kamar, "id" | "is_active" | "created_at" | "updated_at">): Promise<{ ok: boolean; data?: Kamar; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { data, error } = await this.client.from("kamar").insert(payload).select().single();
+
+    const cleanKode = payload.kode_kamar.trim().toUpperCase();
+    const cleanNama = payload.nama_kamar.trim();
+    const cleanGedung = payload.gedung_asrama.trim();
+    if (!cleanKode || !cleanNama || !cleanGedung) {
+      return { ok: false, message: "Kode kamar, nama kamar, dan gedung asrama wajib diisi." };
+    }
+
+    // Periksa apakah kode_kamar sudah ada (termasuk yang pernah dinonaktifkan oleh TU)
+    const { data: existing } = await this.client
+      .from("kamar")
+      .select("*")
+      .ilike("kode_kamar", cleanKode)
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.is_active) {
+        return { ok: false, message: `Kode kamar '${cleanKode}' sudah digunakan oleh kamar aktif '${existing.nama_kamar}'.` };
+      }
+      // Reaktivasi baris kamar yang sebelumnya dinonaktifkan
+      const { data: reactivated, error: reactivateErr } = await this.client
+        .from("kamar")
+        .update({
+          ...payload,
+          kode_kamar: cleanKode,
+          nama_kamar: cleanNama,
+          gedung_asrama: cleanGedung,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+      if (reactivateErr) return { ok: false, message: reactivateErr.message };
+      return { ok: true, data: reactivated as Kamar, message: `Kamar ${cleanNama} berhasil diaktifkan kembali dan disimpan.` };
+    }
+
+    const { data, error } = await this.client
+      .from("kamar")
+      .insert({
+        ...payload,
+        kode_kamar: cleanKode,
+        nama_kamar: cleanNama,
+        gedung_asrama: cleanGedung,
+        is_active: true,
+      })
+      .select()
+      .single();
     if (error) return { ok: false, message: error.message };
     return { ok: true, data: data as Kamar, message: "Kamar asrama baru berhasil ditambahkan." };
   }
 
   async updateKamar(id: string, payload: Partial<Kamar>): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { error } = await this.client.from("kamar").update(payload).eq("id", id);
+    const { error } = await this.client
+      .from("kamar")
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq("id", id);
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: "Data kamar asrama berhasil diperbarui." };
   }
