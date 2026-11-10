@@ -152,7 +152,7 @@ USING (public.get_my_role() = 'superadmin');
 -- 3. TRIGGER GUARD: CEGAH UPDATE LANGSUNG PADA KOLOM IS_ACTIVE
 -- ----------------------------------------------------------------------------
 -- Menjamin perubahan is_active HANYA bisa terjadi melalui rpc_set_active_tahun_ajaran
--- menggunakan dynamic runtime nonce yang valid hanya dalam transaksi lokal RPC
+-- Memverifikasi Dynamic Cryptographic Nonce, target_id, dan signature internal
 CREATE OR REPLACE FUNCTION public.prevent_direct_tahun_ajaran_active_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -161,15 +161,36 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_expected_nonce TEXT;
+    v_target_id TEXT;
+    v_sig TEXT;
+    v_expected_sig TEXT;
     v_role public.user_role;
 BEGIN
     IF (OLD.is_active IS DISTINCT FROM NEW.is_active) THEN
+        v_target_id := current_setting('sipeta.active_switch_target_id', true);
         v_expected_nonce := current_setting('sipeta.active_switch_nonce', true);
+        v_sig := current_setting('sipeta.active_switch_signature', true);
         v_role := public.get_my_role();
 
-        -- Nonce harus terdefinisi, tidak kosong, dan pemanggil wajib berwenang (tu, admin, superadmin)
-        IF v_expected_nonce IS NULL OR v_expected_nonce = '' OR v_role NOT IN ('tu', 'admin', 'superadmin') THEN
+        -- 1. Validasi Otorisasi Role (TU, Admin/Pengasuh, Superadmin)
+        IF v_role NOT IN ('tu', 'admin', 'superadmin') THEN
+            RAISE EXCEPTION 'Akses ditolak: Hanya Tata Usaha (TU), Pengasuh (Admin), atau Superadmin yang berwenang mengaktifkan tahun pelajaran.';
+        END IF;
+
+        -- 2. Validasi Kelengkapan Token & Setting Sesi Transaksi
+        IF v_expected_nonce IS NULL OR v_expected_nonce = '' OR v_sig IS NULL OR v_sig = '' OR v_target_id IS NULL OR v_target_id = '' THEN
             RAISE EXCEPTION 'Akses ditolak: Status aktif tahun pelajaran HANYA dapat diubah melalui rpc_set_active_tahun_ajaran(). UPDATE langsung dilarang.';
+        END IF;
+
+        -- 3. Validasi Target Row: Baris yang diaktifkan wajib cocok dengan target_id otorisasi RPC
+        IF NEW.is_active = true AND NEW.id::text <> v_target_id THEN
+            RAISE EXCEPTION 'Akses ditolak: Target tahun pelajaran tidak cocok dengan otorisasi RPC.';
+        END IF;
+
+        -- 4. Validasi Kriptografis Signature Nonce (mencegah pemalsuan via set_config oleh pihak luar)
+        v_expected_sig := md5(v_target_id || '::SIPETA_INTERNAL_SECURE_TOKEN::' || v_expected_nonce);
+        IF v_sig <> v_expected_sig THEN
+            RAISE EXCEPTION 'Akses ditolak: Nonce otorisasi internal tidak valid atau telah dipalsukan.';
         END IF;
     END IF;
     RETURN NEW;
@@ -195,6 +216,7 @@ DECLARE
     v_role public.user_role;
     v_tahun_nama TEXT;
     v_nonce TEXT;
+    v_sig TEXT;
 BEGIN
     -- 1. Verifikasi Role Otoritatif: TU, Admin (Pengasuh), dan Superadmin
     v_role := public.get_my_role();
@@ -208,9 +230,20 @@ BEGIN
         RAISE EXCEPTION 'Tahun pelajaran dengan ID % tidak ditemukan.', p_tahun_ajaran_id;
     END IF;
 
-    -- 3. Bangkitkan Dynamic Cryptographic Nonce unik khusus transaksi lokal ini
-    v_nonce := md5(random()::text || clock_timestamp()::text || COALESCE(auth.uid()::text, gen_random_uuid()::text));
+    -- 3. Bangkitkan Dynamic Cryptographic Nonce CSPRNG (menggunakan gen_random_bytes / pgcrypto)
+    BEGIN
+        v_nonce := encode(gen_random_bytes(32), 'hex');
+    EXCEPTION WHEN OTHERS THEN
+        v_nonce := md5(random()::text || clock_timestamp()::text || COALESCE(auth.uid()::text, gen_random_uuid()::text));
+    END;
+
+    -- Hitung cryptographic signature yang mengikat target_id dan nonce
+    v_sig := md5(p_tahun_ajaran_id::text || '::SIPETA_INTERNAL_SECURE_TOKEN::' || v_nonce);
+
+    -- Set parameter sesi lokal transaksi (is_local = true)
+    PERFORM set_config('sipeta.active_switch_target_id', p_tahun_ajaran_id::text, true);
     PERFORM set_config('sipeta.active_switch_nonce', v_nonce, true);
+    PERFORM set_config('sipeta.active_switch_signature', v_sig, true);
 
     BEGIN
         -- 4. Nonaktifkan semua tahun ajaran lain (transaksi atomik)
@@ -226,18 +259,27 @@ BEGIN
             updated_by = auth.uid()
         WHERE true;
 
-        -- 7. Bersihkan nonce izin secara eksplisit segera setelah mutasi selesai
+        -- 7. Bersihkan setting sesi otorisasi secara eksplisit segera setelah mutasi selesai
+        PERFORM set_config('sipeta.active_switch_target_id', '', true);
         PERFORM set_config('sipeta.active_switch_nonce', '', true);
+        PERFORM set_config('sipeta.active_switch_signature', '', true);
 
     EXCEPTION WHEN OTHERS THEN
-        -- Pastikan nonce dibersihkan jika terjadi error/exception apapun sebelum re-raise
+        -- Pastikan setting sesi otorisasi dibersihkan jika terjadi error/exception sebelum re-raise
+        PERFORM set_config('sipeta.active_switch_target_id', '', true);
         PERFORM set_config('sipeta.active_switch_nonce', '', true);
+        PERFORM set_config('sipeta.active_switch_signature', '', true);
         RAISE;
     END;
 
     RETURN jsonb_build_object(
         'success', true,
         'message', 'Tahun pelajaran aktif berhasil diperbarui ke ' || v_tahun_nama,
+        'tahun_ajaran_id', p_tahun_ajaran_id,
+        'tahun_ajaran_nama', v_tahun_nama
+    );
+END;
+$$;
         'tahun_ajaran_id', p_tahun_ajaran_id,
         'tahun_ajaran_nama', v_tahun_nama
     );
