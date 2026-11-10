@@ -33,8 +33,9 @@ import {
   validatePasswordStrength,
 } from "@/lib/utils/auth-mapping";
 import type { UserProfile, UserRole } from "@/types/database";
+import { MasterTahunAjaranView } from "@/components/master/master-tahun-ajaran-view";
 
-export type SuperadminTab = "dashboard" | "users" | "rekening" | "audit_log";
+export type SuperadminTab = "dashboard" | "users" | "rekening" | "tahun_ajaran" | "audit_log";
 
 export interface SuperadminPortalProps {
   activeTab?: SuperadminTab;
@@ -1882,6 +1883,9 @@ export function SuperadminPortal({
           </div>
         </div>
       )}
+
+      {/* Tab Master Tahun Pelajaran */}
+      {activeTab === "tahun_ajaran" && <MasterTahunAjaranView />}
     </div>
   );
 }

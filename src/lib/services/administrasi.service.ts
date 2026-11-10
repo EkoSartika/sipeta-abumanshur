@@ -54,6 +54,91 @@ export class AdministrasiService {
     return (data as TahunAjaran[]) ?? [];
   }
 
+  async createTahunAjaran(payload: {
+    nama: string;
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+  }): Promise<{ ok: boolean; message: string; data?: TahunAjaran }> {
+    if (!isSupabaseConfigured()) {
+      return { ok: false, message: "Supabase belum dihubungkan." };
+    }
+
+    const cleanNama = payload.nama.trim();
+    if (!cleanNama) {
+      return { ok: false, message: "Nama tahun pelajaran wajib diisi." };
+    }
+    if (!payload.tanggal_mulai || !payload.tanggal_selesai) {
+      return { ok: false, message: "Tanggal mulai dan tanggal selesai wajib diisi berdasarkan kalender resmi pesantren." };
+    }
+    if (new Date(payload.tanggal_selesai) <= new Date(payload.tanggal_mulai)) {
+      return { ok: false, message: "Tanggal selesai harus lebih besar daripada tanggal mulai." };
+    }
+
+    try {
+      // 1. Cek duplikasi nama tahun ajaran
+      const { data: existing } = await this.client
+        .from("tahun_ajaran")
+        .select("id, nama")
+        .ilike("nama", cleanNama)
+        .maybeSingle();
+
+      if (existing) {
+        return { ok: false, message: `Tahun pelajaran "${cleanNama}" sudah terdaftar di database.` };
+      }
+
+      // 2. Simpan master tahun ajaran baru (is_active awal = false)
+      const { data, error } = await this.client
+        .from("tahun_ajaran")
+        .insert({
+          nama: cleanNama,
+          tanggal_mulai: payload.tanggal_mulai,
+          tanggal_selesai: payload.tanggal_selesai,
+          is_active: false,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        return { ok: false, message: error.message };
+      }
+
+      return {
+        ok: true,
+        message: `Tahun pelajaran ${cleanNama} berhasil ditambahkan ke database.`,
+        data: data as TahunAjaran,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : "Gagal menambahkan tahun pelajaran.",
+      };
+    }
+  }
+
+  async deleteTahunAjaran(tahunAjaranId: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) {
+      return { ok: false, message: "Supabase belum dihubungkan." };
+    }
+
+    try {
+      const { error } = await this.client
+        .from("tahun_ajaran")
+        .delete()
+        .eq("id", tahunAjaranId);
+
+      if (error) {
+        return { ok: false, message: error.message };
+      }
+
+      return { ok: true, message: "Tahun pelajaran berhasil dihapus." };
+    } catch (err) {
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : "Gagal menghapus tahun pelajaran.",
+      };
+    }
+  }
+
   async setActiveTahunAjaran(tahunAjaranId: string): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
     try {

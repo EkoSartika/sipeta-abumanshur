@@ -15,7 +15,7 @@ import SipetaHomePage from "@/app/page";
 
 describe("Regression Test: Client-Side Rendering Exception Prevention", () => {
   it("renders SuperadminPortal across all tabs without exception", () => {
-    const tabs = ["dashboard", "users", "rekening", "audit_log"] as const;
+    const tabs = ["dashboard", "users", "rekening", "tahun_ajaran", "audit_log"] as const;
     for (const tab of tabs) {
       expect(() => {
         renderToString(
@@ -28,7 +28,7 @@ describe("Regression Test: Client-Side Rendering Exception Prevention", () => {
   });
 
   it("renders AdminPortal across all tabs without exception", () => {
-    const tabs = ["dashboard", "santri_asrama", "keuangan", "laporan_tahfidz", "laporan_kedisiplinan", "pengumuman", "audit_log"] as const;
+    const tabs = ["dashboard", "santri_asrama", "keuangan", "tahun_ajaran", "laporan_tahfidz", "laporan_kedisiplinan", "pengumuman", "audit_log"] as const;
     for (const tab of tabs) {
       expect(() => {
         renderToString(

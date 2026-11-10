@@ -199,6 +199,12 @@ interface SipetaContextValue {
   updateRekeningResmi: (payload: Omit<RekeningPesantren, "id" | "is_active" | "updated_at">) => ActionResponse;
   updateProfilPesantren: (payload: Partial<ProfilPesantren>, activeTahunAjaranId?: string) => Promise<ActionResponse>;
   setActiveTahunAjaran: (tahunAjaranId: string) => Promise<ActionResponse>;
+  createTahunAjaran: (payload: {
+    nama: string;
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+  }) => Promise<ActionResponse>;
+  deleteTahunAjaran: (tahunAjaranId: string) => Promise<ActionResponse>;
 
   // Admin Actions
   createSantriWithWali: (payload: {
@@ -1538,6 +1544,66 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveTahunAjaran: SipetaContextValue["setActiveTahunAjaran"] = async (id: string) => {
     return updateProfilPesantren({}, id);
+  };
+
+  const createTahunAjaran: SipetaContextValue["createTahunAjaran"] = async (payload) => {
+    const cleanNama = payload.nama.trim();
+    if (!cleanNama) {
+      return { ok: false, message: "Nama tahun pelajaran wajib diisi." };
+    }
+    if (!payload.tanggal_mulai || !payload.tanggal_selesai) {
+      return { ok: false, message: "Tanggal mulai dan tanggal selesai wajib diisi berdasarkan kalender resmi pesantren." };
+    }
+    if (new Date(payload.tanggal_selesai) <= new Date(payload.tanggal_mulai)) {
+      return { ok: false, message: "Tanggal selesai harus lebih besar daripada tanggal mulai." };
+    }
+
+    if (tahunAjaranList.some((t) => t.nama.toLowerCase() === cleanNama.toLowerCase())) {
+      return { ok: false, message: `Tahun pelajaran "${cleanNama}" sudah terdaftar.` };
+    }
+
+    if (isSupabaseConfigured()) {
+      const res = await administrasiService.createTahunAjaran({
+        nama: cleanNama,
+        tanggal_mulai: payload.tanggal_mulai,
+        tanggal_selesai: payload.tanggal_selesai,
+      });
+      if (res.ok) {
+        await refreshFromSupabase();
+        return { ok: true, message: res.message };
+      }
+      return { ok: false, message: res.message };
+    }
+
+    const newId = `ta-${cleanNama.replace("/", "-")}-${Date.now()}`;
+    const newTa: TahunAjaran = {
+      id: newId,
+      nama: cleanNama,
+      tanggal_mulai: payload.tanggal_mulai,
+      tanggal_selesai: payload.tanggal_selesai,
+      is_active: false,
+    };
+    setTahunAjaranList((prev) => [newTa, ...prev]);
+    return { ok: true, message: `Tahun pelajaran ${cleanNama} berhasil ditambahkan.` };
+  };
+
+  const deleteTahunAjaran: SipetaContextValue["deleteTahunAjaran"] = async (id) => {
+    const target = tahunAjaranList.find((t) => t.id === id);
+    if (target?.is_active) {
+      return { ok: false, message: "Tidak dapat menghapus tahun pelajaran yang sedang aktif." };
+    }
+
+    if (isSupabaseConfigured()) {
+      const res = await administrasiService.deleteTahunAjaran(id);
+      if (res.ok) {
+        await refreshFromSupabase();
+        return { ok: true, message: res.message };
+      }
+      return { ok: false, message: res.message };
+    }
+
+    setTahunAjaranList((prev) => prev.filter((t) => t.id !== id));
+    return { ok: true, message: "Tahun pelajaran berhasil dihapus." };
   };
 
   const changePassword: SipetaContextValue["changePassword"] = async (newPassword) => {
@@ -3980,6 +4046,8 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         updateRekeningResmi,
         updateProfilPesantren,
         setActiveTahunAjaran,
+        createTahunAjaran,
+        deleteTahunAjaran,
         createSantriWithWali,
         importSantriBatch,
         deleteSantriBatch,

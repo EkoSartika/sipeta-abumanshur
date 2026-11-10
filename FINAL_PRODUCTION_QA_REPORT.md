@@ -165,3 +165,4 @@ Aplikasi SIPETA Pondok Pesantren Modern Abu Manshur telah melewati seluruh tahap
 3. Tata Usaha (TU) dapat mulai mendaftarkan data santri, kelas, dan asrama.
 
 **Status Akhir: APPROVED FOR PRODUCTION USE**
+

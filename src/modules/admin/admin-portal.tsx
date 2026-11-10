@@ -35,6 +35,7 @@ import {
   X,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
+import { MasterTahunAjaranView } from "@/components/master/master-tahun-ajaran-view";
 import {
   formatRupiah,
   formatTanggal,
@@ -55,6 +56,7 @@ export type AdminTab =
   | "dashboard"
   | "santri_asrama"
   | "keuangan"
+  | "tahun_ajaran"
   | "laporan_tahfidz"
   | "laporan_kedisiplinan"
   | "kepesantrenan"
@@ -1501,6 +1503,11 @@ export function AdminPortal({
           </div>
         </div>
       )}
+
+      {/* =====================================================================
+          TAB: MASTER DATA TAHUN PELAJARAN
+         ===================================================================== */}
+      {activeTab === "tahun_ajaran" && <MasterTahunAjaranView />}
     </div>
   );
 }
