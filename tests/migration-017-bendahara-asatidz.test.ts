@@ -1,30 +1,26 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import fs from "fs";
 import path from "path";
 import { PGlite } from "@electric-sql/pglite";
 
-describe("SIPETA Migration 017: Penyelarasan Hak Akses Asatidz (pengelola), Bendahara, dan TU", () => {
+describe("SIPETA Migration 017: Pemeriksaan Final RLS & Proteksi Hak Akses", () => {
   const migrationPath = path.resolve(__dirname, "../supabase/migrations/017_bendahara_asatidz_rls.sql");
   const migrationSql = fs.readFileSync(migrationPath, "utf8");
 
-  it("1. Migration 017 TIDAK mengandung string enum 'asatidz' pada klausul policy/kondisi database", () => {
-    // Memastikan tidak ada role 'asatidz' dalam array role atau perbandingan enum
-    expect(migrationSql).not.toMatch(/'asatidz'/);
-    // Role yang sah harus berupa 'pengelola' untuk Asatidz
-    expect(migrationSql).toContain("'pengelola'");
-    expect(migrationSql).toContain("'bendahara'");
-  });
+  let db: PGlite;
 
-  it("2. Riwayat perubahan kedisiplinan hanya FOR SELECT (bukan FOR ALL)", () => {
-    expect(migrationSql).toContain('CREATE POLICY "asatidz_bendahara_select_riwayat_kedisiplinan" ON public.riwayat_perubahan_kedisiplinan');
-    expect(migrationSql).toContain("FOR SELECT");
-    expect(migrationSql).not.toMatch(/CREATE POLICY "asatidz_bendahara_all_riwayat_kedisiplinan"/);
-  });
+  // UUID Pengguna untuk Berbagai Role
+  const ID_PENGELOLA = "11111111-1111-1111-1111-111111111111";
+  const ID_BENDAHARA = "22222222-2222-2222-2222-222222222222";
+  const ID_TU        = "33333333-3333-3333-3333-333333333333";
+  const ID_WALI      = "44444444-4444-4444-4444-444444444444";
+  const ID_INAKTIF   = "55555555-5555-5555-5555-555555555555";
+  const ID_SANTRI    = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 
-  it("3. Eksekusi sukses di PGlite dengan enum user_role asli SIPETA (tanpa enum asatidz)", async () => {
-    const db = new PGlite();
+  beforeEach(async () => {
+    db = new PGlite();
 
-    // 1. Setup Auth & Roles
+    // Setup Auth, Roles, dan Helper dasar sesuai arsitektur SIPETA
     await db.exec(`
       CREATE ROLE anon;
       CREATE ROLE authenticated;
@@ -34,7 +30,6 @@ describe("SIPETA Migration 017: Penyelarasan Hak Akses Asatidz (pengelola), Bend
         SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
       $$ LANGUAGE sql STABLE;
 
-      -- Definisi asli SIPETA: enum user_role TIDAK memiliki 'asatidz'
       CREATE TYPE public.user_role AS ENUM (
         'superadmin',
         'admin',
@@ -50,8 +45,25 @@ describe("SIPETA Migration 017: Penyelarasan Hak Akses Asatidz (pengelola), Bend
         nama_lengkap TEXT NOT NULL,
         is_active BOOLEAN NOT NULL DEFAULT true
       );
+      ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-      -- Tabel-tabel yang diproteksi RLS
+      CREATE POLICY "Profiles: baca profil sendiri atau petugas internal"
+      ON public.profiles FOR SELECT
+      TO authenticated
+      USING (id = auth.uid() OR role IN ('superadmin', 'admin', 'bendahara', 'pengelola', 'tu'));
+
+      -- Helper get_my_role resmi SIPETA
+      CREATE OR REPLACE FUNCTION public.get_my_role()
+      RETURNS public.user_role
+      LANGUAGE sql
+      STABLE
+      SECURITY DEFINER
+      SET search_path = public
+      AS $$
+        SELECT role FROM public.profiles WHERE id = auth.uid() AND is_active = true;
+      $$;
+
+      -- 8 Tabel yang diproteksi dalam Migration 017
       CREATE TABLE public.perkembangan_mengaji (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         santri_id UUID NOT NULL,
@@ -76,7 +88,8 @@ describe("SIPETA Migration 017: Penyelarasan Hak Akses Asatidz (pengelola), Bend
       CREATE TABLE public.catatan_kedisiplinan (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         santri_id UUID NOT NULL,
-        pelanggaran TEXT
+        pelanggaran TEXT,
+        is_published_to_wali BOOLEAN NOT NULL DEFAULT false
       );
       ALTER TABLE public.catatan_kedisiplinan ENABLE ROW LEVEL SECURITY;
 
@@ -104,28 +117,229 @@ describe("SIPETA Migration 017: Penyelarasan Hak Akses Asatidz (pengelola), Bend
         nama_kamar TEXT NOT NULL
       );
       ALTER TABLE public.kamar ENABLE ROW LEVEL SECURITY;
-    `);
 
-    // 2. Jalankan migrasi 017 yang telah diperbaiki
+      -- Pasang akun-akun uji
+      INSERT INTO public.profiles (id, role, nama_lengkap, is_active) VALUES
+        ('${ID_PENGELOLA}', 'pengelola', 'Ustadz Pengelola / Asatidz', true),
+        ('${ID_BENDAHARA}', 'bendahara', 'Ustadz Bendahara', true),
+        ('${ID_TU}',        'tu',        'Staf Tata Usaha', true),
+        ('${ID_WALI}',      'wali',      'Wali Santri Ahmad', true),
+        ('${ID_INAKTIF}',   'pengelola', 'Akun Nonaktif', false);
+
+      -- Default privileges Supabase untuk authenticated role (migration 0007)
+      GRANT USAGE ON SCHEMA public TO anon, authenticated;
+      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+
+      -- Pasang policy warisan lama yang berpotensi konflik
+      CREATE POLICY "Mengaji: kelola evaluasi oleh asatidz, bendahara, admin, superadmin"
+      ON public.perkembangan_mengaji FOR ALL TO authenticated
+      USING (true) WITH CHECK (true);
+
+      CREATE POLICY "Tahfidz: kelola oleh pengelola & superadmin"
+      ON public.setoran_tahfidz FOR ALL TO authenticated
+      USING (true) WITH CHECK (true);
+
+      CREATE POLICY "Prestasi: kelola oleh pengelola & superadmin"
+      ON public.prestasi_santri FOR ALL TO authenticated
+      USING (true) WITH CHECK (true);
+
+      CREATE POLICY "Kedisiplinan: kelola pelanggaran santri"
+      ON public.catatan_kedisiplinan FOR ALL TO authenticated
+      USING (true) WITH CHECK (true);
+
+      CREATE POLICY "Riwayat Kedisiplinan: baca histori pembinaan"
+      ON public.riwayat_perubahan_kedisiplinan FOR SELECT TO authenticated
+      USING (true);
+
+      CREATE POLICY "Riwayat Kedisiplinan: baca sesuai akses kedisiplinan"
+      ON public.riwayat_perubahan_kedisiplinan FOR SELECT TO authenticated
+      USING (true);
+
+      CREATE POLICY "Master Pelanggaran: kelola kategori"
+      ON public.master_kategori_pelanggaran FOR ALL TO authenticated
+      USING (true) WITH CHECK (true);
+
+      CREATE POLICY "Master Kelas: kelola"
+      ON public.kelas FOR ALL TO authenticated
+      USING (true) WITH CHECK (true);
+
+      CREATE POLICY "Master Kelas: TU baca ruang kelas"
+      ON public.kelas FOR SELECT TO authenticated
+      USING (true);
+
+      CREATE POLICY "Master Kamar: kelola"
+      ON public.kamar FOR ALL TO authenticated
+      USING (true) WITH CHECK (true);
+
+      CREATE POLICY "Master Kamar: TU baca kamar asrama"
+      ON public.kamar FOR SELECT TO authenticated
+      USING (true);
+    `);
+  });
+
+  it("1. Eksekusi migration 017 berhasil membersihkan policy lama tanpa konflik", async () => {
     await expect(db.exec(migrationSql)).resolves.not.toThrow();
 
-    // 3. Verifikasi policy terdaftar di pg_policies
-    const res = await db.query<{ policyname: string; tablename: string; cmd: string }>(`
-      SELECT policyname, tablename, cmd
-      FROM pg_policies
-      WHERE schemaname = 'public'
-      ORDER BY tablename, policyname;
+    // Verifikasi pg_policies setelah migrasi: policy lama yang usang telah terhapus
+    const res = await db.query<{ policyname: string; tablename: string }>(`
+      SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public';
+    `);
+    const policyNames = res.rows.map(r => r.policyname);
+
+    expect(policyNames).not.toContain("Mengaji: kelola evaluasi oleh asatidz, bendahara, admin, superadmin");
+    expect(policyNames).not.toContain("Tahfidz: kelola oleh pengelola & superadmin");
+    expect(policyNames).not.toContain("Prestasi: kelola oleh pengelola & superadmin");
+    expect(policyNames).not.toContain("Kedisiplinan: kelola pelanggaran santri");
+    expect(policyNames).not.toContain("Riwayat Kedisiplinan: baca histori pembinaan");
+    expect(policyNames).not.toContain("Riwayat Kedisiplinan: baca sesuai akses kedisiplinan");
+    expect(policyNames).not.toContain("Master Pelanggaran: kelola kategori");
+    expect(policyNames).not.toContain("Master Kelas: kelola");
+    expect(policyNames).not.toContain("Master Kamar: kelola");
+  });
+
+  it("2. Hak Operasional Asatidz: Role Pengelola & Bendahara dapat mencatat dan melihat mengaji & tahfidz", async () => {
+    await db.exec(migrationSql);
+
+    // Login sebagai Bendahara
+    await db.exec(`
+      SET ROLE authenticated;
+      SET request.jwt.claim.sub = '${ID_BENDAHARA}';
     `);
 
-    const policyMap = new Map(res.rows.map(r => [`${r.tablename}.${r.policyname}`, r.cmd]));
+    // Bendahara mencatat perkembangan mengaji
+    await db.exec(`
+      INSERT INTO public.perkembangan_mengaji (santri_id, catatan)
+      VALUES ('${ID_SANTRI}', 'Lancar membaca jilid 4');
+    `);
 
-    expect(policyMap.get("perkembangan_mengaji.asatidz_bendahara_all_mengaji")).toBe("ALL");
-    expect(policyMap.get("setoran_tahfidz.asatidz_bendahara_all_tahfidz")).toBe("ALL");
-    expect(policyMap.get("prestasi_santri.asatidz_bendahara_all_prestasi")).toBe("ALL");
-    expect(policyMap.get("catatan_kedisiplinan.asatidz_bendahara_all_kedisiplinan")).toBe("ALL");
-    expect(policyMap.get("riwayat_perubahan_kedisiplinan.asatidz_bendahara_select_riwayat_kedisiplinan")).toBe("SELECT");
-    expect(policyMap.get("master_kategori_pelanggaran.asatidz_bendahara_all_master_kategori")).toBe("ALL");
-    expect(policyMap.get("kelas.tu_admin_all_kelas")).toBe("ALL");
-    expect(policyMap.get("kamar.tu_admin_all_kamar")).toBe("ALL");
+    // Bendahara melihat perkembangan mengaji
+    const resMengaji = await db.query(`SELECT * FROM public.perkembangan_mengaji;`);
+    expect(resMengaji.rows.length).toBe(1);
+
+    // Bendahara mencatat setoran tahfidz
+    await db.exec(`
+      INSERT INTO public.setoran_tahfidz (santri_id, juz)
+      VALUES ('${ID_SANTRI}', 30);
+    `);
+    const resTahfidz = await db.query(`SELECT * FROM public.setoran_tahfidz;`);
+    expect(resTahfidz.rows.length).toBe(1);
+
+    // Reset role
+    await db.exec(`RESET ROLE;`);
+  });
+
+  it("3. Hak Tata Usaha (TU): Dapat mengelola Kelas dan Kamar (Insert, Update, Delete)", async () => {
+    await db.exec(migrationSql);
+
+    // Login sebagai TU
+    await db.exec(`
+      SET ROLE authenticated;
+      SET request.jwt.claim.sub = '${ID_TU}';
+    `);
+
+    // TU menambah kelas
+    await db.exec(`INSERT INTO public.kelas (id, nama_kelas) VALUES ('c1111111-1111-1111-1111-111111111111', '7A');`);
+    let resKelas = await db.query(`SELECT * FROM public.kelas;`);
+    expect(resKelas.rows.length).toBe(1);
+
+    // TU update kelas
+    await db.exec(`UPDATE public.kelas SET nama_kelas = '7A Unggulan' WHERE id = 'c1111111-1111-1111-1111-111111111111';`);
+    resKelas = await db.query(`SELECT nama_kelas FROM public.kelas;`);
+    expect((resKelas.rows[0] as { nama_kelas: string }).nama_kelas).toBe("7A Unggulan");
+
+    // TU hapus kelas
+    await db.exec(`DELETE FROM public.kelas WHERE id = 'c1111111-1111-1111-1111-111111111111';`);
+    resKelas = await db.query(`SELECT * FROM public.kelas;`);
+    expect(resKelas.rows.length).toBe(0);
+
+    // Reset role
+    await db.exec(`RESET ROLE;`);
+  });
+
+  it("4. Proteksi Riwayat Perubahan Kedisiplinan: SELECT-only, dilarang UPDATE dan DELETE", async () => {
+    await db.exec(migrationSql);
+
+    // Masukkan data riwayat kedisiplinan sebagai postgres
+    await db.exec(`
+      INSERT INTO public.riwayat_perubahan_kedisiplinan (id, catatan_kedisiplinan_id, keterangan)
+      VALUES ('d1111111-1111-1111-1111-111111111111', gen_random_uuid(), 'Audit awal pembinaan');
+    `);
+
+    // Login sebagai Asatidz (pengelola)
+    await db.exec(`
+      SET ROLE authenticated;
+      SET request.jwt.claim.sub = '${ID_PENGELOLA}';
+    `);
+
+    // Asatidz dapat membaca riwayat
+    const resRead = await db.query(`SELECT * FROM public.riwayat_perubahan_kedisiplinan;`);
+    expect(resRead.rows.length).toBe(1);
+
+    // Asatidz DILARANG menghapus riwayat kedisiplinan (0 rows affected karena RLS memblokir DELETE)
+    await db.exec(`DELETE FROM public.riwayat_perubahan_kedisiplinan WHERE id = 'd1111111-1111-1111-1111-111111111111';`);
+    const resAfterDelete = await db.query(`SELECT * FROM public.riwayat_perubahan_kedisiplinan;`);
+    expect(resAfterDelete.rows.length).toBe(1); // Tetap utuh!
+
+    // Asatidz DILARANG meng-update riwayat kedisiplinan
+    await db.exec(`UPDATE public.riwayat_perubahan_kedisiplinan SET keterangan = 'Diubah paksa';`);
+    const resAfterUpdate = await db.query(`SELECT keterangan FROM public.riwayat_perubahan_kedisiplinan;`);
+    expect((resAfterUpdate.rows[0] as { keterangan: string }).keterangan).toBe("Audit awal pembinaan"); // Tidak berubah!
+
+    // Reset role
+    await db.exec(`RESET ROLE;`);
+  });
+
+  it("5. Wali Santri DILARANG mengakses/memanipulasi data operasional kepesantrenan", async () => {
+    await db.exec(migrationSql);
+
+    // Login sebagai Wali Santri
+    await db.exec(`
+      SET ROLE authenticated;
+      SET request.jwt.claim.sub = '${ID_WALI}';
+    `);
+
+    // Wali tidak dapat insert ke perkembangan_mengaji
+    await expect(
+      db.exec(`INSERT INTO public.perkembangan_mengaji (santri_id, catatan) VALUES ('${ID_SANTRI}', 'Catatan wali ilegal');`)
+    ).rejects.toThrow();
+
+    // Wali tidak dapat insert ke setoran_tahfidz
+    await expect(
+      db.exec(`INSERT INTO public.setoran_tahfidz (santri_id, juz) VALUES ('${ID_SANTRI}', 10);`)
+    ).rejects.toThrow();
+
+    // Wali tidak dapat insert ke catatan_kedisiplinan
+    await expect(
+      db.exec(`INSERT INTO public.catatan_kedisiplinan (santri_id, pelanggaran) VALUES ('${ID_SANTRI}', 'Pelanggaran fiktif');`)
+    ).rejects.toThrow();
+
+    // Wali tidak dapat melihat riwayat_perubahan_kedisiplinan (internal)
+    const resWaliRiwayat = await db.query(`SELECT * FROM public.riwayat_perubahan_kedisiplinan;`);
+    expect(resWaliRiwayat.rows.length).toBe(0);
+
+    // Reset role
+    await db.exec(`RESET ROLE;`);
+  });
+
+  it("6. Akun Inaktif (is_active = false) DITOLAK dari seluruh operasi operasional", async () => {
+    await db.exec(migrationSql);
+
+    // Login sebagai Akun Inaktif
+    await db.exec(`
+      SET ROLE authenticated;
+      SET request.jwt.claim.sub = '${ID_INAKTIF}';
+    `);
+
+    // Akun inaktif dilarang insert mengaji
+    await expect(
+      db.exec(`INSERT INTO public.perkembangan_mengaji (santri_id, catatan) VALUES ('${ID_SANTRI}', 'Catatan inaktif');`)
+    ).rejects.toThrow();
+
+    // Akun inaktif tidak dapat membaca mengaji
+    const resMengaji = await db.query(`SELECT * FROM public.perkembangan_mengaji;`);
+    expect(resMengaji.rows.length).toBe(0);
+
+    // Reset role
+    await db.exec(`RESET ROLE;`);
   });
 });
