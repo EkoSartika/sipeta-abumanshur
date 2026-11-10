@@ -170,10 +170,10 @@ export const INITIAL_REKENING: RekeningPesantren = {
 
 export const INITIAL_TAHUN_AJARAN: TahunAjaran[] = [
   {
-    id: "ta-2026-2027",
-    nama: "2026/2027",
-    tanggal_mulai: "2026-07-01",
-    tanggal_selesai: "2027-06-30",
+    id: "ta-2024-2025",
+    nama: "2024/2025",
+    tanggal_mulai: "2024-07-01",
+    tanggal_selesai: "2025-06-30",
     is_active: true,
   },
   {
@@ -181,6 +181,13 @@ export const INITIAL_TAHUN_AJARAN: TahunAjaran[] = [
     nama: "2025/2026",
     tanggal_mulai: "2025-07-01",
     tanggal_selesai: "2026-06-30",
+    is_active: false,
+  },
+  {
+    id: "ta-2026-2027",
+    nama: "2026/2027",
+    tanggal_mulai: "2026-07-01",
+    tanggal_selesai: "2027-06-30",
     is_active: false,
   },
 ];
@@ -202,7 +209,7 @@ export const INITIAL_PROFIL_PESANTREN: ProfilPesantren = {
   email: "sekretariat@abumanshur.sch.id",
   website: "https://abumanshur.sch.id",
   nama_pengasuh: "Kyai Abu Manshur",
-  tahun_pelajaran_aktif: "2026/2027",
+  tahun_pelajaran_aktif: "2024/2025",
   semester_aktif: "Ganjil",
   informasi_umum:
     "Pondok Pesantren Modern Abu Manshur berkomitmen mendidik santri berakhlak mulia, unggul dalam ilmu agama (tahfidz & kitab), dan cakap dalam ilmu pengetahuan umum serta bahasa.",

@@ -112,11 +112,11 @@ export class AdministrasiService {
       const targetId = existing?.id || singletonId;
       const { error } = await this.client
         .from("profil_pesantren")
-        .upsert({
-          id: targetId,
+        .update({
           ...payload,
           updated_at: new Date().toISOString(),
-        });
+        })
+        .eq("id", targetId);
       if (error) return { ok: false, message: error.message };
       return { ok: true, message: "Profil pesantren berhasil disimpan ke database." };
     } catch (err) {

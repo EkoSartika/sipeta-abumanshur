@@ -194,7 +194,7 @@ export function BendaharaPortal({
                   Kebendaharaan &amp; Keuangan
                 </span>
                 <span className="text-xs text-emerald-200">
-                  • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})
+                  • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
                 </span>
               </div>
               <h2 className="mt-1 text-xl font-bold tracking-tight">

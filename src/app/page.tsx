@@ -952,7 +952,7 @@ export default function SipetaHomePage() {
                   <span>{activeMenuItem?.label ?? "Ruang Kerja"}</span>
                 </h2>
                 <p className="text-[11px] text-slate-500 hidden sm:block">
-                  {profilPesantren?.nama_resmi || "Pondok Pesantren Modern Abu Manshur"} • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})
+                  {profilPesantren?.nama_resmi || "Pondok Pesantren Modern Abu Manshur"} • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
                 </p>
               </div>
             </div>
@@ -1076,7 +1076,7 @@ export default function SipetaHomePage() {
               </span>
             </div>
             <div className="text-[11px] text-slate-400">
-              <span>Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})</span>
+              <span>Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})</span>
             </div>
           </div>
         </footer>

@@ -9,7 +9,7 @@ describe("SIPETA UI/UX Refinements & Pesantren Profile Suite", () => {
     expect(INITIAL_PROFIL_PESANTREN.npsn).toBe("69982412");
     expect(INITIAL_PROFIL_PESANTREN.akreditasi).toBe("Terakreditasi A");
     expect(INITIAL_PROFIL_PESANTREN.alamat).toContain("Jl. Nyi Ageng Serang");
-    expect(INITIAL_PROFIL_PESANTREN.tahun_pelajaran_aktif).toBe("2026/2027");
+    expect(INITIAL_PROFIL_PESANTREN.tahun_pelajaran_aktif).toBe("2024/2025");
     expect(INITIAL_PROFIL_PESANTREN.semester_aktif).toBe("Ganjil");
   });
 

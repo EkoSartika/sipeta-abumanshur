@@ -391,7 +391,7 @@ export function TuPortal({
         semester_aktif: semesterProfil,
         informasi_umum: informasiUmumProfil.trim(),
       },
-      selectedTahunAjaranId
+      tahunAjaranList.some((t) => t.id === selectedTahunAjaranId) ? selectedTahunAjaranId : undefined
     );
     setSavingProfil(false);
     setConfirmSaveProfilOpen(false);
@@ -871,7 +871,7 @@ export function TuPortal({
                 Administrasi Pesantren
               </span>
               <span className="text-xs text-blue-200">
-                • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})
+                • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
               </span>
             </div>
             <h2 className="text-xl font-extrabold mt-1 tracking-tight">
@@ -3566,7 +3566,7 @@ export function TuPortal({
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200">
-                  Tahun Aktif: <strong className="text-blue-900">{profilPesantren?.tahun_pelajaran_aktif || "2026/2027"} ({profilPesantren?.semester_aktif || "Ganjil"})</strong>
+                  Tahun Aktif: <strong className="text-blue-900">{profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})</strong>
                 </span>
               </div>
             </div>
@@ -3597,15 +3597,27 @@ export function TuPortal({
                       onChange={(e) => setSelectedTahunAjaranId(e.target.value)}
                       className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none min-h-[42px]"
                     >
-                      {tahunAjaranList.map((ta) => (
-                        <option key={ta.id} value={ta.id}>
-                          Tahun Pelajaran {ta.nama} {ta.is_active ? "(Sedang Aktif Saat Ini)" : ""}
+                      {tahunAjaranList.length === 0 ? (
+                        <option value="">
+                          Tahun Pelajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} (Tahun Aktif Terdaftar di Profil)
                         </option>
-                      ))}
+                      ) : (
+                        tahunAjaranList.map((ta) => (
+                          <option key={ta.id} value={ta.id}>
+                            Tahun Pelajaran {ta.nama} {ta.is_active ? "(Sedang Aktif Saat Ini)" : ""}
+                          </option>
+                        ))
+                      )}
                     </select>
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Tahun pelajaran yang dipilih akan menjadi acuan aktif pada seluruh modul akademik &amp; tagihan.
-                    </p>
+                    {tahunAjaranList.length === 0 ? (
+                      <p className="mt-1.5 rounded-lg bg-amber-50 p-2 text-[11px] font-medium text-amber-900 border border-amber-200">
+                        ℹ️ Belum ada data master tahun pelajaran di tabel database. Profil saat ini menggunakan tahun acuan <strong>{profilPesantren?.tahun_pelajaran_aktif || "2024/2025"}</strong>. Admin atau Superadmin dapat menambahkan tahun pelajaran baru melalui menu Master Data.
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Tahun pelajaran yang dipilih akan menjadi acuan aktif pada seluruh modul akademik &amp; tagihan.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="font-bold text-slate-700 block mb-1">
@@ -3913,7 +3925,7 @@ export function TuPortal({
                   </p>
                   <ul className="list-disc list-inside space-y-1 font-medium text-slate-800">
                     <li>
-                      Tahun Pelajaran: <strong>{tahunAjaranList.find((t) => t.id === selectedTahunAjaranId)?.nama || "2026/2027"} ({semesterProfil})</strong>
+                      Tahun Pelajaran: <strong>{tahunAjaranList.find((t) => t.id === selectedTahunAjaranId)?.nama || profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({semesterProfil})</strong>
                     </li>
                     <li>
                       Nama Lembaga: <strong>{namaResmiProfil}</strong>
