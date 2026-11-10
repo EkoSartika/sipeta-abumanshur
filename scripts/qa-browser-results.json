@@ -1,0 +1,207 @@
+{
+  "landingDesktop": {
+    "hasSipeta": true,
+    "hasAbuManshur": true,
+    "hasTahunPelajaran": true,
+    "hasLoginWali": true,
+    "hasRolePortals": true,
+    "fullTextSnippet": "SIPETA v1.0 Sistem Informasi Pelayanan Terpadu • PP Modern Abu Manshur • T.P. 2024/2025 Masuk Portal GERBANG PELAYANAN RESMI Selamat Datang di Portal Terpadu SIPETA Layanan digital terpadu bagi Orang Tua/Wali Santri, Asatidz, Bendahara, Pengelola Kepesantrenan, dan Pimpinan Pondok Pesantren Moder"
+  },
+  "landingMobile": {
+    "scrollWidth": 375,
+    "clientWidth": 375,
+    "hasHorizontalScrollbar": false,
+    "isResponsive": true
+  },
+  "loginPages": [
+    {
+      "path": "/tu/login",
+      "hasExpectedRole": true,
+      "inputCount": 2,
+      "inputs": [
+        {
+          "type": "text",
+          "placeholder": "contoh: tu01",
+          "name": ""
+        },
+        {
+          "type": "password",
+          "placeholder": "••••••••",
+          "name": ""
+        }
+      ],
+      "buttons": [
+        "Masuk ke Portal Tata Usaha (TU)"
+      ],
+      "hasTahunAjaran": true
+    },
+    {
+      "path": "/admin/login",
+      "hasExpectedRole": true,
+      "inputCount": 2,
+      "inputs": [
+        {
+          "type": "text",
+          "placeholder": "contoh: pengasuh",
+          "name": ""
+        },
+        {
+          "type": "password",
+          "placeholder": "••••••••",
+          "name": ""
+        }
+      ],
+      "buttons": [
+        "Masuk ke Portal Masuk Pengasuh Pondok"
+      ],
+      "hasTahunAjaran": true
+    },
+    {
+      "path": "/bendahara/login",
+      "hasExpectedRole": true,
+      "inputCount": 2,
+      "inputs": [
+        {
+          "type": "text",
+          "placeholder": "contoh: bendahara01",
+          "name": ""
+        },
+        {
+          "type": "password",
+          "placeholder": "••••••••",
+          "name": ""
+        }
+      ],
+      "buttons": [
+        "Masuk ke Portal Masuk Bendahara"
+      ],
+      "hasTahunAjaran": true
+    },
+    {
+      "path": "/pengelola/login",
+      "hasExpectedRole": true,
+      "inputCount": 2,
+      "inputs": [
+        {
+          "type": "text",
+          "placeholder": "contoh: asatidz01",
+          "name": ""
+        },
+        {
+          "type": "password",
+          "placeholder": "••••••••",
+          "name": ""
+        }
+      ],
+      "buttons": [
+        "Masuk ke Portal Masuk Asatidz"
+      ],
+      "hasTahunAjaran": true
+    },
+    {
+      "path": "/asatidz/login",
+      "hasExpectedRole": true,
+      "inputCount": 2,
+      "inputs": [
+        {
+          "type": "text",
+          "placeholder": "contoh: asatidz01",
+          "name": ""
+        },
+        {
+          "type": "password",
+          "placeholder": "••••••••",
+          "name": ""
+        }
+      ],
+      "buttons": [
+        "Masuk ke Portal Masuk Asatidz"
+      ],
+      "hasTahunAjaran": true
+    },
+    {
+      "path": "/superadmin/login",
+      "hasExpectedRole": true,
+      "inputCount": 2,
+      "inputs": [
+        {
+          "type": "text",
+          "placeholder": "sipetaabumanshur@gmail.com",
+          "name": ""
+        },
+        {
+          "type": "password",
+          "placeholder": "••••••••",
+          "name": ""
+        }
+      ],
+      "buttons": [
+        "Masuk ke Portal Masuk Superadmin"
+      ],
+      "hasTahunAjaran": true
+    },
+    {
+      "path": "/login",
+      "hasExpectedRole": true,
+      "inputCount": 2,
+      "inputs": [
+        {
+          "type": "text",
+          "placeholder": "contoh: 202401001",
+          "name": ""
+        },
+        {
+          "type": "password",
+          "placeholder": "••••••••",
+          "name": ""
+        }
+      ],
+      "buttons": [
+        "Masuk ke Portal Orang Tua / Wali Santri"
+      ],
+      "hasTahunAjaran": true
+    }
+  ],
+  "invalidLoginFeedback": {
+    "hasErrorMessage": true,
+    "textSnippet": "SIPETA v1.0 Pondok Pesantren Modern Abu Manshur • Cirebon Halaman Utama Portal Tata Usaha (TU) Portal Masuk Tata Usaha (TU) Akses Tidak Diizinkan Username / Email atau kata sandi tidak cocok. Silakan periksa kembali kredensial Anda. Username Staf Tata Usaha * Kata Sandi * Masuk ke Portal Tata Usaha (TU) Sesi terenkripsi & terlindungi hak akses role resmi SIPETA — Pondok Pesantren Modern Abu "
+  },
+  "apiEndpoints": [
+    {
+      "url": "/api/health",
+      "status": 200,
+      "ok": true,
+      "bodySnippet": "{\"status\":\"schema_ready_empty\",\"connectionState\":\"CONNECTED_EMPTY_DATA\",\"schemaStatus\":\"SCHEMA_READY_EMPTY\",\"mode\":\"supabase_live\",\"latencyMs\":758,\"re"
+    },
+    {
+      "url": "/api/admin-users",
+      "status": 401,
+      "ok": true,
+      "bodySnippet": "{\"ok\":false,\"message\":\"Akses ditolak: Anda harus login terlebih dahulu.\"}"
+    },
+    {
+      "url": "/api/admin-santri",
+      "status": 405,
+      "ok": false,
+      "bodySnippet": "{}"
+    },
+    {
+      "url": "/api/auth/profile",
+      "status": 405,
+      "ok": false,
+      "bodySnippet": "{}"
+    }
+  ],
+  "summary": {
+    "totalConsoleLogs": 0,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "networkErrors": [
+      {
+        "url": "https://jvhzrhfzkjqzlhsvvbgy.supabase.co/auth/v1/token?grant_type=password",
+        "status": 400,
+        "statusText": ""
+      }
+    ]
+  }
+}
