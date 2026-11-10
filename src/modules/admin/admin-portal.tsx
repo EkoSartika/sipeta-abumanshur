@@ -289,32 +289,6 @@ export function AdminPortal({
 
   return (
     <div className="space-y-6">
-      {/* Header Banner Portal Pengasuh Pondok */}
-      <div className="rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 p-5 text-white shadow-md">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-200 border border-emerald-400/30">
-                Pimpinan &amp; Pengasuh
-              </span>
-              <span className="text-xs text-emerald-200">
-                • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
-              </span>
-            </div>
-            <h2 className="text-xl font-extrabold mt-1 tracking-tight">
-              Portal Pengasuh Pondok
-            </h2>
-          </div>
-          <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
-            <img
-              src="/images/logo-abu-manshur.png"
-              alt="Logo PP Modern Abu Manshur"
-              className="h-full w-full object-contain drop-shadow"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* =====================================================================
           TAB 0: DASHBOARD PENGAWASAN EKSEKUTIF
          ===================================================================== */}

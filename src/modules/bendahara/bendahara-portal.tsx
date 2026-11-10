@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Camera,
@@ -85,7 +85,15 @@ export function BendaharaPortal({
   const [catatanMap, setCatatanMap] = useState<Record<string, string>>({});
 
   // State form penyerahan uang saku (Uang Keluar - Wajib Foto)
-  const [selectedSantriId, setSelectedSantriId] = useState(santriList[0]?.id ?? "snt-001");
+  const [selectedSantriId, setSelectedSantriId] = useState(santriList[0]?.id ?? "");
+
+  // Sinkronisasi otomatis selectedSantriId saat data santri dimuat dari Supabase
+  useEffect(() => {
+    if (santriList.length > 0 && (!selectedSantriId || !santriList.some((s) => s.id === selectedSantriId))) {
+      const first = santriList[0];
+      if (first) setSelectedSantriId(first.id);
+    }
+  }, [santriList, selectedSantriId]);
   const [nominalKeluar, setNominalKeluar] = useState("50000");
   const [keteranganKeluar, setKeteranganKeluar] = useState(
     "Penyerahan uang saku mingguan santri & kebutuhan alat tulis"
@@ -123,11 +131,10 @@ export function BendaharaPortal({
     [pengajuanUangSakuList]
   );
 
-  const selectedSantri: Santri =
+  const selectedSantri: Santri | null =
     santriList.find((s) => s.id === selectedSantriId) ??
-    santriList[0] ??
-    INITIAL_SANTRI[0]!;
-  const saldoSelectedSantri = getSaldoSantri(selectedSantri.id);
+    santriList[0] ?? null;
+  const saldoSelectedSantri = selectedSantri ? getSaldoSantri(selectedSantri.id) : { saldo_saat_ini: 0, total_masuk: 0, total_keluar: 0, batas_penarikan_harian: 100000, penarikan_hari_ini: 0 };
 
   const getSantriName = (id: string) => {
     const s = santriList.find((x) => x.id === id);
@@ -154,6 +161,10 @@ export function BendaharaPortal({
 
   const handlePenyerahanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedSantri) {
+      setFeedback({ ok: false, text: "Silakan pilih santri terlebih dahulu." });
+      return;
+    }
     const res = recordPenyerahanUangSaku({
       santri_id: selectedSantri.id,
       nominal: Number(nominalKeluar),
@@ -177,44 +188,24 @@ export function BendaharaPortal({
 
   return (
     <div className="space-y-6">
-      {/* Header Portal Bendahara */}
-      <div className="rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-900 p-5 text-white shadow-md">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
-              <img
-                src="/images/logo-abu-manshur.png"
-                alt="Logo PP Modern Abu Manshur"
-                className="h-full w-full object-contain drop-shadow"
-              />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-200 border border-emerald-400/30">
-                  Kebendaharaan &amp; Keuangan
-                </span>
-                <span className="text-xs text-emerald-200">
-                  • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
-                </span>
-              </div>
-              <h2 className="mt-1 text-xl font-bold tracking-tight">
-                Portal Bendahara
-              </h2>
-            </div>
+      {/* Quick Indicators Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="rounded-md bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-400/30">
+            Kebendaharaan &amp; Keuangan
+          </span>
+          <span className="text-xs text-slate-500">
+            • Tahun Pelajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1 text-center">
+            <span className="text-xs text-amber-700 mr-1.5 font-medium">Antrean Bayar Tagihan:</span>
+            <span className="text-sm font-bold text-amber-800">{pendingPembayaran.length}</span>
           </div>
-          <div className="flex gap-3">
-            <div className="rounded-xl bg-white/10 px-4 py-2 text-center border border-white/15">
-              <span className="block text-xs text-emerald-200">Antrean Bayar Tagihan</span>
-              <span className="text-xl font-extrabold text-amber-300">
-                {pendingPembayaran.length}
-              </span>
-            </div>
-            <div className="rounded-xl bg-white/10 px-4 py-2 text-center border border-white/15">
-              <span className="block text-xs text-emerald-200">Antrean Top-Up Saku</span>
-              <span className="text-xl font-extrabold text-amber-300">
-                {pendingTopupSaku.length}
-              </span>
-            </div>
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1 text-center">
+            <span className="text-xs text-amber-700 mr-1.5 font-medium">Antrean Top-Up Saku:</span>
+            <span className="text-sm font-bold text-amber-800">{pendingTopupSaku.length}</span>
           </div>
         </div>
       </div>
@@ -757,7 +748,7 @@ export function BendaharaPortal({
               <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 flex items-center justify-between">
                 <div>
                   <span className="text-xs text-emerald-800">
-                    Saldo Uang Saku {selectedSantri.nama_lengkap}:
+                    Saldo Uang Saku {selectedSantri?.nama_lengkap || "-"}:
                   </span>
                   <p className="text-lg font-extrabold text-emerald-950">
                     {formatRupiah(saldoSelectedSantri.saldo_saat_ini)}

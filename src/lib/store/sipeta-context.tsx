@@ -358,12 +358,18 @@ interface SipetaContextValue {
   recordPerkembanganMengaji: (
     payload: Omit<PerkembanganMengaji, "id" | "petugas_nama" | "created_at">
   ) => ActionResponse;
+  updatePenilaianMengaji: (id: string, payload: Partial<PerkembanganMengaji>) => Promise<ActionResponse>;
+  deletePenilaianMengaji: (id: string) => Promise<ActionResponse>;
   recordSetoranTahfidz: (
     payload: Omit<SetoranTahfidz, "id" | "jumlah_ayat" | "petugas_nama" | "created_at">
   ) => ActionResponse;
+  updateSetoranTahfidz: (id: string, payload: Partial<SetoranTahfidz>) => Promise<ActionResponse>;
+  deleteSetoranTahfidz: (id: string) => Promise<ActionResponse>;
   recordPrestasiSantri: (
     payload: Omit<PrestasiSantri, "id" | "petugas_nama" | "created_at">
   ) => ActionResponse;
+  updatePrestasiSantri: (id: string, payload: Partial<PrestasiSantri>) => Promise<ActionResponse>;
+  deletePrestasiSantri: (id: string) => Promise<ActionResponse>;
   recordCatatanKedisiplinan: (payload: {
     santri_id: string;
     tanggal_kejadian: string;
@@ -2806,21 +2812,10 @@ export function SipetaProvider({
       };
     }
 
-    if (currentUser.role === "tu") {
-      if (authMode === "supabase") {
-        const res = await administrasiService.updateKelas(id, { is_active: false });
-        if (!res.ok) return { ok: false, message: res.message || "Gagal menonaktifkan kelas di Supabase." };
-      }
-      const nextList = kelasListRef.current.filter((k) => k.id !== id);
-      kelasListRef.current = nextList;
-      setKelasList(nextList);
-      appendAuditLog("NONAKTIF_MASTER_KELAS", "kelas", id, { is_active: false }, `Penonaktifan kelas '${target.nama_kelas}' oleh TU`, { ...target });
-      return { ok: true, message: `Kelas '${target.nama_kelas}' berhasil dinonaktifkan.` };
-    }
-
     if (authMode === "supabase") {
       const res = await administrasiService.deleteKelas(id);
       if (!res.ok) return { ok: false, message: res.message || "Gagal menghapus kelas dari Supabase." };
+      await refreshFromSupabase();
     }
 
     const nextList = kelasListRef.current.filter((k) => k.id !== id);
@@ -2931,21 +2926,10 @@ export function SipetaProvider({
       };
     }
 
-    if (currentUser.role === "tu") {
-      if (authMode === "supabase") {
-        const res = await administrasiService.updateKamar(id, { is_active: false });
-        if (!res.ok) return { ok: false, message: res.message || "Gagal menonaktifkan kamar di Supabase." };
-      }
-      const nextList = kamarListRef.current.filter((k) => k.id !== id);
-      kamarListRef.current = nextList;
-      setKamarList(nextList);
-      appendAuditLog("NONAKTIF_MASTER_KAMAR", "kamar", id, { is_active: false }, `Penonaktifan kamar '${target.nama_kamar}' oleh TU`, { ...target });
-      return { ok: true, message: `Kamar '${target.nama_kamar}' berhasil dinonaktifkan.` };
-    }
-
     if (authMode === "supabase") {
       const res = await administrasiService.deleteKamar(id);
       if (!res.ok) return { ok: false, message: res.message || "Gagal menghapus kamar dari Supabase." };
+      await refreshFromSupabase();
     }
 
     const nextList = kamarListRef.current.filter((k) => k.id !== id);
@@ -4427,9 +4411,136 @@ export function SipetaProvider({
     return { ok: true, message: "Catatan perkembangan mengaji berhasil disimpan." };
   };
 
+  const updatePenilaianMengaji: SipetaContextValue["updatePenilaianMengaji"] = async (id, payload) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+    setMengajiList((prev) => prev.map((m) => (m.id === id ? { ...m, ...payload } : m)));
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.updatePenilaianMengaji(id, payload);
+      if (!res.ok) return { ok: false, message: res.message };
+      await refreshFromSupabase();
+    }
+    return { ok: true, message: "Evaluasi mengaji berhasil diperbarui." };
+  };
+
+  const deletePenilaianMengaji: SipetaContextValue["deletePenilaianMengaji"] = async (id) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+    setMengajiList((prev) => prev.filter((m) => m.id !== id));
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.deletePenilaianMengaji(id);
+      if (!res.ok) return { ok: false, message: res.message };
+      await refreshFromSupabase();
+    }
+    return { ok: true, message: "Catatan evaluasi mengaji berhasil dihapus." };
+  };
+
+  const updateSetoranTahfidz: SipetaContextValue["updateSetoranTahfidz"] = async (id, payload) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+    setTahfidzList((prev) => prev.map((t) => (t.id === id ? { ...t, ...payload } : t)));
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.updateSetoranTahfidz(id, payload);
+      if (!res.ok) return { ok: false, message: res.message };
+      await refreshFromSupabase();
+    }
+    return { ok: true, message: "Setoran tahfidz berhasil diperbarui." };
+  };
+
+  const deleteSetoranTahfidz: SipetaContextValue["deleteSetoranTahfidz"] = async (id) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+    setTahfidzList((prev) => prev.filter((t) => t.id !== id));
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.deleteSetoranTahfidz(id);
+      if (!res.ok) return { ok: false, message: res.message };
+      await refreshFromSupabase();
+    }
+    return { ok: true, message: "Setoran tahfidz berhasil dihapus." };
+  };
+
+  const updatePrestasiSantri: SipetaContextValue["updatePrestasiSantri"] = async (id, payload) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+    setPrestasiList((prev) => prev.map((p) => (p.id === id ? { ...p, ...payload } : p)));
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.updatePrestasiSantri(id, payload);
+      if (!res.ok) return { ok: false, message: res.message };
+      await refreshFromSupabase();
+    }
+    return { ok: true, message: "Data prestasi santri berhasil diperbarui." };
+  };
+
+  const deletePrestasiSantri: SipetaContextValue["deletePrestasiSantri"] = async (id) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+    setPrestasiList((prev) => prev.filter((p) => p.id !== id));
+    if (authMode === "supabase") {
+      const res = await kepesantrenanService.deletePrestasiSantri(id);
+      if (!res.ok) return { ok: false, message: res.message };
+      await refreshFromSupabase();
+    }
+    return { ok: true, message: "Data prestasi santri berhasil dihapus." };
+  };
+
   const recordSetoranTahfidz: SipetaContextValue["recordSetoranTahfidz"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Pengelola Kepesantrenan yang dapat mencatat tahfidz." };
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Hanya Asatidz, Bendahara, atau Admin yang berwenang mencatat tahfidz." };
     }
     if (payload.ayat_akhir < payload.ayat_awal) {
       return { ok: false, message: "Ayat akhir tidak boleh lebih kecil dari ayat awal." };
@@ -4483,8 +4594,15 @@ export function SipetaProvider({
   };
 
   const recordPrestasiSantri: SipetaContextValue["recordPrestasiSantri"] = (payload) => {
-    if (!currentUser || (currentUser.role !== "pengelola" && currentUser.role !== "superadmin")) {
-      return { ok: false, message: "Hanya Pengelola Kepesantrenan yang dapat mencatat prestasi." };
+    if (
+      !currentUser ||
+      (currentUser.role !== "pengelola" &&
+        currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
+        currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin")
+    ) {
+      return { ok: false, message: "Hanya Asatidz, Bendahara, atau Admin yang berwenang mencatat prestasi." };
     }
     const item: PrestasiSantri = {
       ...payload,
@@ -4533,13 +4651,14 @@ export function SipetaProvider({
       !currentUser ||
       (currentUser.role !== "pengelola" &&
         currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
         currentUser.role !== "tu" &&
         currentUser.role !== "admin" &&
         currentUser.role !== "superadmin")
     ) {
       return {
         ok: false,
-        message: "Hanya Tata Usaha, Asatidz, atau Admin yang dapat mencatat kedisiplinan.",
+        message: "Hanya Tata Usaha, Asatidz, Bendahara, atau Admin yang dapat mencatat kedisiplinan.",
       };
     }
     const kategori = masterPelanggaranList.find((k) => k.id === payload.kategori_id);
@@ -4603,6 +4722,7 @@ export function SipetaProvider({
       !currentUser ||
       (currentUser.role !== "pengelola" &&
         currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
         currentUser.role !== "tu" &&
         currentUser.role !== "admin" &&
         currentUser.role !== "superadmin")
@@ -4635,6 +4755,7 @@ export function SipetaProvider({
       !currentUser ||
       (currentUser.role !== "pengelola" &&
         currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
         currentUser.role !== "tu" &&
         currentUser.role !== "admin" &&
         currentUser.role !== "superadmin")
@@ -4670,11 +4791,12 @@ export function SipetaProvider({
       !currentUser ||
       (currentUser.role !== "pengelola" &&
         currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
         currentUser.role !== "tu" &&
         currentUser.role !== "admin" &&
         currentUser.role !== "superadmin")
     ) {
-      return { ok: false, message: "Hanya Pengelola/TU yang dapat memperbarui pembinaan." };
+      return { ok: false, message: "Hanya Asatidz, Bendahara, TU, atau Admin yang dapat memperbarui pembinaan." };
     }
     const target = kedisiplinanList.find((c) => c.id === payload.catatan_id);
     if (!target) return { ok: false, message: "Catatan kedisiplinan tidak ditemukan." };
@@ -4743,11 +4865,12 @@ export function SipetaProvider({
       !currentUser ||
       (currentUser.role !== "pengelola" &&
         currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
         currentUser.role !== "tu" &&
         currentUser.role !== "admin" &&
         currentUser.role !== "superadmin")
     ) {
-      return { ok: false, message: "Hanya TU, Pengelola Kepesantrenan, atau Superadmin yang berwenang menambah kategori pelanggaran." };
+      return { ok: false, message: "Hanya TU, Asatidz, Bendahara, atau Superadmin yang berwenang menambah kategori pelanggaran." };
     }
 
     if (authMode === "supabase") {
@@ -4793,11 +4916,12 @@ export function SipetaProvider({
       !currentUser ||
       (currentUser.role !== "pengelola" &&
         currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
         currentUser.role !== "tu" &&
         currentUser.role !== "admin" &&
         currentUser.role !== "superadmin")
     ) {
-      return { ok: false, message: "Hanya TU, Pengelola Kepesantrenan, atau Superadmin yang berwenang mengubah kategori pelanggaran." };
+      return { ok: false, message: "Hanya TU, Asatidz, Bendahara, atau Superadmin yang berwenang mengubah kategori pelanggaran." };
     }
 
     if (authMode === "supabase") {
@@ -4819,11 +4943,12 @@ export function SipetaProvider({
       !currentUser ||
       (currentUser.role !== "pengelola" &&
         currentUser.role !== "asatidz" &&
+        currentUser.role !== "bendahara" &&
         currentUser.role !== "tu" &&
         currentUser.role !== "admin" &&
         currentUser.role !== "superadmin")
     ) {
-      return { ok: false, message: "Hanya TU, Pengelola Kepesantrenan, atau Superadmin yang berwenang menghapus kategori pelanggaran." };
+      return { ok: false, message: "Hanya TU, Asatidz, Bendahara, atau Superadmin yang berwenang menghapus kategori pelanggaran." };
     }
     if (!ids || ids.length === 0) {
       return { ok: false, message: "Pilih setidaknya satu kategori pelanggaran untuk dihapus." };
@@ -4833,9 +4958,7 @@ export function SipetaProvider({
       const res = await kepesantrenanService.deleteMasterKategoriPelanggaranBatch(ids);
       // Refresh list dari server untuk memastikan sinkronisasi akurat
       const refreshed = await kepesantrenanService.getMasterKategoriPelanggaran(true);
-      if (refreshed.length > 0) {
-        setMasterPelanggaranList(refreshed);
-      }
+      setMasterPelanggaranList(refreshed);
       return {
         ok: res.ok,
         message: `${res.message} (Dihapus: ${res.summary.deleted}, Dinonaktifkan: ${res.summary.deactivated}, Gagal: ${res.summary.failed})`,
@@ -4975,8 +5098,14 @@ export function SipetaProvider({
         recordPenyerahanUangSaku,
         recordKoreksiLedgerSaku,
         recordPerkembanganMengaji,
+        updatePenilaianMengaji,
+        deletePenilaianMengaji,
         recordSetoranTahfidz,
+        updateSetoranTahfidz,
+        deleteSetoranTahfidz,
         recordPrestasiSantri,
+        updatePrestasiSantri,
+        deletePrestasiSantri,
         recordCatatanKedisiplinan,
         updateCatatanKedisiplinan,
         deleteCatatanKedisiplinan,

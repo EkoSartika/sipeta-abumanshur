@@ -75,6 +75,231 @@ const deleteSantriSchema = z.object({
   santri_ids: z.array(z.string().min(1)).min(1, "Minimal pilih 1 santri untuk dihapus."),
 });
 
+export async function GET(request: NextRequest) {
+  try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ ok: false, message: "Supabase belum dihubungkan." }, { status: 400 });
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user: callerUser },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !callerUser) {
+      return NextResponse.json(
+        { ok: false, message: "Akses ditolak: Anda harus login terlebih dahulu." },
+        { status: 401 }
+      );
+    }
+
+    const adminClient = createSupabaseAdminClient();
+    if (!adminClient) {
+      return NextResponse.json(
+        { ok: false, message: "Konfigurasi server admin Supabase belum lengkap." },
+        { status: 500 }
+      );
+    }
+
+    const [santriRes, waliRes, kelasRes, kamarRes] = await Promise.all([
+      adminClient.from("santri").select("*").order("nama_lengkap"),
+      adminClient.from("wali_santri").select("*"),
+      adminClient.from("kelas").select("*").eq("is_active", true).order("tingkat").order("kode_kelas"),
+      adminClient.from("kamar").select("*").eq("is_active", true).order("kode_kamar"),
+    ]);
+
+    const santriList = santriRes.data ?? [];
+    const waliList = waliRes.data ?? [];
+
+    // Auto-heal missing wali accounts for orphan santri without altering existing credentials
+    for (const s of santriList) {
+      const hasWali = waliList.some((w: any) => w.santri_id === s.id && w.user_id);
+      if (!hasWali) {
+        try {
+          const cleanNis = String(s.nis).trim();
+          const cleanUsername = normalizeUsername(cleanNis);
+          const initialPassword = cleanNis;
+          const syntheticEmail = usernameToInternalEmail(cleanUsername);
+          const defaultNamaWali = `Wali ${s.nama_lengkap}`;
+
+          const { data: usersData } = await adminClient.auth.admin.listUsers();
+          let targetUserId = usersData?.users?.find(
+            (u) => u.email?.toLowerCase() === syntheticEmail.toLowerCase()
+          )?.id;
+
+          if (!targetUserId) {
+            const { data: newAuth } = await adminClient.auth.admin.createUser({
+              email: syntheticEmail,
+              password: initialPassword,
+              email_confirm: true,
+              user_metadata: {
+                nama_lengkap: defaultNamaWali,
+                username: cleanUsername,
+                role: "wali",
+                santri_id: s.id,
+                santri_nis: cleanNis,
+                santri_nama: s.nama_lengkap,
+                penanggung_jawab: "Ayah",
+                must_change_password: true,
+              },
+            });
+            targetUserId = newAuth.user?.id;
+          }
+
+          if (targetUserId) {
+            await adminClient.from("profiles").upsert({
+              id: targetUserId,
+              nama_lengkap: defaultNamaWali,
+              username: cleanUsername,
+              email: syntheticEmail,
+              no_telepon: "-",
+              role: "wali",
+              is_active: true,
+              must_change_password: true,
+            });
+
+            await adminClient.from("wali_santri").upsert({
+              user_id: targetUserId,
+              santri_id: s.id,
+              nama_lengkap: defaultNamaWali,
+              hubungan: "Ayah",
+              no_telepon: "-",
+              email: syntheticEmail,
+              alamat: s.alamat || "-",
+            });
+          }
+        } catch {
+          // Ignore auto-heal error to keep GET fast
+        }
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      data: {
+        santriList: santriRes.data ?? [],
+        waliList: waliRes.data ?? [],
+        kelasList: kelasRes.data ?? [],
+        kamarList: kamarRes.data ?? [],
+      },
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ ok: false, message: msg }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const json = await request.json();
+    const { id, payload } = json;
+
+    if (!id || !payload) {
+      return NextResponse.json({ ok: false, message: "ID santri dan payload wajib disertakan." }, { status: 400 });
+    }
+
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ ok: false, message: "Supabase belum dihubungkan." }, { status: 400 });
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user: callerUser },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !callerUser) {
+      return NextResponse.json({ ok: false, message: "Akses ditolak: Anda harus login terlebih dahulu." }, { status: 401 });
+    }
+
+    const adminClient = createSupabaseAdminClient();
+    if (!adminClient) {
+      return NextResponse.json({ ok: false, message: "Konfigurasi server admin Supabase belum lengkap." }, { status: 500 });
+    }
+
+    const { data: callerProfile } = await adminClient
+      .from("profiles")
+      .select("role, is_active")
+      .eq("id", callerUser.id)
+      .maybeSingle();
+
+    if (
+      !callerProfile ||
+      !callerProfile.is_active ||
+      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin" && callerProfile.role !== "tu")
+    ) {
+      return NextResponse.json({ ok: false, message: "Akses ditolak: Tidak memiliki wewenang mengedit data santri." }, { status: 403 });
+    }
+
+    // 1. Update data santri
+    const updateSantriObj: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (payload.nama_lengkap !== undefined) updateSantriObj.nama_lengkap = String(payload.nama_lengkap).trim();
+    if (payload.tempat_lahir !== undefined) updateSantriObj.tempat_lahir = String(payload.tempat_lahir).trim();
+    if (payload.tanggal_lahir !== undefined) updateSantriObj.tanggal_lahir = payload.tanggal_lahir;
+    if (payload.jenis_kelamin !== undefined) updateSantriObj.jenis_kelamin = payload.jenis_kelamin;
+    if (payload.alamat !== undefined) updateSantriObj.alamat = String(payload.alamat).trim();
+    if (payload.tahun_masuk !== undefined) updateSantriObj.tahun_masuk = Number(payload.tahun_masuk);
+    if (payload.kelas_id !== undefined) updateSantriObj.kelas_id = payload.kelas_id;
+    if (payload.kamar_id !== undefined) updateSantriObj.kamar_id = payload.kamar_id;
+    if (payload.status !== undefined) updateSantriObj.status = payload.status;
+
+    const { error: santriErr } = await adminClient
+      .from("santri")
+      .update(updateSantriObj)
+      .eq("id", id);
+
+    if (santriErr) {
+      return NextResponse.json({ ok: false, message: `Gagal memperbarui santri: ${santriErr.message}` }, { status: 400 });
+    }
+
+    // 2. Update identitas keluarga & wali jika disertakan
+    if (payload.identitas_keluarga || payload.wali) {
+      const { data: waliRecord } = await adminClient
+        .from("wali_santri")
+        .select("id, user_id, alamat")
+        .eq("santri_id", id)
+        .maybeSingle();
+
+      const namaWali = payload.wali?.nama_lengkap || payload.identitas_keluarga?.ayah?.nama_lengkap || "Wali Santri";
+      const noHpWali = payload.wali?.no_telepon || payload.identitas_keluarga?.ayah?.no_telepon || "-";
+      const hubunganWali = payload.penanggung_jawab || payload.wali?.hubungan || "Ayah";
+
+      let packedAlamat = payload.alamat || "-";
+      if (payload.identitas_keluarga) {
+        packedAlamat = packWaliAlamatWithFamilyMetadata(payload.alamat || "-", payload.identitas_keluarga);
+      }
+
+      if (waliRecord) {
+        await adminClient
+          .from("wali_santri")
+          .update({
+            nama_lengkap: namaWali,
+            no_telepon: noHpWali,
+            hubungan: hubunganWali,
+            alamat: packedAlamat,
+          })
+          .eq("id", waliRecord.id);
+
+        if (waliRecord.user_id) {
+          await adminClient
+            .from("profiles")
+            .update({
+              nama_lengkap: namaWali,
+              no_telepon: noHpWali,
+            })
+            .eq("id", waliRecord.user_id);
+        }
+      }
+    }
+
+    return NextResponse.json({ ok: true, message: "Data santri dan wali berhasil diperbarui." });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ ok: false, message: msg }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const json = await request.json();
@@ -630,13 +855,13 @@ export async function DELETE(request: NextRequest) {
     if (
       !callerProfile ||
       !callerProfile.is_active ||
-      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin")
+      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin" && callerProfile.role !== "tu")
     ) {
       return NextResponse.json(
         {
           ok: false,
           message:
-            "Akses ditolak: Hanya Pengasuh Pondok (Admin) atau Superadmin yang berwenang menghapus data santri. Role Tata Usaha (TU) tidak memiliki hak penghapusan data.",
+            "Akses ditolak: Hanya Pengasuh Pondok (Admin), Superadmin, atau Tata Usaha (TU) yang berwenang menghapus data santri.",
         },
         { status: 403 }
       );

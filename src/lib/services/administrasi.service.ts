@@ -315,29 +315,19 @@ export class AdministrasiService {
   async updateProfilPesantren(payload: Partial<ProfilPesantren>): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
     try {
-      const singletonId = "00000000-0000-0000-0000-000000000001";
-      const { data: existing } = await this.client
-        .from("profil_pesantren")
-        .select("id")
-        .limit(1)
-        .maybeSingle();
-
-      const targetId = existing?.id || singletonId;
-      // Jaga integritas Single Source of Truth: tahun_pelajaran_aktif & semester_aktif hanya diubah oleh RPC resmi
-      const safePayload = { ...payload };
-      delete safePayload.id;
-      delete safePayload.tahun_pelajaran_aktif;
-      delete safePayload.semester_aktif;
-
-      const { error } = await this.client
-        .from("profil_pesantren")
-        .update({
-          ...safePayload,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", targetId);
-      if (error) return { ok: false, message: error.message };
-      return { ok: true, message: "Profil pesantren berhasil disimpan ke database." };
+      const res = await fetch("/api/master-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_profil_pesantren",
+          payload,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        return { ok: false, message: data.message ?? "Gagal menyimpan profil pesantren." };
+      }
+      return { ok: true, message: data.message ?? "Profil pesantren berhasil disimpan ke database." };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : "Gagal menyimpan profil pesantren." };
     }
@@ -348,6 +338,13 @@ export class AdministrasiService {
   // --------------------------------------------------------------------------
   async getKelasList(): Promise<Kelas[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const res = await fetch("/api/master-data?type=kelas");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)) return json.data;
+      }
+    } catch {}
     const { data } = await this.client
       .from("kelas")
       .select("*")
@@ -359,89 +356,78 @@ export class AdministrasiService {
 
   async createKelas(payload: Omit<Kelas, "id" | "is_active" | "created_at" | "updated_at">): Promise<{ ok: boolean; data?: Kelas; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-
-    const cleanKode = payload.kode_kelas.trim().toUpperCase();
-    const cleanNama = payload.nama_kelas.trim();
-    if (!cleanKode || !cleanNama) {
-      return { ok: false, message: "Kode kelas dan nama kelas wajib diisi." };
+    try {
+      const res = await fetch("/api/master-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_kelas",
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        data: data.data,
+        message: data.message ?? "Kelas baru berhasil dibuat.",
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal membuat kelas." };
     }
-
-    // Periksa apakah kode_kelas sudah ada (termasuk yang pernah dinonaktifkan oleh TU)
-    const { data: existing } = await this.client
-      .from("kelas")
-      .select("*")
-      .ilike("kode_kelas", cleanKode)
-      .maybeSingle();
-
-    if (existing) {
-      if (existing.is_active) {
-        return { ok: false, message: `Kode kelas '${cleanKode}' sudah digunakan oleh kelas aktif '${existing.nama_kelas}'.` };
-      }
-      // Reaktivasi baris kelas yang sebelumnya dinonaktifkan
-      const { data: reactivated, error: reactivateErr } = await this.client
-        .from("kelas")
-        .update({
-          ...payload,
-          kode_kelas: cleanKode,
-          nama_kelas: cleanNama,
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id)
-        .select()
-        .single();
-      if (reactivateErr) return { ok: false, message: reactivateErr.message };
-      return { ok: true, data: reactivated as Kelas, message: `Kelas ${cleanNama} berhasil diaktifkan kembali dan disimpan.` };
-    }
-
-    const { data, error } = await this.client
-      .from("kelas")
-      .insert({
-        ...payload,
-        kode_kelas: cleanKode,
-        nama_kelas: cleanNama,
-        is_active: true,
-      })
-      .select()
-      .single();
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, data: data as Kelas, message: "Kelas baru berhasil dibuat." };
   }
 
   async updateKelas(id: string, payload: Partial<Kelas>): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { error } = await this.client
-      .from("kelas")
-      .update({ ...payload, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Data kelas berhasil diperbarui." };
+    try {
+      const res = await fetch("/api/master-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_kelas",
+          id,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? "Data kelas berhasil diperbarui.",
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal memperbarui kelas." };
+    }
   }
 
   async deleteKelas(id: string): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    
-    // Periksa apakah masih ada santri aktif di kelas ini
-    const { count } = await this.client
-      .from("santri")
-      .select("id", { count: "exact", head: true })
-      .eq("kelas_id", id)
-      .eq("status", "AKTIF");
-
-    if ((count ?? 0) > 0) {
+    try {
+      const res = await fetch("/api/master-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_kelas",
+          id,
+        }),
+      });
+      const data = await res.json();
       return {
-        ok: false,
-        message: `Kelas ini masih memiliki ${count} santri aktif. Pindahkan santri terlebih dahulu sebelum menghapus kelas.`,
+        ok: data.ok ?? false,
+        message: data.message ?? "Kelas berhasil dihapus.",
       };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal menghapus kelas." };
     }
-
-    const { error } = await this.client.from("kelas").delete().eq("id", id);
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Kelas berhasil dihapus." };
   }
 
   async getKamarList(): Promise<Kamar[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const res = await fetch("/api/master-data?type=kamar");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)) return json.data;
+      }
+    } catch {}
     const { data } = await this.client
       .from("kamar")
       .select("*")
@@ -452,88 +438,67 @@ export class AdministrasiService {
 
   async createKamar(payload: Omit<Kamar, "id" | "is_active" | "created_at" | "updated_at">): Promise<{ ok: boolean; data?: Kamar; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-
-    const cleanKode = payload.kode_kamar.trim().toUpperCase();
-    const cleanNama = payload.nama_kamar.trim();
-    const cleanGedung = payload.gedung_asrama.trim();
-    if (!cleanKode || !cleanNama || !cleanGedung) {
-      return { ok: false, message: "Kode kamar, nama kamar, dan gedung asrama wajib diisi." };
+    try {
+      const res = await fetch("/api/master-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_kamar",
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        data: data.data,
+        message: data.message ?? "Kamar asrama baru berhasil ditambahkan.",
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal membuat kamar." };
     }
-
-    // Periksa apakah kode_kamar sudah ada (termasuk yang pernah dinonaktifkan oleh TU)
-    const { data: existing } = await this.client
-      .from("kamar")
-      .select("*")
-      .ilike("kode_kamar", cleanKode)
-      .maybeSingle();
-
-    if (existing) {
-      if (existing.is_active) {
-        return { ok: false, message: `Kode kamar '${cleanKode}' sudah digunakan oleh kamar aktif '${existing.nama_kamar}'.` };
-      }
-      // Reaktivasi baris kamar yang sebelumnya dinonaktifkan
-      const { data: reactivated, error: reactivateErr } = await this.client
-        .from("kamar")
-        .update({
-          ...payload,
-          kode_kamar: cleanKode,
-          nama_kamar: cleanNama,
-          gedung_asrama: cleanGedung,
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id)
-        .select()
-        .single();
-      if (reactivateErr) return { ok: false, message: reactivateErr.message };
-      return { ok: true, data: reactivated as Kamar, message: `Kamar ${cleanNama} berhasil diaktifkan kembali dan disimpan.` };
-    }
-
-    const { data, error } = await this.client
-      .from("kamar")
-      .insert({
-        ...payload,
-        kode_kamar: cleanKode,
-        nama_kamar: cleanNama,
-        gedung_asrama: cleanGedung,
-        is_active: true,
-      })
-      .select()
-      .single();
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, data: data as Kamar, message: "Kamar asrama baru berhasil ditambahkan." };
   }
 
   async updateKamar(id: string, payload: Partial<Kamar>): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { error } = await this.client
-      .from("kamar")
-      .update({ ...payload, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Data kamar asrama berhasil diperbarui." };
+    try {
+      const res = await fetch("/api/master-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_kamar",
+          id,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? "Data kamar asrama berhasil diperbarui.",
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal memperbarui kamar." };
+    }
   }
 
   async deleteKamar(id: string): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-
-    // Periksa apakah masih ada santri aktif di kamar ini
-    const { count } = await this.client
-      .from("santri")
-      .select("id", { count: "exact", head: true })
-      .eq("kamar_id", id)
-      .eq("status", "AKTIF");
-
-    if ((count ?? 0) > 0) {
+    try {
+      const res = await fetch("/api/master-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_kamar",
+          id,
+        }),
+      });
+      const data = await res.json();
       return {
-        ok: false,
-        message: `Kamar ini masih ditempati oleh ${count} santri aktif. Pindahkan santri terlebih dahulu sebelum menghapus kamar.`,
+        ok: data.ok ?? false,
+        message: data.message ?? "Kamar asrama berhasil dihapus.",
       };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal menghapus kamar." };
     }
-
-    const { error } = await this.client.from("kamar").delete().eq("id", id);
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Kamar asrama berhasil dihapus." };
   }
 
   // --------------------------------------------------------------------------
@@ -541,15 +506,68 @@ export class AdministrasiService {
   // --------------------------------------------------------------------------
   async getSantriList(): Promise<Santri[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const res = await fetch("/api/admin-santri");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data?.santriList)) return json.data.santriList;
+      }
+    } catch {}
     const { data } = await this.client.from("santri").select("*").order("nama_lengkap");
     return (data as Santri[]) ?? [];
   }
 
   async getWaliList(): Promise<WaliSantri[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const res = await fetch("/api/admin-santri");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data?.waliList)) {
+          return json.data.waliList.map((row: any) => unpackWaliSantriRecord(row));
+        }
+      }
+    } catch {}
     const { data } = await this.client.from("wali_santri").select("*");
     if (!data) return [];
     return (data as Record<string, any>[]).map((row) => unpackWaliSantriRecord(row));
+  }
+
+  async updateSantriWithWali(
+    santriId: string,
+    payload: {
+      nama_lengkap?: string;
+      tempat_lahir?: string;
+      tanggal_lahir?: string;
+      jenis_kelamin?: "L" | "P";
+      alamat?: string;
+      tahun_masuk?: number;
+      kelas_id?: string;
+      kamar_id?: string;
+      status?: StatusSantri;
+      penanggung_jawab?: "Ayah" | "Ibu" | "Wali";
+      identitas_keluarga?: IdentitasKeluargaSantri;
+      wali?: {
+        nama_lengkap: string;
+        hubungan: "Ayah" | "Ibu" | "Wali";
+        no_telepon: string;
+      };
+    }
+  ): Promise<{ ok: boolean; message: string }> {
+    try {
+      const res = await fetch("/api/admin-santri", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: santriId, payload }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Data santri berhasil diperbarui." : "Gagal memperbarui data santri."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal menghubungi server." };
+    }
   }
 
   async getRiwayatPenempatanList(santriId?: string): Promise<RiwayatPenempatanSantri[]> {

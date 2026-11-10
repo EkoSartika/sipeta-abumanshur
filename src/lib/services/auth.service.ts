@@ -156,7 +156,22 @@ export class AuthService {
     }
 
     try {
-      const { email, displayIdentifier, username } = resolveLoginIdentifier(identifier);
+      const cleanInput = identifier.trim();
+
+      // Jika yang login memasukkan NIS / angka, atau mencoba login wali, lakukan pra-sinkronisasi aman
+      if (/^\d{3,}$/.test(cleanInput) || expectedRole === "wali") {
+        try {
+          await fetch("/api/auth/wali-sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ identifier: cleanInput }),
+          });
+        } catch {
+          // Lanjutkan alur normal jika fetch lokal gagal
+        }
+      }
+
+      const { email, displayIdentifier, username } = resolveLoginIdentifier(cleanInput);
 
       const { data, error } = await this.client.auth.signInWithPassword({
         email,

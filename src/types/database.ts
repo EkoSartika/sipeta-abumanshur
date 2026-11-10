@@ -97,7 +97,7 @@ export interface ProfilPesantren {
   id: string;
   nama_resmi: string;
   nspp: string;
-  npsn: string;
+  npsn?: string;
   akreditasi: string;
   sk_pendirian: string;
   alamat: string;

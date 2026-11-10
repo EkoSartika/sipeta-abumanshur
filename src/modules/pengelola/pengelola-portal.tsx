@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -129,11 +129,6 @@ export function PengelolaPortal({
     "Meraih medali emas bidang Nahwu & Qiraatul Kutub."
   );
 
-  // Subtab Navigasi Kedisiplinan: Catatan & Pembinaan vs Master Kategori Pelanggaran
-  const [disiplinSubTab, setDisiplinSubTab] = useState<"catatan" | "master">(
-    controlledTab === "master_kategori_pelanggaran" ? "master" : "catatan"
-  );
-
   // State Kedisiplinan
   const [santriDisiplin, setSantriDisiplin] = useState(santriList[0]?.id ?? "snt-001");
   const [kategoriDisiplinId, setKategoriDisiplinId] = useState(
@@ -144,8 +139,35 @@ export function PengelolaPortal({
     "Murojaah tambahan 2 halaman & dzikir pagi bersama Musyrif"
   );
   const [catatanPembinaanDisiplin, setCatatanPembinaanDisiplin] = useState(
-    "Santri menyadari kekhilafan dan berkomitmen hadir 10 menit sebelum adzan."
+    "Santri berjanji tidak mengulangi dan disiplin waktu sholat berjamaah."
   );
+
+  // Subtab Navigasi Kedisiplinan: Catatan & Pembinaan vs Master Kategori Pelanggaran
+  const [disiplinSubTab, setDisiplinSubTab] = useState<"catatan" | "master">(
+    controlledTab === "master_kategori_pelanggaran" ? "master" : "catatan"
+  );
+
+  // Sinkronisasi otomatis pilihan santri dan master kategori saat data termuat dari Supabase
+  useEffect(() => {
+    if (santriList.length > 0) {
+      const s0 = santriList[0];
+      if (s0) {
+        if (!santriList.some((s) => s.id === santriMengaji)) setSantriMengaji(s0.id);
+        if (!santriList.some((s) => s.id === santriTahfidz)) setSantriTahfidz(s0.id);
+        if (!santriList.some((s) => s.id === santriPrestasi)) setSantriPrestasi(s0.id);
+        if (!santriList.some((s) => s.id === santriDisiplin)) setSantriDisiplin(s0.id);
+      }
+    }
+  }, [santriList]);
+
+  useEffect(() => {
+    if (masterPelanggaranList.length > 0) {
+      const activeKat = masterPelanggaranList.find((k) => k.is_active !== false) || masterPelanggaranList[0];
+      if (activeKat && !masterPelanggaranList.some((k) => k.id === kategoriDisiplinId)) {
+        setKategoriDisiplinId(activeKat.id);
+      }
+    }
+  }, [masterPelanggaranList]);
 
   // State Update Riwayat Kedisiplinan
   const [selectedDisiplinId, setSelectedDisiplinId] = useState(
@@ -342,32 +364,6 @@ export function PengelolaPortal({
 
   return (
     <div className="space-y-6">
-      {/* Header Asatidz */}
-      <div className="rounded-2xl bg-gradient-to-r from-indigo-950 via-emerald-900 to-teal-950 p-5 text-white shadow-md">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-200 border border-emerald-400/30">
-                Asatidz
-              </span>
-              <span className="text-xs text-emerald-200">
-                • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
-              </span>
-            </div>
-            <h2 className="text-xl font-bold mt-1 tracking-tight">
-              Portal Asatidz
-            </h2>
-          </div>
-          <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
-            <img
-              src="/images/logo-abu-manshur.png"
-              alt="Logo PP Modern Abu Manshur"
-              className="h-full w-full object-contain drop-shadow"
-            />
-          </div>
-        </div>
-      </div>
-
       {feedback && (
         <div
           className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${

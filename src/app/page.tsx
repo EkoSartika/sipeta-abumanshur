@@ -989,10 +989,19 @@ export default function SipetaHomePage() {
                 />
               )}
               {currentUser.role === "bendahara" && (
-                <BendaharaPortal
-                  activeTab={activeTab}
-                  onTabChange={(tab) => setActiveTab(tab)}
-                />
+                <>
+                  {["mengaji", "tahfidz", "prestasi", "kedisiplinan"].includes(activeTab) ? (
+                    <PengelolaPortal
+                      activeTab={activeTab}
+                      onTabChange={(tab) => setActiveTab(tab)}
+                    />
+                  ) : (
+                    <BendaharaPortal
+                      activeTab={activeTab}
+                      onTabChange={(tab) => setActiveTab(tab)}
+                    />
+                  )}
+                </>
               )}
               {currentUser.role === "tu" && (
                 <TuPortal

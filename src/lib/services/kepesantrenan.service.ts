@@ -75,6 +75,15 @@ export class KepesantrenanService {
   // --------------------------------------------------------------------------
   async getPerkembanganMengaji(santriId?: string): Promise<PerkembanganMengaji[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const url = santriId ? `/api/kepesantrenan?type=mengaji&santri_id=${encodeURIComponent(santriId)}` : `/api/kepesantrenan?type=mengaji`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)) return json.data;
+      }
+    } catch {}
+
     let query = this.client
       .from("perkembangan_mengaji")
       .select("*, santri:santri_id(*), petugas:petugas_id(*)")
@@ -99,26 +108,66 @@ export class KepesantrenanService {
     if (!isSupabaseConfigured()) {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
-    const {
-      data: { user },
-    } = await this.client.auth.getUser();
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_mengaji",
+          payload: params,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Catatan perkembangan mengaji berhasil disimpan." : "Gagal menyimpan evaluasi mengaji."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
+  }
 
-    const { error } = await this.client.from("perkembangan_mengaji").insert({
-      santri_id: params.santri_id,
-      tanggal_penilaian: params.tanggal_penilaian ?? new Date().toISOString().split("T")[0],
-      pembimbing_name: params.pembimbing_name,
-      metode_pembelajaran: params.metode_pembelajaran,
-      tingkat_jilid: params.tingkat_jilid,
-      materi_terakhir: params.materi_terakhir,
-      kelancaran_bacaan: params.kelancaran_bacaan,
-      makharijul_huruf: params.makharijul_huruf,
-      tajwid: params.tajwid,
-      catatan_perkembangan: params.catatan_perkembangan,
-      petugas_id: user?.id,
-    });
+  async updatePenilaianMengaji(id: string, payload: Partial<PerkembanganMengaji>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Koneksi Supabase belum aktif." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_mengaji",
+          id,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Evaluasi mengaji berhasil diperbarui." : "Gagal memperbarui evaluasi mengaji."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
+  }
 
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Catatan perkembangan mengaji berhasil disimpan." };
+  async deletePenilaianMengaji(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Koneksi Supabase belum aktif." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_mengaji",
+          id,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Catatan evaluasi mengaji berhasil dihapus." : "Gagal menghapus evaluasi mengaji."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -126,6 +175,15 @@ export class KepesantrenanService {
   // --------------------------------------------------------------------------
   async getSetoranTahfidz(santriId?: string): Promise<SetoranTahfidz[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const url = santriId ? `/api/kepesantrenan?type=tahfidz&santri_id=${encodeURIComponent(santriId)}` : `/api/kepesantrenan?type=tahfidz`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)) return json.data;
+      }
+    } catch {}
+
     let query = this.client
       .from("setoran_tahfidz")
       .select("*, santri:santri_id(*), petugas:petugas_id(*)")
@@ -152,26 +210,66 @@ export class KepesantrenanService {
     if (!isSupabaseConfigured()) {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
-    const {
-      data: { user },
-    } = await this.client.auth.getUser();
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_tahfidz",
+          payload: params,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Setoran tahfidz berhasil disimpan." : "Gagal menyimpan setoran tahfidz."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
+  }
 
-    const { error } = await this.client.from("setoran_tahfidz").insert({
-      santri_id: params.santri_id,
-      tanggal_setoran: params.tanggal_setoran ?? new Date().toISOString().split("T")[0],
-      pembimbing_name: params.pembimbing_name,
-      nama_surah: params.nama_surah,
-      juz: params.juz,
-      ayat_awal: params.ayat_awal,
-      ayat_akhir: params.ayat_akhir,
-      jenis_setoran: params.jenis_setoran,
-      kualitas_hafalan: params.kualitas_hafalan,
-      catatan_pembimbing: params.catatan_pembimbing ?? null,
-      petugas_id: user?.id,
-    });
+  async updateSetoranTahfidz(id: string, payload: Partial<SetoranTahfidz>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Koneksi Supabase belum aktif." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_tahfidz",
+          id,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Data setoran tahfidz berhasil diperbarui." : "Gagal memperbarui setoran tahfidz."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
+  }
 
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Setoran tahfidz berhasil disimpan." };
+  async deleteSetoranTahfidz(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Koneksi Supabase belum aktif." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_tahfidz",
+          id,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Data setoran tahfidz berhasil dihapus." : "Gagal menghapus setoran tahfidz."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -179,6 +277,15 @@ export class KepesantrenanService {
   // --------------------------------------------------------------------------
   async getPrestasiSantri(santriId?: string): Promise<PrestasiSantri[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const url = santriId ? `/api/kepesantrenan?type=prestasi&santri_id=${encodeURIComponent(santriId)}` : `/api/kepesantrenan?type=prestasi`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)) return json.data;
+      }
+    } catch {}
+
     let query = this.client
       .from("prestasi_santri")
       .select("*, santri:santri_id(*), petugas:petugas_id(*)")
@@ -204,24 +311,66 @@ export class KepesantrenanService {
     if (!isSupabaseConfigured()) {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
-    const {
-      data: { user },
-    } = await this.client.auth.getUser();
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_prestasi",
+          payload: params,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Prestasi santri berhasil didokumentasikan." : "Gagal mendokumentasikan prestasi."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
+  }
 
-    const { error } = await this.client.from("prestasi_santri").insert({
-      santri_id: params.santri_id,
-      tanggal_prestasi: params.tanggal_prestasi ?? new Date().toISOString().split("T")[0],
-      nama_kegiatan: params.nama_kegiatan,
-      kategori: params.kategori,
-      tingkat_prestasi: params.tingkat_prestasi,
-      peringkat: params.peringkat,
-      deskripsi: params.deskripsi,
-      dokumentasi_path: params.dokumentasi_path ?? null,
-      petugas_id: user?.id,
-    });
+  async updatePrestasiSantri(id: string, payload: Partial<PrestasiSantri>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Koneksi Supabase belum aktif." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_prestasi",
+          id,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Data prestasi santri berhasil diperbarui." : "Gagal memperbarui prestasi."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
+  }
 
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Prestasi santri berhasil didokumentasikan." };
+  async deletePrestasiSantri(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Koneksi Supabase belum aktif." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_prestasi",
+          id,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Data prestasi santri berhasil dihapus." : "Gagal menghapus prestasi."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -229,6 +378,14 @@ export class KepesantrenanService {
   // --------------------------------------------------------------------------
   async getMasterKategoriPelanggaran(includeInactive = false): Promise<MasterKategoriPelanggaran[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const res = await fetch(`/api/kepesantrenan?type=kategori&include_inactive=${includeInactive}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)) return json.data;
+      }
+    } catch {}
+
     let query = this.client
       .from("master_kategori_pelanggaran")
       .select("*")
@@ -257,24 +414,24 @@ export class KepesantrenanService {
         message: "Kategori pelanggaran berhasil dibuat (Mode Demo Standalone).",
       };
     }
-
-    const { data, error } = await this.client
-      .from("master_kategori_pelanggaran")
-      .insert({
-        kode_kategori: payload.kode_kategori.trim().toUpperCase(),
-        nama_kategori: payload.nama_kategori.trim(),
-        tingkat_pelanggaran: payload.tingkat_pelanggaran,
-        poin_pembinaan: payload.poin_pembinaan,
-        standar_tindak_lanjut: payload.standar_tindak_lanjut.trim(),
-        is_active: payload.is_active ?? true,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return { ok: false, message: `Gagal menambahkan kategori: ${error.message}` };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_kategori_pelanggaran",
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        data: data.data,
+        message: data.message ?? "Kategori pelanggaran berhasil ditambahkan.",
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal menambahkan kategori." };
     }
-    return { ok: true, message: `Kategori '${payload.nama_kategori}' berhasil ditambahkan.`, data: data as MasterKategoriPelanggaran };
   }
 
   async updateMasterKategoriPelanggaran(
@@ -284,79 +441,34 @@ export class KepesantrenanService {
     if (!isSupabaseConfigured()) {
       return { ok: true, message: "Kategori pelanggaran berhasil diperbarui (Mode Demo Standalone)." };
     }
-
-    const updateObj: Record<string, unknown> = {};
-    if (payload.nama_kategori !== undefined) updateObj.nama_kategori = payload.nama_kategori.trim();
-    if (payload.tingkat_pelanggaran !== undefined) updateObj.tingkat_pelanggaran = payload.tingkat_pelanggaran;
-    if (payload.poin_pembinaan !== undefined) updateObj.poin_pembinaan = payload.poin_pembinaan;
-    if (payload.standar_tindak_lanjut !== undefined) updateObj.standar_tindak_lanjut = payload.standar_tindak_lanjut.trim();
-    if (payload.is_active !== undefined) updateObj.is_active = payload.is_active;
-
-    const { error } = await this.client
-      .from("master_kategori_pelanggaran")
-      .update(updateObj)
-      .eq("id", id);
-
-    if (error) {
-      return { ok: false, message: `Gagal memperbarui kategori: ${error.message}` };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_kategori_pelanggaran",
+          id,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? "Kategori pelanggaran berhasil diperbarui.",
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Gagal memperbarui kategori." };
     }
-    return { ok: true, message: "Kategori pelanggaran berhasil diperbarui." };
   }
 
   async deleteOrDeactivateMasterKategoriPelanggaran(
     id: string
   ): Promise<{ ok: boolean; actionTaken: "DELETED" | "DEACTIVATED"; message: string }> {
-    if (!isSupabaseConfigured()) {
-      return { ok: true, actionTaken: "DELETED", message: "Kategori berhasil dihapus (Mode Demo Standalone)." };
-    }
-
-    // Periksa apakah kategori telah digunakan dalam catatan_kedisiplinan
-    const { count, error: countErr } = await this.client
-      .from("catatan_kedisiplinan")
-      .select("id", { count: "exact", head: true })
-      .eq("kategori_id", id);
-
-    if (countErr) {
-      return { ok: false, actionTaken: "DEACTIVATED", message: `Gagal memeriksa riwayat: ${countErr.message}` };
-    }
-
-    if ((count ?? 0) > 0) {
-      // Nonaktifkan saja demi integritas data historis
-      const { error: updErr } = await this.client
-        .from("master_kategori_pelanggaran")
-        .update({ is_active: false })
-        .eq("id", id);
-
-      if (updErr) {
-        return { ok: false, actionTaken: "DEACTIVATED", message: `Gagal menonaktifkan kategori: ${updErr.message}` };
-      }
-      return {
-        ok: true,
-        actionTaken: "DEACTIVATED",
-        message: "Kategori telah digunakan dalam riwayat kedisiplinan santri sehingga dinonaktifkan secara aman (soft-deactivate).",
-      };
-    }
-
-    // Jika belum digunakan, coba hapus permanen
-    const { error: delErr } = await this.client
-      .from("master_kategori_pelanggaran")
-      .delete()
-      .eq("id", id);
-
-    if (delErr) {
-      // Fallback ke nonaktif jika ada dependensi
-      await this.client.from("master_kategori_pelanggaran").update({ is_active: false }).eq("id", id);
-      return {
-        ok: true,
-        actionTaken: "DEACTIVATED",
-        message: "Kategori dinonaktifkan karena terdapat relasi data yang dilindungi.",
-      };
-    }
-
+    const res = await this.deleteMasterKategoriPelanggaranBatch([id]);
     return {
-      ok: true,
-      actionTaken: "DELETED",
-      message: "Kategori pelanggaran berhasil dihapus permanen.",
+      ok: res.ok,
+      actionTaken: res.summary.deleted > 0 ? "DELETED" : "DEACTIVATED",
+      message: res.message,
     };
   }
 
@@ -365,29 +477,48 @@ export class KepesantrenanService {
     message: string;
     summary: { total: number; deleted: number; deactivated: number; failed: number };
   }> {
-    let deleted = 0;
-    let deactivated = 0;
-    let failed = 0;
-
-    for (const id of ids) {
-      const res = await this.deleteOrDeactivateMasterKategoriPelanggaran(id);
-      if (res.ok) {
-        if (res.actionTaken === "DELETED") deleted++;
-        else deactivated++;
-      } else {
-        failed++;
-      }
+    if (!isSupabaseConfigured()) {
+      return {
+        ok: true,
+        message: "Kategori berhasil diproses.",
+        summary: { total: ids.length, deleted: ids.length, deactivated: 0, failed: 0 },
+      };
     }
-
-    return {
-      ok: true,
-      message: `Proses kategori: ${deleted} dihapus permanen, ${deactivated} dinonaktifkan aman, ${failed} gagal.`,
-      summary: { total: ids.length, deleted, deactivated, failed },
-    };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_kategori_pelanggaran_batch",
+          ids,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? "Kategori berhasil diproses.",
+        summary: data.summary ?? { total: ids.length, deleted: 0, deactivated: 0, failed: 0 },
+      };
+    } catch (err: any) {
+      return {
+        ok: false,
+        message: err.message ?? "Gagal memproses kategori.",
+        summary: { total: ids.length, deleted: 0, deactivated: 0, failed: ids.length },
+      };
+    }
   }
 
   async getCatatanKedisiplinan(santriId?: string): Promise<CatatanKedisiplinan[]> {
     if (!isSupabaseConfigured()) return [];
+    try {
+      const url = santriId ? `/api/kepesantrenan?type=kedisiplinan&santri_id=${encodeURIComponent(santriId)}` : `/api/kepesantrenan?type=kedisiplinan`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)) return json.data;
+      }
+    } catch {}
+
     let query = this.client
       .from("catatan_kedisiplinan")
       .select("*, santri:santri_id(*), kategori:kategori_id(*), petugas:petugas_id(*), riwayat:riwayat_perubahan_kedisiplinan(*, pengubah:diubah_oleh(*))")
@@ -423,29 +554,23 @@ export class KepesantrenanService {
     if (!isSupabaseConfigured()) {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
-    const {
-      data: { user },
-    } = await this.client.auth.getUser();
-
-    const now = new Date();
-    const currentTime = now.toTimeString().split(" ")[0];
-
-    const { error } = await this.client.from("catatan_kedisiplinan").insert({
-      santri_id: params.santri_id,
-      tanggal_kejadian: params.tanggal_kejadian ?? now.toISOString().split("T")[0],
-      waktu_kejadian: params.waktu_kejadian ?? currentTime,
-      kategori_id: params.kategori_id,
-      deskripsi: params.deskripsi,
-      tindak_lanjut: params.tindak_lanjut,
-      catatan_pembinaan: params.catatan_pembinaan,
-      status_tindak_lanjut: params.status_tindak_lanjut ?? "DALAM_PEMBINAAN",
-      dokumentasi_path: params.dokumentasi_path ?? null,
-      is_published_to_wali: params.is_published_to_wali ?? true,
-      petugas_id: user?.id,
-    });
-
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Catatan kedisiplinan santri berhasil disimpan." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_kedisiplinan",
+          payload: params,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Catatan kedisiplinan santri berhasil disimpan." : "Gagal menyimpan catatan kedisiplinan."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
   }
 
   async updateTindakLanjutKedisiplinan(
@@ -460,29 +585,24 @@ export class KepesantrenanService {
     if (!isSupabaseConfigured()) {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
-    const {
-      data: { user },
-    } = await this.client.auth.getUser();
-
-    // Trigger handle_before_kedisiplinan_update() otomatis mencatat ke riwayat_perubahan_kedisiplinan
-    const updateData: Record<string, unknown> = {
-      status_tindak_lanjut: payload.status_tindak_lanjut,
-      updated_by: user?.id,
-      updated_at: new Date().toISOString(),
-    };
-    if (payload.tindak_lanjut) updateData.tindak_lanjut = payload.tindak_lanjut;
-    if (payload.catatan_pembinaan) updateData.catatan_pembinaan = payload.catatan_pembinaan;
-
-    const { error } = await this.client
-      .from("catatan_kedisiplinan")
-      .update(updateData)
-      .eq("id", id);
-
-    if (error) return { ok: false, message: error.message };
-    return {
-      ok: true,
-      message: "Status tindak lanjut diperbarui dan riwayat pembinaan berhasil dicatat.",
-    };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_tindak_lanjut_kedisiplinan",
+          id,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Status tindak lanjut diperbarui dan riwayat pembinaan berhasil dicatat." : "Gagal memperbarui tindak lanjut."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
   }
 
   async updateCatatanKedisiplinan(
@@ -492,50 +612,47 @@ export class KepesantrenanService {
     if (!isSupabaseConfigured()) {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
-
-    const {
-      data: { user },
-    } = await this.client.auth.getUser();
-
-    const updateData: Record<string, unknown> = {
-      updated_by: user?.id,
-      updated_at: new Date().toISOString(),
-    };
-    if (payload.tanggal_kejadian) updateData.tanggal_kejadian = payload.tanggal_kejadian;
-    if (payload.waktu_kejadian) updateData.waktu_kejadian = payload.waktu_kejadian;
-    if (payload.kategori_id) updateData.kategori_id = payload.kategori_id;
-    if (payload.deskripsi) updateData.deskripsi = payload.deskripsi;
-    if (payload.tindak_lanjut) updateData.tindak_lanjut = payload.tindak_lanjut;
-    if (payload.catatan_pembinaan) updateData.catatan_pembinaan = payload.catatan_pembinaan;
-    if (payload.status_tindak_lanjut) updateData.status_tindak_lanjut = payload.status_tindak_lanjut;
-
-    const { error } = await this.client
-      .from("catatan_kedisiplinan")
-      .update(updateData)
-      .eq("id", id);
-
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Catatan pelanggaran santri berhasil diperbarui." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_kedisiplinan",
+          id,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Catatan pelanggaran santri berhasil diperbarui." : "Gagal memperbarui catatan pelanggaran."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
   }
 
   async deleteCatatanKedisiplinan(id: string): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
-
-    // Hapus riwayat perubahan terlebih dahulu jika ada
-    await this.client
-      .from("riwayat_perubahan_kedisiplinan")
-      .delete()
-      .eq("catatan_kedisiplinan_id", id);
-
-    const { error } = await this.client
-      .from("catatan_kedisiplinan")
-      .delete()
-      .eq("id", id);
-
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Catatan pelanggaran santri berhasil dihapus secara aman." };
+    try {
+      const res = await fetch("/api/kepesantrenan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_kedisiplinan",
+          id,
+        }),
+      });
+      const data = await res.json();
+      return {
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? "Catatan pelanggaran santri berhasil dihapus secara aman." : "Gagal menghapus catatan pelanggaran."),
+      };
+    } catch (err: any) {
+      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    }
   }
 
   async getRiwayatPerubahanKedisiplinan(

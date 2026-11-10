@@ -283,7 +283,7 @@ export function TuPortal({
   // STATE MANAJEMEN PELANGGARAN SANTRI (TU)
   // ==========================================================================
   const [pelanggaranSubTab, setPelanggaranSubTab] = useState<"catatan" | "master">("catatan");
-  const [santriPelanggaran, setSantriPelanggaran] = useState(santriList[0]?.id ?? "snt-001");
+  const [santriPelanggaran, setSantriPelanggaran] = useState(santriList[0]?.id ?? "");
   const [tanggalPelanggaran, setTanggalPelanggaran] = useState(new Date().toISOString().slice(0, 10));
   const [waktuPelanggaran, setWaktuPelanggaran] = useState("14:30");
   const [kategoriPelanggaranId, setKategoriPelanggaranId] = useState(
@@ -295,6 +295,23 @@ export function TuPortal({
   const [filterSantriPelanggaran, setFilterSantriPelanggaran] = useState("");
   const [filterKelasPelanggaran, setFilterKelasPelanggaran] = useState("all");
   const [filterTingkatPelanggaran, setFilterTingkatPelanggaran] = useState("all");
+
+  // Sinkronisasi dropdown santri & kategori pelanggaran
+  useEffect(() => {
+    if (santriList.length > 0 && (!santriPelanggaran || !santriList.some((s) => s.id === santriPelanggaran))) {
+      const s0 = santriList[0];
+      if (s0) setSantriPelanggaran(s0.id);
+    }
+  }, [santriList, santriPelanggaran]);
+
+  useEffect(() => {
+    if (masterPelanggaranList.length > 0) {
+      const activeKat = masterPelanggaranList.find((k) => k.is_active !== false) || masterPelanggaranList[0];
+      if (activeKat && !masterPelanggaranList.some((k) => k.id === kategoriPelanggaranId)) {
+        setKategoriPelanggaranId(activeKat.id);
+      }
+    }
+  }, [masterPelanggaranList, kategoriPelanggaranId]);
 
   const [editPelanggaranModal, setEditPelanggaranModal] = useState<CatatanKedisiplinan | null>(null);
   const [deletePelanggaranConfirmModal, setDeletePelanggaranConfirmModal] = useState<CatatanKedisiplinan | null>(null);
@@ -358,7 +375,6 @@ export function TuPortal({
   );
   const [namaResmiProfil, setNamaResmiProfil] = useState(profilPesantren?.nama_resmi || "");
   const [nsppProfil, setNsppProfil] = useState(profilPesantren?.nspp || "");
-  const [npsnProfil, setNpsnProfil] = useState(profilPesantren?.npsn || "");
   const [akreditasiProfil, setAkreditasiProfil] = useState(profilPesantren?.akreditasi || "");
   const [skPendirianProfil, setSkPendirianProfil] = useState(profilPesantren?.sk_pendirian || "");
   const [alamatProfil, setAlamatProfil] = useState(profilPesantren?.alamat || "");
@@ -379,7 +395,6 @@ export function TuPortal({
     if (profilPesantren) {
       setNamaResmiProfil(profilPesantren.nama_resmi || "");
       setNsppProfil(profilPesantren.nspp || "");
-      setNpsnProfil(profilPesantren.npsn || "");
       setAkreditasiProfil(profilPesantren.akreditasi || "");
       setSkPendirianProfil(profilPesantren.sk_pendirian || "");
       setAlamatProfil(profilPesantren.alamat || "");
@@ -428,7 +443,6 @@ export function TuPortal({
       {
         nama_resmi: namaResmiProfil.trim(),
         nspp: nsppProfil.trim(),
-        npsn: npsnProfil.trim(),
         akreditasi: akreditasiProfil.trim(),
         sk_pendirian: skPendirianProfil.trim(),
         alamat: alamatProfil.trim(),
@@ -1115,32 +1129,6 @@ export function TuPortal({
 
   return (
     <div className="space-y-6">
-      {/* Header Portal Tata Usaha (TU) */}
-      <div className="rounded-2xl bg-gradient-to-r from-blue-950 via-indigo-900 to-slate-900 p-5 text-white shadow-md">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-blue-500/20 px-2.5 py-0.5 text-xs font-bold text-blue-200 border border-blue-400/30">
-                Administrasi Pesantren
-              </span>
-              <span className="text-xs text-blue-200">
-                • Tahun Ajaran {profilPesantren?.tahun_pelajaran_aktif || tahunAjaranAktif?.nama || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
-              </span>
-            </div>
-            <h2 className="text-xl font-extrabold mt-1 tracking-tight">
-              Portal Tata Usaha (TU)
-            </h2>
-          </div>
-          <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 p-1.5 backdrop-blur border border-white/20 shadow-inner">
-            <img
-              src="/images/logo-abu-manshur.png"
-              alt="Logo PP Modern Abu Manshur"
-              className="h-full w-full object-contain drop-shadow"
-            />
-          </div>
-        </div>
-      </div>
-
       {feedback && (
         <div
           className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${
@@ -4220,18 +4208,6 @@ export function TuPortal({
                   </div>
                   <div>
                     <label className="font-bold text-slate-700 block mb-1">
-                      NPSN (Nomor Pokok Sekolah Nasional)
-                    </label>
-                    <input
-                      type="text"
-                      value={npsnProfil}
-                      onChange={(e) => setNpsnProfil(e.target.value)}
-                      placeholder="contoh: 69982412"
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono font-medium text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
                       Status Akreditasi
                     </label>
                     <input
@@ -4415,7 +4391,6 @@ export function TuPortal({
                         setEmailProfil(profilPesantren.email || "");
                         setWebsiteProfil(profilPesantren.website || "");
                         setNsppProfil(profilPesantren.nspp || "");
-                        setNpsnProfil(profilPesantren.npsn || "");
                         setAkreditasiProfil(profilPesantren.akreditasi || "");
                         setSkPendirianProfil(profilPesantren.sk_pendirian || "");
                         setInformasiUmumProfil(profilPesantren.informasi_umum || "");
