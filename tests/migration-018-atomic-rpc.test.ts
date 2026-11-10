@@ -176,15 +176,16 @@ describe("SIPETA Migration 018: Validasi Atomisitas & Keamanan RPC Transaksi Keu
 
       CREATE TABLE public.audit_logs (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID,
+        user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
         user_role public.user_role,
         aktivitas TEXT NOT NULL,
         jenis_objek TEXT NOT NULL,
-        objek_id TEXT,
+        objek_id TEXT NOT NULL,
         data_sebelum JSONB,
         data_sesudah JSONB,
         alasan_perubahan TEXT,
-        created_at TIMESTAMPTZ DEFAULT now()
+        sumber_aktivitas JSONB,
+        waktu TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
       -- Seed Data Dasar
@@ -295,7 +296,7 @@ describe("SIPETA Migration 018: Validasi Atomisitas & Keamanan RPC Transaksi Keu
         CURRENT_DATE,
         'H. Abdullah',
         'BSI',
-        'bukti-transfer-750.jpg'
+        '${ID_SANTRI_1}/bukti-transfer-750.jpg'
       ) AS res;
     `);
 
@@ -314,6 +315,161 @@ describe("SIPETA Migration 018: Validasi Atomisitas & Keamanan RPC Transaksi Keu
     // Pastikan keranjang sudah bersih
     const keranjangRows = await db.query(`SELECT * FROM public.keranjang_pembayaran WHERE wali_user_id = '${ID_WALI}';`);
     expect(keranjangRows.rows.length).toBe(0);
+
+    // Pastikan audit log tercatat dengan objek_id dan waktu
+    const auditRows = await db.query(`SELECT * FROM public.audit_logs WHERE jenis_objek = 'transaksi_pembayaran' AND objek_id = '${result.transaksi_id}';`);
+    expect(auditRows.rows.length).toBe(1);
+    expect((auditRows.rows[0] as any).aktivitas).toBe("CHECKOUT_PEMBAYARAN_RPC_V2");
+  });
+
+  it("3b. rpc_checkout_pembayaran_v2: Menolak bukti transfer yang tidak berada dalam folder santri yang bersangkutan", async () => {
+    const tagihanRes = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal)
+      VALUES ('TGH-002B', '${ID_SANTRI_1}', 'Uang Gedung', 1000000)
+      RETURNING id;
+    `);
+    const tagihanId = (tagihanRes.rows[0] as any).id;
+
+    await asUser(ID_WALI);
+    // Path tanpa prefix santri_id
+    await expect(
+      db.query(`
+        SELECT public.rpc_checkout_pembayaran_v2(
+          '${ID_SANTRI_1}',
+          '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 1000000}]'::jsonb,
+          CURRENT_DATE,
+          'H. Abdullah',
+          'BSI',
+          'bukti-di-root.jpg'
+        );
+      `)
+    ).rejects.toThrow(/Bukti transfer tidak valid atau tidak terisolasi/);
+
+    // Path menggunakan santri lain
+    await expect(
+      db.query(`
+        SELECT public.rpc_checkout_pembayaran_v2(
+          '${ID_SANTRI_1}',
+          '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 1000000}]'::jsonb,
+          CURRENT_DATE,
+          'H. Abdullah',
+          'BSI',
+          '${ID_SANTRI_2}/bukti-santri-lain.jpg'
+        );
+      `)
+    ).rejects.toThrow(/Bukti transfer tidak valid atau tidak terisolasi/);
+  });
+
+  it("3c. rpc_checkout_pembayaran_v2: Menolak tagihan duplikat dalam satu payload checkout", async () => {
+    const tagihanRes = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, kebijakan_cicilan_snapshot)
+      VALUES ('TGH-DUP', '${ID_SANTRI_1}', 'Biaya Ujian', 300000, 'BEBAS')
+      RETURNING id;
+    `);
+    const tagihanId = (tagihanRes.rows[0] as any).id;
+
+    await asUser(ID_WALI);
+    // Payload menduplikat tagihan yang sama
+    await expect(
+      db.query(`
+        SELECT public.rpc_checkout_pembayaran_v2(
+          '${ID_SANTRI_1}',
+          '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 150000}, {"tagihan_id": "${tagihanId}", "nominal_bayar": 150000}]'::jsonb,
+          CURRENT_DATE,
+          'H. Abdullah',
+          'BSI',
+          '${ID_SANTRI_1}/bukti.jpg'
+        );
+      `)
+    ).rejects.toThrow(/Tagihan duplikat terdeteksi dalam permohonan pembayaran/);
+  });
+
+  it("3d. rpc_checkout_pembayaran_v2: Menolak cicilan sebagian pada tagihan berstatus TIDAK_BOLEH dicicil", async () => {
+    const tagihanRes = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, kebijakan_cicilan_snapshot)
+      VALUES ('TGH-NOCICIL', '${ID_SANTRI_1}', 'Iuran Tahunan', 600000, 'TIDAK_BOLEH')
+      RETURNING id;
+    `);
+    const tagihanId = (tagihanRes.rows[0] as any).id;
+
+    await asUser(ID_WALI);
+    // Bayar separuh padahal TIDAK_BOLEH dicicil
+    await expect(
+      db.query(`
+        SELECT public.rpc_checkout_pembayaran_v2(
+          '${ID_SANTRI_1}',
+          '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 300000}]'::jsonb,
+          CURRENT_DATE,
+          'H. Abdullah',
+          'BSI',
+          '${ID_SANTRI_1}/bukti.jpg'
+        );
+      `)
+    ).rejects.toThrow(/memiliki kebijakan TIDAK_BOLEH dicicil/);
+  });
+
+  it("3e. rpc_checkout_pembayaran_v2: Mencegah over-allocation saat ada pengajuan lain yang sedang MENUNGGU_VERIFIKASI", async () => {
+    const tagihanRes = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal, kebijakan_cicilan_snapshot)
+      VALUES ('TGH-CONCURRENT', '${ID_SANTRI_1}', 'SPP Bebas', 500000, 'BEBAS')
+      RETURNING id;
+    `);
+    const tagihanId = (tagihanRes.rows[0] as any).id;
+
+    // Wali mengajukan pembayaran pertama 350.000 (status MENUNGGU_VERIFIKASI)
+    await asUser(ID_WALI);
+    await db.query(`
+      SELECT public.rpc_checkout_pembayaran_v2(
+        '${ID_SANTRI_1}',
+        '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 350000}]'::jsonb,
+        CURRENT_DATE,
+        'H. Abdullah',
+        'BSI',
+        '${ID_SANTRI_1}/bukti-1.jpg'
+      );
+    `);
+
+    // Sisa tagihan di tabel masih 500.000 karena belum diverifikasi, namun sisa yang tersedia hanya 150.000!
+    // Wali mencoba checkout lagi 200.000 -> Harus DITOLAK karena 350k + 200k > 500k
+    await expect(
+      db.query(`
+        SELECT public.rpc_checkout_pembayaran_v2(
+          '${ID_SANTRI_1}',
+          '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 200000}]'::jsonb,
+          CURRENT_DATE,
+          'H. Abdullah',
+          'BSI',
+          '${ID_SANTRI_1}/bukti-2.jpg'
+        );
+      `)
+    ).rejects.toThrow(/melebihi sisa kewajiban yang dapat diajukan/);
+
+    // Checkout sisa persis 150.000 -> BERHASIL
+    const okRes = await db.query(`
+      SELECT public.rpc_checkout_pembayaran_v2(
+        '${ID_SANTRI_1}',
+        '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 150000}]'::jsonb,
+        CURRENT_DATE,
+        'H. Abdullah',
+        'BSI',
+        '${ID_SANTRI_1}/bukti-3.jpg'
+      ) AS res;
+    `);
+    expect((okRes.rows[0] as any).res.ok).toBe(true);
+
+    // Sekarang sisa tersedia = 0, mencoba checkout lagi -> DITOLAK (sisa tagihan telah terpenuhi sementara)
+    await expect(
+      db.query(`
+        SELECT public.rpc_checkout_pembayaran_v2(
+          '${ID_SANTRI_1}',
+          '[{"tagihan_id": "${tagihanId}", "nominal_bayar": 50000}]'::jsonb,
+          CURRENT_DATE,
+          'H. Abdullah',
+          'BSI',
+          '${ID_SANTRI_1}/bukti-4.jpg'
+        );
+      `)
+    ).rejects.toThrow(/sisa tagihan telah terpenuhi sementara/);
   });
 
   // --------------------------------------------------------------------------
@@ -368,6 +524,80 @@ describe("SIPETA Migration 018: Validasi Atomisitas & Keamanan RPC Transaksi Keu
     ).rejects.toThrow(/sudah diproses sebelumnya/);
   });
 
+  it("4b. rpc_verifikasi_pembayaran_v2: Menolak verifikasi jika total alokasi tidak sesuai nominal transaksi", async () => {
+    const tagihanRes = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal)
+      VALUES ('TGH-SUM-MISMATCH', '${ID_SANTRI_1}', 'SPP Januari', 500000)
+      RETURNING id;
+    `);
+    const tagihanId = (tagihanRes.rows[0] as any).id;
+
+    // Transaksi bernominal 500.000 tetapi alokasinya hanya 300.000
+    const trxRes = await db.query(`
+      INSERT INTO public.transaksi_pembayaran (
+        nomor_transaksi, santri_id, wali_user_id, total_nominal, rekening_tujuan_snapshot, status
+      ) VALUES (
+        'TRX-MISMATCH-001', '${ID_SANTRI_1}', '${ID_WALI}', 500000, '{}'::jsonb, 'MENUNGGU_VERIFIKASI'
+      ) RETURNING id;
+    `);
+    const trxId = (trxRes.rows[0] as any).id;
+
+    await db.query(`
+      INSERT INTO public.alokasi_pembayaran (transaksi_id, tagihan_id, nominal_alokasi)
+      VALUES ('${trxId}', '${tagihanId}', 300000);
+    `);
+
+    await asUser(ID_BENDAHARA);
+    await expect(
+      db.query(`SELECT public.rpc_verifikasi_pembayaran_v2('${trxId}', 'DISETUJUI', 'Setujui');`)
+    ).rejects.toThrow(/Total alokasi \(Rp 300000\.00\) tidak sesuai dengan total nominal transaksi/);
+  });
+
+  it("4c. rpc_verifikasi_pembayaran_v2: Wajib mengisi alasan penolakan jika status DITOLAK", async () => {
+    const tagihanRes = await db.query(`
+      INSERT INTO public.tagihan (nomor_tagihan, santri_id, judul_tagihan, nominal_awal)
+      VALUES ('TGH-REJECT-TGT', '${ID_SANTRI_1}', 'SPP Februari', 500000)
+      RETURNING id;
+    `);
+    const tagihanId = (tagihanRes.rows[0] as any).id;
+
+    const trxRes = await db.query(`
+      INSERT INTO public.transaksi_pembayaran (
+        nomor_transaksi, santri_id, wali_user_id, total_nominal, rekening_tujuan_snapshot, status
+      ) VALUES (
+        'TRX-REJECT-001', '${ID_SANTRI_1}', '${ID_WALI}', 500000, '{}'::jsonb, 'MENUNGGU_VERIFIKASI'
+      ) RETURNING id;
+    `);
+    const trxId = (trxRes.rows[0] as any).id;
+
+    await db.query(`
+      INSERT INTO public.alokasi_pembayaran (transaksi_id, tagihan_id, nominal_alokasi)
+      VALUES ('${trxId}', '${tagihanId}', 500000);
+    `);
+
+    await asUser(ID_BENDAHARA);
+    // Tolak tanpa catatan -> Gagal
+    await expect(
+      db.query(`SELECT public.rpc_verifikasi_pembayaran_v2('${trxId}', 'DITOLAK', '');`)
+    ).rejects.toThrow(/Alasan penolakan verifikasi wajib diisi minimal 3 karakter/);
+
+    // Tolak dengan catatan -> Berhasil
+    const rejectRes = await db.query(`
+      SELECT public.rpc_verifikasi_pembayaran_v2('${trxId}', 'DITOLAK', 'Bukti buram dan tidak terbaca') AS res;
+    `);
+    expect((rejectRes.rows[0] as any).res.ok).toBe(true);
+    expect((rejectRes.rows[0] as any).res.status).toBe("DITOLAK");
+
+    // Tagihan tetap BELUM_BAYAR
+    const tghCheck = await db.query(`SELECT status, total_terbayar FROM public.tagihan WHERE id = '${tagihanId}';`);
+    expect((tghCheck.rows[0] as any).status).toBe("BELUM_BAYAR");
+    expect(Number((tghCheck.rows[0] as any).total_terbayar)).toBe(0);
+
+    // Notifikasi terkirim dengan canonical type PEMBAYARAN_DITOLAK
+    const notif = await db.query(`SELECT * FROM public.notifikasi WHERE user_id = '${ID_WALI}' AND jenis_notifikasi = 'PEMBAYARAN_DITOLAK';`);
+    expect(notif.rows.length).toBe(1);
+  });
+
   // --------------------------------------------------------------------------
   // UJI 4: rpc_verifikasi_topup_uang_saku_v2
   // --------------------------------------------------------------------------
@@ -411,3 +641,4 @@ describe("SIPETA Migration 018: Validasi Atomisitas & Keamanan RPC Transaksi Keu
     expect(Number((saldoAfter.rows[0] as any).saldo_saat_ini)).toBe(150000);
   });
 });
+

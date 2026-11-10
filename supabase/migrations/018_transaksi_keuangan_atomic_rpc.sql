@@ -1,13 +1,15 @@
 -- ============================================================================
 -- SIPETA (Sistem Informasi Pelayanan Terpadu - Pondok Pesantren Modern Abu Manshur)
--- Migration 018: Rancangan Atomic PostgreSQL RPCs untuk Transaksi Keuangan
--- DRAF UNTUK REVIEW SAJA (JANGAN DIJALANKAN KE SUPABASE CLOUD)
+-- Migration 018: Rancangan Final Atomic PostgreSQL RPCs untuk Transaksi Keuangan
+-- DRAF UNTUK REVIEW SAJA (JANGAN DIJALANKAN KE SUPABASE CLOUD SECARA OTOMATIS)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- 1. RPC Checkout Pembayaran Tagihan Atomik (ACID Compliant)
--- Mengunci baris tagihan (FOR UPDATE), menyisipkan transaksi dan seluruh alokasi
--- dalam 1 transaksi database, menghapus keranjang, dan mencatat audit log.
+-- Mengunci baris tagihan (FOR UPDATE), mendeteksi tagihan duplikat, mencegah
+-- over-allocation antar pengajuan konkuren, memvalidasi aturan cicilan,
+-- mengisolasi folder bukti storage per-santri, menyisipkan header transaksi &
+-- alokasi dalam 1 transaksi database, membersihkan keranjang, dan mencatat audit log.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.rpc_checkout_pembayaran_v2(
     p_santri_id UUID,
@@ -34,6 +36,9 @@ DECLARE
     v_status_awal public.status_transaksi;
     v_nominal_bayar NUMERIC(15, 2);
     v_tagihan_id UUID;
+    v_seen_tagihan_ids UUID[] := '{}';
+    v_pending_alokasi NUMERIC(15, 2) := 0;
+    v_sisa_tersedia NUMERIC(15, 2) := 0;
 BEGIN
     -- 1. Validasi Autentikasi Pengguna
     IF v_user_id IS NULL THEN
@@ -46,7 +51,7 @@ BEGIN
         RAISE EXCEPTION 'Akses ditolak: Hanya akun Wali Santri resmi yang dapat melakukan pembayaran tagihan.';
     END IF;
 
-    -- 3. Validasi Kepemilikan Santri (Cegah bayar santri orang lain)
+    -- 3. Validasi Kepemilikan Santri (Cegah bayar santri milik orang lain)
     IF NOT EXISTS (
         SELECT 1 FROM public.wali_santri
         WHERE user_id = v_user_id AND santri_id = p_santri_id
@@ -63,7 +68,14 @@ BEGIN
         RAISE EXCEPTION 'Keranjang pembayaran kosong atau tidak ada tagihan yang dipilih.';
     END IF;
 
-    -- 5. Ambil Rekening Resmi Pesantren
+    -- 5. Validasi Isolasi Path Bukti Transfer Storage (Mencegah pencurian/pemalsuan path santri lain)
+    IF p_bukti_transfer_path IS NOT NULL AND length(trim(p_bukti_transfer_path)) > 0 THEN
+        IF split_part(p_bukti_transfer_path, '/', 1) != p_santri_id::text THEN
+            RAISE EXCEPTION 'Akses ditolak: Bukti transfer tidak valid atau tidak terisolasi dalam folder santri yang bersangkutan.';
+        END IF;
+    END IF;
+
+    -- 6. Ambil Rekening Resmi Pesantren
     SELECT id, nama_bank, kode_bank, nomor_rekening, atas_nama
     INTO v_rekening
     FROM public.rekening_pesantren
@@ -74,7 +86,7 @@ BEGIN
         RAISE EXCEPTION 'Rekening resmi pesantren belum dikonfigurasi atau tidak aktif.';
     END IF;
 
-    -- 6. Validasi Setiap Tagihan dengan ROW LOCK (FOR UPDATE)
+    -- 7. Validasi Setiap Tagihan dengan ROW LOCK (FOR UPDATE)
     FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
     LOOP
         v_tagihan_id := (v_item->>'tagihan_id')::UUID;
@@ -84,7 +96,13 @@ BEGIN
             RAISE EXCEPTION 'Nominal pembayaran untuk setiap tagihan harus lebih besar dari 0.';
         END IF;
 
-        -- Kunci baris tagihan agar tidak terjadi perubahan saldo bersamaan
+        -- Deteksi Duplikasi Tagihan dalam satu payload
+        IF v_tagihan_id = ANY(v_seen_tagihan_ids) THEN
+            RAISE EXCEPTION 'Tagihan duplikat terdeteksi dalam permohonan pembayaran (ID: %). Setiap tagihan hanya boleh dialokasikan satu kali per transaksi.', v_tagihan_id;
+        END IF;
+        v_seen_tagihan_ids := array_append(v_seen_tagihan_ids, v_tagihan_id);
+
+        -- Kunci baris tagihan
         SELECT * INTO v_tagihan
         FROM public.tagihan
         WHERE id = v_tagihan_id AND santri_id = p_santri_id
@@ -98,22 +116,45 @@ BEGIN
             RAISE EXCEPTION 'Tagihan "%" sudah lunas atau tidak aktif.', v_tagihan.judul_tagihan;
         END IF;
 
-        IF v_nominal_bayar > v_tagihan.sisa_tagihan THEN
-            RAISE EXCEPTION 'Nominal pembayaran untuk "%" (Rp %) melebihi sisa kewajiban (Rp %).',
-                v_tagihan.judul_tagihan, v_nominal_bayar, v_tagihan.sisa_tagihan;
+        -- Hitung total pengajuan yang sedang menunggu verifikasi/transfer untuk tagihan ini (Mencegah Over-Allocation Konkuren)
+        SELECT COALESCE(SUM(ap.nominal_alokasi), 0)
+        INTO v_pending_alokasi
+        FROM public.alokasi_pembayaran ap
+        JOIN public.transaksi_pembayaran tp ON tp.id = ap.transaksi_id
+        WHERE ap.tagihan_id = v_tagihan_id
+          AND tp.status IN ('MENUNGGU_VERIFIKASI', 'MENUNGGU_TRANSFER');
+
+        v_sisa_tersedia := v_tagihan.sisa_tagihan - v_pending_alokasi;
+
+        IF v_sisa_tersedia <= 0 THEN
+            RAISE EXCEPTION 'Tagihan "%" saat ini memiliki pengajuan pembayaran sebesar Rp % yang sedang menunggu verifikasi Bendahara sehingga sisa tagihan telah terpenuhi sementara.',
+                v_tagihan.judul_tagihan, v_pending_alokasi;
+        END IF;
+
+        IF v_nominal_bayar > v_sisa_tersedia THEN
+            RAISE EXCEPTION 'Nominal pembayaran untuk "%" (Rp %) melebihi sisa kewajiban yang dapat diajukan (Sisa Tagihan: Rp %, Sedang Menunggu Verifikasi: Rp %, Maksimal Pengajuan Baru: Rp %).',
+                v_tagihan.judul_tagihan, v_nominal_bayar, v_tagihan.sisa_tagihan, v_pending_alokasi, v_sisa_tersedia;
         END IF;
 
         -- Validasi Kebijakan Cicilan Snapshot
-        IF v_tagihan.kebijakan_cicilan_snapshot = 'TIDAK_BOLEH' AND v_nominal_bayar != v_tagihan.sisa_tagihan THEN
-            RAISE EXCEPTION 'Tagihan "%" tidak dapat dicicil dan harus dibayar penuh sebesar Rp %.',
-                v_tagihan.judul_tagihan, v_tagihan.sisa_tagihan;
+        IF v_tagihan.kebijakan_cicilan_snapshot = 'TIDAK_BOLEH' AND v_nominal_bayar != v_sisa_tersedia THEN
+            RAISE EXCEPTION 'Tagihan "%" memiliki kebijakan TIDAK_BOLEH dicicil. Pembayaran harus lunas sebesar Rp %.',
+                v_tagihan.judul_tagihan, v_sisa_tersedia;
         END IF;
 
-        IF v_tagihan.kebijakan_cicilan_snapshot = 'MINIMAL_NOMINAL'
-           AND v_nominal_bayar < v_tagihan.sisa_tagihan
-           AND v_nominal_bayar < COALESCE(v_tagihan.minimal_cicilan_snapshot, 0) THEN
-            RAISE EXCEPTION 'Nominal pembayaran untuk "%" kurang dari batas minimal cicilan (Rp %).',
-                v_tagihan.judul_tagihan, v_tagihan.minimal_cicilan_snapshot;
+        IF v_tagihan.kebijakan_cicilan_snapshot = 'MINIMAL_NOMINAL' THEN
+            IF v_sisa_tersedia >= COALESCE(v_tagihan.minimal_cicilan_snapshot, 0) THEN
+                IF v_nominal_bayar < v_tagihan.minimal_cicilan_snapshot THEN
+                    RAISE EXCEPTION 'Nominal cicilan untuk "%" (Rp %) kurang dari batas minimal cicilan (Rp %).',
+                        v_tagihan.judul_tagihan, v_nominal_bayar, v_tagihan.minimal_cicilan_snapshot;
+                END IF;
+            ELSE
+                -- Pelunasan sisa cicilan terakhir yang nominalnya di bawah batas minimal
+                IF v_nominal_bayar != v_sisa_tersedia THEN
+                    RAISE EXCEPTION 'Untuk pelunasan sisa akhir tagihan "%", pembayaran harus sebesar sisa yang tersedia (Rp %).',
+                        v_tagihan.judul_tagihan, v_sisa_tersedia;
+                END IF;
+            END IF;
         END IF;
 
         v_total_nominal := v_total_nominal + v_nominal_bayar;
@@ -123,7 +164,7 @@ BEGIN
         RAISE EXCEPTION 'Total nominal pembayaran tidak valid.';
     END IF;
 
-    -- 7. Bentuk Nomor Transaksi dan Status Awal
+    -- 8. Bentuk Nomor Transaksi dan Status Awal
     v_nomor_transaksi := 'TRX-BYR-' || to_char(now(), 'YYYYMMDD') || '-' || upper(substr(md5(random()::text), 1, 6));
     v_status_awal := CASE
         WHEN p_bukti_transfer_path IS NOT NULL AND length(trim(p_bukti_transfer_path)) > 0
@@ -131,7 +172,7 @@ BEGIN
         ELSE 'MENUNGGU_TRANSFER'::public.status_transaksi
     END;
 
-    -- 8. INSERT Header Transaksi Pembayaran
+    -- 9. INSERT Header Transaksi Pembayaran
     INSERT INTO public.transaksi_pembayaran (
         nomor_transaksi,
         santri_id,
@@ -160,7 +201,7 @@ BEGIN
         v_status_awal
     ) RETURNING id INTO v_transaksi_id;
 
-    -- 9. INSERT Rincian Alokasi Tagihan
+    -- 10. INSERT Rincian Alokasi Tagihan (Menjamin total alokasi persis sama dengan total transaksi)
     FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
     LOOP
         INSERT INTO public.alokasi_pembayaran (
@@ -174,11 +215,11 @@ BEGIN
         );
     END LOOP;
 
-    -- 10. Hapus Tagihan Terkait dari Keranjang Pembayaran
+    -- 11. Hapus Tagihan Terkait dari Keranjang Pembayaran
     DELETE FROM public.keranjang_pembayaran
     WHERE wali_user_id = v_user_id AND santri_id = p_santri_id;
 
-    -- 11. Catat Audit Log
+    -- 12. Catat Audit Log (Menyertakan objek_id secara eksplisit)
     INSERT INTO public.audit_logs (
         user_id,
         user_role,
@@ -215,8 +256,9 @@ $$;
 
 -- ----------------------------------------------------------------------------
 -- 2. RPC Verifikasi Pembayaran Atomik oleh Bendahara (ACID Compliant)
--- Mengunci baris transaksi pembayaran dan seluruh tagihan terkait, memperbarui
--- total_terbayar dan status tagihan, serta mencegah verifikasi ganda.
+-- Mengunci baris transaksi pembayaran (FOR UPDATE) dan seluruh tagihan terkait,
+-- memverifikasi bahwa total alokasi persis sama dengan total transaksi, memperbarui
+-- total_terbayar dan status tagihan secara atomik, serta mencegah verifikasi ganda.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.rpc_verifikasi_pembayaran_v2(
     p_transaksi_id UUID,
@@ -237,6 +279,7 @@ DECLARE
     v_total_terbayar_baru NUMERIC(15, 2);
     v_status_tagihan_baru public.status_tagihan;
     v_profile_name TEXT;
+    v_sum_alokasi NUMERIC(15, 2) := 0;
 BEGIN
     -- 1. Validasi Autentikasi Pengguna
     IF v_user_id IS NULL THEN
@@ -261,7 +304,7 @@ BEGIN
         RAISE EXCEPTION 'Alasan penolakan verifikasi wajib diisi minimal 3 karakter.';
     END IF;
 
-    -- 4. Kunci Baris Transaksi (FOR UPDATE) untuk Mencegah Double Verification / Race Condition
+    -- 4. Kunci Baris Transaksi (FOR UPDATE) untuk Mencegah Double Verification / Concurrency Race
     SELECT * INTO v_trx
     FROM public.transaksi_pembayaran
     WHERE id = p_transaksi_id
@@ -275,7 +318,22 @@ BEGIN
         RAISE EXCEPTION 'Transaksi % sudah diproses sebelumnya (status saat ini: %).', v_trx.nomor_transaksi, v_trx.status;
     END IF;
 
-    -- 5. Jika Disetujui, Perbarui Seluruh Tagihan yang Dialokasikan
+    -- 5. Validasi Integritas Rincian Alokasi Tagihan
+    IF NOT EXISTS (SELECT 1 FROM public.alokasi_pembayaran WHERE transaksi_id = p_transaksi_id) THEN
+        RAISE EXCEPTION 'Inkonsistensi data: Transaksi % tidak memiliki rincian alokasi tagihan.', v_trx.nomor_transaksi;
+    END IF;
+
+    SELECT COALESCE(SUM(nominal_alokasi), 0)
+    INTO v_sum_alokasi
+    FROM public.alokasi_pembayaran
+    WHERE transaksi_id = p_transaksi_id;
+
+    IF v_sum_alokasi != v_trx.total_nominal THEN
+        RAISE EXCEPTION 'Inkonsistensi data: Total alokasi (Rp %) tidak sesuai dengan total nominal transaksi % (Rp %).',
+            v_sum_alokasi, v_trx.nomor_transaksi, v_trx.total_nominal;
+    END IF;
+
+    -- 6. Jika Disetujui, Perbarui Seluruh Tagihan yang Dialokasikan
     IF p_keputusan = 'DISETUJUI' THEN
         FOR v_alokasi IN
             SELECT * FROM public.alokasi_pembayaran
@@ -291,14 +349,18 @@ BEGIN
                 RAISE EXCEPTION 'Tagihan dengan ID "%" tidak ditemukan.', v_alokasi.tagihan_id;
             END IF;
 
+            IF v_tagihan.status = 'DIBATALKAN' THEN
+                RAISE EXCEPTION 'Tagihan "%" telah dibatalkan dan tidak dapat menerima pelunasan.', v_tagihan.judul_tagihan;
+            END IF;
+
             IF v_tagihan.sisa_tagihan < v_alokasi.nominal_alokasi THEN
-                RAISE EXCEPTION 'Nominal alokasi (Rp %) melebihi sisa tagihan "%" (Rp %).',
+                RAISE EXCEPTION 'Nominal alokasi pembayaran (Rp %) melebihi sisa tagihan "%" saat ini (Rp %).',
                     v_alokasi.nominal_alokasi, v_tagihan.judul_tagihan, v_tagihan.sisa_tagihan;
             END IF;
 
             v_total_terbayar_baru := v_tagihan.total_terbayar + v_alokasi.nominal_alokasi;
 
-            -- Karena sisa_tagihan adalah GENERATED ALWAYS STORED, kita hitung status baru berdasarkan total_terbayar baru
+            -- Evaluasi status tagihan baru berdasarkan sisa kewajiban setelah alokasi
             IF (v_tagihan.nominal_awal + v_tagihan.nominal_penyesuaian - v_total_terbayar_baru) <= 0 THEN
                 v_status_tagihan_baru := 'LUNAS'::public.status_tagihan;
             ELSE
@@ -313,7 +375,7 @@ BEGIN
         END LOOP;
     END IF;
 
-    -- 6. Perbarui Status Transaksi Pembayaran
+    -- 7. Perbarui Status Transaksi Pembayaran
     UPDATE public.transaksi_pembayaran
     SET status = p_keputusan,
         verified_by = v_user_id,
@@ -322,7 +384,7 @@ BEGIN
         updated_at = now()
     WHERE id = p_transaksi_id;
 
-    -- 7. Kirim Notifikasi ke Wali Santri
+    -- 8. Kirim Notifikasi ke Wali Santri (Canonical Notification Type)
     INSERT INTO public.notifikasi (
         user_id, santri_id, jenis_notifikasi, judul, pesan, tautan
     ) VALUES (
@@ -337,7 +399,7 @@ BEGIN
         '/pembayaran'
     );
 
-    -- 8. Catat Audit Log
+    -- 9. Catat Audit Log
     INSERT INTO public.audit_logs (
         user_id,
         user_role,
@@ -432,6 +494,10 @@ BEGIN
         RAISE EXCEPTION 'Pengajuan % sudah diproses sebelumnya (status saat ini: %).', v_pengajuan.nomor_pengajuan, v_pengajuan.status;
     END IF;
 
+    IF v_pengajuan.nominal <= 0 THEN
+        RAISE EXCEPTION 'Nominal pengajuan uang saku tidak valid (harus lebih dari 0).';
+    END IF;
+
     -- 5. Jika Disetujui, Perbarui Saldo dan Catat Ledger Mutasi
     IF p_keputusan = 'DISETUJUI' THEN
         -- Pastikan baris saldo_uang_saku santri tersedia
@@ -503,13 +569,13 @@ BEGIN
         updated_at = now()
     WHERE id = p_pengajuan_id;
 
-    -- 7. Kirim Notifikasi ke Wali Santri
+    -- 7. Kirim Notifikasi ke Wali Santri (Canonical Notification Type: SAKU_DISETUJUI / SAKU_DITOLAK)
     INSERT INTO public.notifikasi (
         user_id, santri_id, jenis_notifikasi, judul, pesan, tautan
     ) VALUES (
         v_pengajuan.wali_user_id,
         v_pengajuan.santri_id,
-        CASE WHEN p_keputusan = 'DISETUJUI' THEN 'UANG_SAKU_TOPUP' ELSE 'UANG_SAKU_KOREKSI' END,
+        CASE WHEN p_keputusan = 'DISETUJUI' THEN 'SAKU_DISETUJUI' ELSE 'SAKU_DITOLAK' END,
         CASE WHEN p_keputusan = 'DISETUJUI' THEN 'Top-Up Uang Saku Disetujui' ELSE 'Pengajuan Top-Up Ditolak' END,
         CASE
             WHEN p_keputusan = 'DISETUJUI' THEN 'Pengajuan top-up ' || v_pengajuan.nomor_pengajuan || ' sebesar Rp ' || to_char(v_pengajuan.nominal, 'FM999,999,999') || ' telah disetujui. Saldo santri saat ini: Rp ' || to_char(v_saldo_sesudah, 'FM999,999,999') || '.'
