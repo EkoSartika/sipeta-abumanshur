@@ -199,6 +199,7 @@ interface SipetaContextValue {
   updateRekeningResmi: (payload: Omit<RekeningPesantren, "id" | "is_active" | "updated_at">) => ActionResponse;
   updateProfilPesantren: (payload: Partial<ProfilPesantren>, activeTahunAjaranId?: string) => Promise<ActionResponse>;
   setActiveTahunAjaran: (tahunAjaranId: string) => Promise<ActionResponse>;
+  setActiveSemester: (semester: "Ganjil" | "Genap") => Promise<ActionResponse>;
   createTahunAjaran: (payload: {
     nama: string;
     tanggal_mulai: string;
@@ -1486,9 +1487,15 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: "Alamat pesantren tidak boleh kosong." };
     }
 
+    // Role TU tidak berwenang mengubah semester_aktif secara langsung
+    const effectivePayload = { ...payload };
+    if (currentUser.role === "tu" && effectivePayload.semester_aktif !== undefined) {
+      delete effectivePayload.semester_aktif;
+    }
+
     let updatedProfil: ProfilPesantren = {
       ...profilPesantren,
-      ...payload,
+      ...effectivePayload,
       updated_at: new Date().toISOString(),
       updated_by: currentUser.id,
     };
@@ -1544,6 +1551,73 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveTahunAjaran: SipetaContextValue["setActiveTahunAjaran"] = async (id: string) => {
     return updateProfilPesantren({}, id);
+  };
+
+  const setActiveSemester: SipetaContextValue["setActiveSemester"] = async (semester) => {
+    if (!currentUser || (currentUser.role !== "superadmin" && currentUser.role !== "admin")) {
+      return {
+        ok: false,
+        message: "Akses ditolak: Hanya Pengasuh (Admin) atau Superadmin yang berwenang mengubah semester akademik aktif.",
+      };
+    }
+
+    if (semester !== "Ganjil" && semester !== "Genap") {
+      return {
+        ok: false,
+        message: "Semester tidak valid: Nilai yang diizinkan hanya 'Ganjil' atau 'Genap'.",
+      };
+    }
+
+    const prevSemester = profilPesantren.semester_aktif;
+    if (prevSemester === semester) {
+      return {
+        ok: true,
+        message: `Semester aktif sudah berada pada status Semester ${semester}.`,
+      };
+    }
+
+    const updatedProfil: ProfilPesantren = {
+      ...profilPesantren,
+      semester_aktif: semester,
+      updated_at: new Date().toISOString(),
+      updated_by: currentUser.id,
+    };
+
+    setProfilPesantren(updatedProfil);
+
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem("sipeta_profil_pesantren", JSON.stringify(updatedProfil));
+      }
+    } catch {}
+
+    if (isSupabaseConfigured()) {
+      const dbRes = await administrasiService.setActiveSemester(semester);
+      if (!dbRes.ok) {
+        console.warn("Gagal sinkronisasi semester aktif ke Supabase:", dbRes.message);
+        return { ok: false, message: dbRes.message };
+      }
+    }
+
+    appendAuditLog(
+      "SET_ACTIVE_SEMESTER",
+      "profil_pesantren",
+      updatedProfil.id,
+      {
+        semester_aktif: semester,
+        tahun_pelajaran_aktif: updatedProfil.tahun_pelajaran_aktif,
+      },
+      `Pergantian semester aktif resmi (${prevSemester} -> ${semester}) pada Tahun Pelajaran ${updatedProfil.tahun_pelajaran_aktif} oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`,
+      {
+        semester_aktif: prevSemester,
+        tahun_pelajaran_aktif: profilPesantren.tahun_pelajaran_aktif,
+      }
+    );
+
+    return {
+      ok: true,
+      message: `Semester aktif berhasil diubah menjadi Semester ${semester} untuk Tahun Pelajaran ${updatedProfil.tahun_pelajaran_aktif}.`,
+    };
   };
 
   const createTahunAjaran: SipetaContextValue["createTahunAjaran"] = async (payload) => {
@@ -4054,6 +4128,7 @@ export function SipetaProvider({ children }: { children: React.ReactNode }) {
         updateRekeningResmi,
         updateProfilPesantren,
         setActiveTahunAjaran,
+        setActiveSemester,
         createTahunAjaran,
         deleteTahunAjaran,
         createSantriWithWali,

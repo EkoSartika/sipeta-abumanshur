@@ -198,6 +198,40 @@ export class AdministrasiService {
     }
   }
 
+  async setActiveSemester(semester: "Ganjil" | "Genap"): Promise<{ ok: boolean; message: string; data?: unknown }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    try {
+      // 1. Coba via RPC atomik rpc_set_active_semester jika telah termigrasi di Supabase
+      const { data: rpcData, error: rpcError } = await this.client.rpc("rpc_set_active_semester", {
+        p_semester: semester,
+      });
+      if (!rpcError && rpcData) {
+        return {
+          ok: true,
+          message: (rpcData as { message?: string })?.message || `Semester aktif berhasil diubah menjadi Semester ${semester}.`,
+          data: rpcData,
+        };
+      }
+      if (rpcError && !rpcError.message.includes("does not exist") && (rpcError as { code?: string }).code !== "PGRST202") {
+        return { ok: false, message: rpcError.message };
+      }
+
+      // 2. Fallback update tabel langsung ke profil_pesantren (hanya jika RPC belum termigrasi di dev)
+      const singletonId = "00000000-0000-0000-0000-000000000001";
+      const { error } = await this.client
+        .from("profil_pesantren")
+        .update({
+          semester_aktif: semester,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", singletonId);
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, message: `Semester aktif berhasil diubah menjadi Semester ${semester}.` };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Gagal memperbarui semester aktif." };
+    }
+  }
+
   async getProfilPesantren(): Promise<ProfilPesantren | null> {
     if (!isSupabaseConfigured()) return null;
     try {

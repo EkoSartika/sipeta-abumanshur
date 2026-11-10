@@ -67,6 +67,7 @@ export function WaliPortal({
 }: WaliPortalProps = {}) {
   const {
     currentUser,
+    profilPesantren,
     santriList,
     kelasList,
     kamarList,
@@ -359,7 +360,7 @@ export function WaliPortal({
                 {santri.nama_lengkap}
               </h2>
               <p className="mt-0.5 text-xs sm:text-sm text-emerald-100/90">
-                {kelas?.nama_kelas ?? "-"} • {kamar?.nama_kamar ?? "-"} ({kamar?.gedung_asrama})
+                {kelas?.nama_kelas ?? "-"} • {kamar?.nama_kamar ?? "-"} ({kamar?.gedung_asrama}) • TP {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} (Semester {profilPesantren?.semester_aktif || "Ganjil"})
               </p>
             </div>
           </div>

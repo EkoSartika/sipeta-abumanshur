@@ -12,6 +12,7 @@ import {
   Info,
   X,
   Sparkles,
+  ArrowRightLeft,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
 import { formatTanggal } from "@/lib/utils/format";
@@ -25,6 +26,7 @@ export function MasterTahunAjaranView() {
     createTahunAjaran,
     deleteTahunAjaran,
     setActiveTahunAjaran,
+    setActiveSemester,
   } = useSipeta();
 
   // State Form Input Manual
@@ -39,9 +41,16 @@ export function MasterTahunAjaranView() {
   // State Modal Konfirmasi Aktivasi
   const [targetAktivasi, setTargetAktivasi] = useState<TahunAjaran | null>(null);
 
+  // State Modal Ubah Semester
+  const [showSemesterModal, setShowSemesterModal] = useState(false);
+  const [targetSemester, setTargetSemester] = useState<"Ganjil" | "Genap">("Ganjil");
+  const [confirmSemesterAgreement, setConfirmSemesterAgreement] = useState(false);
+
   // Feedback State
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const canManageSemester = currentUser?.role === "admin" || currentUser?.role === "superadmin";
 
   // Validasi Form
   const isDuplicate = tahunAjaranList.some(
@@ -121,6 +130,29 @@ export function MasterTahunAjaranView() {
     }
   };
 
+  const handleOpenSemesterModal = () => {
+    const current = profilPesantren?.semester_aktif || "Ganjil";
+    setTargetSemester(current === "Ganjil" ? "Genap" : "Ganjil");
+    setConfirmSemesterAgreement(false);
+    setShowSemesterModal(true);
+  };
+
+  const handleExecuteSemesterChange = async () => {
+    if (!confirmSemesterAgreement) return;
+    setLoading(true);
+    setToast(null);
+
+    const res = await setActiveSemester(targetSemester);
+    setLoading(false);
+    setShowSemesterModal(false);
+
+    if (res.ok) {
+      setToast({ type: "success", message: res.message });
+    } else {
+      setToast({ type: "error", message: res.message });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Alert */}
@@ -183,7 +215,7 @@ export function MasterTahunAjaranView() {
 
         {/* Ringkasan Status Aktif Saat Ini */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4 border-t border-slate-100 text-xs">
-          <div className="rounded-xl bg-emerald-50/70 p-3.5 border border-emerald-200 flex items-center justify-between">
+          <div className="rounded-xl bg-emerald-50/70 p-3.5 border border-emerald-200 flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider">
                 Tahun Pelajaran Aktif (Profil Lembaga)
@@ -192,9 +224,22 @@ export function MasterTahunAjaranView() {
                 {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"}
               </p>
             </div>
-            <span className="rounded-lg bg-emerald-200/80 px-2.5 py-1 text-[11px] font-bold text-emerald-950">
-              Semester {profilPesantren?.semester_aktif || "Ganjil"}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-lg bg-emerald-200/80 px-2.5 py-1 text-[11px] font-bold text-emerald-950">
+                Semester {profilPesantren?.semester_aktif || "Ganjil"}
+              </span>
+              {canManageSemester && (
+                <button
+                  type="button"
+                  onClick={handleOpenSemesterModal}
+                  className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-900 border border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 transition shadow-xs"
+                  title="Ubah Semester Aktif Resmi (Ganjil / Genap)"
+                >
+                  <ArrowRightLeft className="h-3 w-3 text-emerald-700" />
+                  <span>Ubah Semester</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200 flex items-start gap-2.5 text-slate-600">
@@ -574,6 +619,152 @@ export function MasterTahunAjaranView() {
                 className="rounded-xl bg-emerald-800 px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 disabled:opacity-50 transition min-h-[42px]"
               >
                 {loading ? "Mengaktifkan..." : "Ya, Aktifkan Sekarang"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* MODAL 4: UBAH SEMESTER AKADEMIK AKTIF                              */}
+      {/* =================================================================== */}
+      {showSemesterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-800">
+                  <ArrowRightLeft className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Manajemen Semester Akademik
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Pergantian Semester Aktif Pondok Pesantren Modern Abu Manshur
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSemesterModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Informasi Tahun Pelajaran dan Semester Saat Ini */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-xl bg-slate-50 p-3 border border-slate-200">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                  Tahun Pelajaran Aktif
+                </span>
+                <p className="text-sm font-extrabold text-slate-900 mt-0.5">
+                  {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"}
+                </p>
+                <span className="text-[10px] text-slate-500 italic">Terkunci (tidak berubah)</span>
+              </div>
+              <div className="rounded-xl bg-emerald-50 p-3 border border-emerald-200">
+                <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">
+                  Semester Aktif Saat Ini
+                </span>
+                <p className="text-sm font-extrabold text-emerald-950 mt-0.5">
+                  Semester {profilPesantren?.semester_aktif || "Ganjil"}
+                </p>
+                <span className="text-[10px] text-emerald-700">Status Operasional Aktif</span>
+              </div>
+            </div>
+
+            {/* Pilihan Semester Target */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-800 block">
+                Pilih Semester Baru yang Ingin Diaktifkan:
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTargetSemester("Ganjil")}
+                  className={`flex flex-col items-center justify-center p-3.5 rounded-xl border-2 text-xs font-bold transition text-center ${
+                    targetSemester === "Ganjil"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-sm font-extrabold">Semester Ganjil</span>
+                  <span className="text-[10px] font-normal text-slate-500 mt-0.5">
+                    Periode Semester 1 (Juli – Desember)
+                  </span>
+                  {targetSemester === "Ganjil" && (
+                    <span className="mt-1.5 rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-900">
+                      Pilihan Target
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTargetSemester("Genap")}
+                  className={`flex flex-col items-center justify-center p-3.5 rounded-xl border-2 text-xs font-bold transition text-center ${
+                    targetSemester === "Genap"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-sm font-extrabold">Semester Genap</span>
+                  <span className="text-[10px] font-normal text-slate-500 mt-0.5">
+                    Periode Semester 2 (Januari – Juni)
+                  </span>
+                  {targetSemester === "Genap" && (
+                    <span className="mt-1.5 rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-900">
+                      Pilihan Target
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Peringatan Dampak Pergantian Semester */}
+            <div className="rounded-xl bg-amber-50/90 border border-amber-300 p-3.5 text-xs text-amber-950 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0" />
+                <span>Peringatan Dampak Operasional</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-900">
+                Pergantian semester akan memengaruhi seluruh konteks akademik di semua portal (mutaba&apos;ah tahfidz, penilaian, presensi, dan jadwal). Data semester sebelumnya <strong>tetap tersimpan aman dan tidak dihapus</strong>.
+              </p>
+            </div>
+
+            {/* Konfirmasi Ganda (Checkbox) */}
+            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer text-xs select-none">
+              <input
+                type="checkbox"
+                checked={confirmSemesterAgreement}
+                onChange={(e) => setConfirmSemesterAgreement(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-800 focus:ring-emerald-700"
+              />
+              <span className="text-slate-700 leading-tight">
+                Saya mengonfirmasi bahwa pergantian semester ini dilakukan secara resmi berdasarkan kalender akademik Pondok Pesantren Modern Abu Manshur.
+              </span>
+            </label>
+
+            {/* Tombol Aksi */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowSemesterModal(false)}
+                disabled={loading}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition min-h-[42px]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteSemesterChange}
+                disabled={loading || !confirmSemesterAgreement || targetSemester === profilPesantren?.semester_aktif}
+                className="rounded-xl bg-emerald-800 px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 disabled:opacity-50 transition min-h-[42px] flex items-center gap-1.5"
+              >
+                {loading ? "Memproses..." : `Aktifkan Semester ${targetSemester}`}
               </button>
             </div>
           </div>
