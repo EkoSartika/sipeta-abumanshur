@@ -17,10 +17,13 @@ import type {
 } from "@/types/database";
 
 export interface CheckoutParams {
+  santriId?: string;
+  items?: Array<{ tagihan_id: string; nominal_bayar: number }>;
   tanggalTransfer?: string;
   namaPengirim?: string;
   bankPengirim?: string;
   buktiTransferPath?: string;
+  idempotencyKey: string; // WAJIB: Idempotency Key wajib diisi untuk seluruh pemanggilan checkout
 }
 
 export interface SubmitTopupParams {
@@ -171,7 +174,7 @@ export class KeuanganService {
       }
     }
 
-    return this.checkoutPembayaran(params);
+    return this.checkoutPembayaran({ ...params, santriId, items });
   }
 
   async hapusDariKeranjang(itemId: string): Promise<{ ok: boolean; message: string }> {
@@ -197,6 +200,8 @@ export class KeuanganService {
 
   // --------------------------------------------------------------------------
   // ATOMIC CHECKOUT & VERIFIKASI PEMBAYARAN
+  // Catatan: Seluruh alur checkout resmi dieksekusi melalui API Route terproteksi
+  // (/api/wali/pembayaran/checkout atau /api/keuangan/transaksi) yang membawa identitas JWT asli
   // --------------------------------------------------------------------------
   async checkoutPembayaran(params: CheckoutParams): Promise<{
     ok: boolean;
@@ -207,18 +212,30 @@ export class KeuanganService {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
 
-    const { data, error } = await this.client.rpc("rpc_checkout_pembayaran", {
+    if (!params.santriId || !params.items || params.items.length === 0) {
+      return { ok: false, message: "Parameter checkout (santriId & items) wajib diisi." };
+    }
+
+    if (!params.idempotencyKey || params.idempotencyKey.trim().length === 0) {
+      return { ok: false, message: "Parameter idempotencyKey wajib diisi dan tidak boleh kosong." };
+    }
+
+    const { data, error } = await this.client.rpc("rpc_checkout_pembayaran_v2", {
+      p_santri_id: params.santriId,
+      p_items: params.items,
       p_tanggal_transfer: params.tanggalTransfer ?? null,
       p_nama_pengirim: params.namaPengirim ?? null,
-      p_bank_pengirim: params.bankPengirim ?? null,
+      p_bank_pengirim: params.bankPengirim ?? "Bank Transfer",
       p_bukti_transfer_path: params.buktiTransferPath ?? null,
+      p_idempotency_key: params.idempotencyKey.trim(),
     });
 
     if (error) return { ok: false, message: error.message };
+    const res = data as any;
     return {
-      ok: true,
-      transaksiId: data as string,
-      message: "Pengajuan checkout pembayaran berhasil dibuat.",
+      ok: res?.ok ?? true,
+      transaksiId: res?.transaksi_id,
+      message: res?.message || "Pengajuan checkout pembayaran berhasil diproses.",
     };
   }
 

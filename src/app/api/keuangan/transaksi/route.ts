@@ -38,7 +38,16 @@ function sanitizeRpcError(errorMessage: string | undefined): string {
     return "Data transaksi tidak memenuhi validasi aturan bisnis pesantren.";
   }
 
+  if (clean.includes("idx_transaksi_pembayaran_idempotency_key")) {
+    return "Konflik Idempotensi: Transaksi dengan idempotency key ini sedang atau telah diproses.";
+  }
+
   return clean;
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isValidUUID(val: string): boolean {
+  return UUID_REGEX.test(val);
 }
 
 // Helper untuk mendapatkan client Supabase yang membawa identitas JWT pengguna asli
@@ -378,6 +387,25 @@ export async function POST(request: NextRequest) {
     // AKSI 1: CHECKOUT PEMBAYARAN TAGIHAN (ATOMIC RPC MIGRATION 018)
     // =========================================================================
     if (action === "CHECKOUT_PEMBAYARAN") {
+      // 1. Ekstraksi dan Validasi Idempotency Key
+      const headerKey = request.headers.get("Idempotency-Key");
+      const bodyKey = body.idempotency_key || body.idempotencyKey;
+      const rawKey = headerKey || bodyKey || null;
+
+      let idempotencyKey: string | null = null;
+      if (rawKey) {
+        const cleanKey = String(rawKey).trim();
+        if (cleanKey.length > 0) {
+          if (!isValidUUID(cleanKey)) {
+            return NextResponse.json(
+              { ok: false, message: "Format Idempotency-Key tidak valid. Harus berupa format UUID v4 standar." },
+              { status: 400 }
+            );
+          }
+          idempotencyKey = cleanKey;
+        }
+      }
+
       let santriId = String(body.santri_id || "").trim();
       const items: Array<{ tagihan_id: string; nominal_bayar: number }> = body.items || [];
       const tanggalTransfer = body.tanggal_transfer || new Date().toISOString().slice(0, 10);
@@ -423,36 +451,47 @@ export async function POST(request: NextRequest) {
         nominal_bayar: Number(it.nominal_bayar),
       }));
 
-      // Panggil RPC rpc_checkout_pembayaran_v2 secara atomik menggunakan userClient (membawa auth.uid())
-      const { data: rpcRes, error: rpcErr } = await userClient.rpc("rpc_checkout_pembayaran_v2", {
+      const rpcPayload: Record<string, any> = {
         p_santri_id: santriId,
         p_items: rpcItems,
         p_tanggal_transfer: tanggalTransfer,
         p_nama_pengirim: namaPengirim,
         p_bank_pengirim: bankPengirim || "Bank Transfer",
         p_bukti_transfer_path: storagePath || null,
-      });
+      };
+      if (idempotencyKey) {
+        rpcPayload.p_idempotency_key = idempotencyKey;
+      }
+
+      // Panggil RPC rpc_checkout_pembayaran_v2 secara atomik menggunakan userClient (membawa auth.uid())
+      const { data: rpcRes, error: rpcErr } = await userClient.rpc("rpc_checkout_pembayaran_v2", rpcPayload);
 
       if (rpcErr) {
+        const cleanMsg = sanitizeRpcError(rpcErr.message);
+        const isConflict = cleanMsg.includes("Konflik Idempotensi") || rpcErr.message.includes("Konflik Idempotensi");
         return NextResponse.json(
-          { ok: false, message: sanitizeRpcError(rpcErr.message) },
-          { status: 400 }
+          { ok: false, message: cleanMsg },
+          { status: isConflict ? 409 : 400 }
         );
       }
 
       if (!rpcRes || !rpcRes.ok) {
+        const cleanMsg = sanitizeRpcError(rpcRes?.message || "Gagal melakukan checkout pembayaran.");
+        const isConflict = cleanMsg.includes("Konflik Idempotensi");
         return NextResponse.json(
-          { ok: false, message: rpcRes?.message || "Gagal melakukan checkout pembayaran." },
-          { status: 400 }
+          { ok: false, message: cleanMsg },
+          { status: isConflict ? 409 : 400 }
         );
       }
 
+      const isReplay = rpcRes.is_idempotent_replay === true;
       return NextResponse.json({
         ok: true,
         transaksi_id: rpcRes.transaksi_id,
         nomor_transaksi: rpcRes.nomor_transaksi,
         total_nominal: rpcRes.total_nominal,
         status: rpcRes.status,
+        is_idempotent_replay: isReplay,
         transaksi: {
           id: rpcRes.transaksi_id,
           nomor_transaksi: rpcRes.nomor_transaksi,
@@ -463,7 +502,9 @@ export async function POST(request: NextRequest) {
           bukti_transfer_url: storagePath,
           items: rpcItems,
         },
-        message: rpcRes.message || `Pengajuan pembayaran ${rpcRes.nomor_transaksi} berhasil disimpan permanen ke database dan menunggu verifikasi Bendahara.`,
+        message: isReplay
+          ? `Pengajuan pembayaran ${rpcRes.nomor_transaksi} telah tercatat sebelumnya (Replay Idempoten).`
+          : rpcRes.message || `Pengajuan pembayaran ${rpcRes.nomor_transaksi} berhasil disimpan permanen ke database dan menunggu verifikasi Bendahara.`,
       });
     }
 

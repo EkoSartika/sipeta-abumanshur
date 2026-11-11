@@ -340,19 +340,107 @@ export function WaliPortal({
     setFeedback({ ok: res.ok, text: res.message });
   };
 
+  // Helper UUID v4 client-side untuk siklus Idempotensi Checkout
+  const generateClientUUID = (): string => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  };
+
+  // Signature kanonikal payload checkout di client untuk mendeteksi perubahan payload/santri
+  const currentCheckoutSignature = useMemo(() => {
+    const itemsSig = keranjang
+      .map((k) => `${k.tagihan_id}:${k.nominal_bayar}`)
+      .sort()
+      .join(";");
+    return `${santri.id}|${itemsSig}|${tanggalTransferBayar}|${namaPengirimBayar.trim()}|${bankPengirimBayar.trim()}|${buktiBayarFilename}`;
+  }, [santri.id, keranjang, tanggalTransferBayar, namaPengirimBayar, bankPengirimBayar, buktiBayarFilename]);
+
+  // Pengelolaan siklus hidup Idempotency Key via sessionStorage (tahan refresh/timeout)
+  const getOrCreateCheckoutKey = (currentSantriId: string, sig: string): string => {
+    if (typeof window === "undefined") return generateClientUUID();
+    const keyStorageKey = `sipeta_checkout_key_${currentSantriId}`;
+    const sigStorageKey = `sipeta_checkout_sig_${currentSantriId}`;
+
+    const savedKey = sessionStorage.getItem(keyStorageKey);
+    const savedSig = sessionStorage.getItem(sigStorageKey);
+
+    // Jika signature payload persis sama dan key tersedia, pakai key yang sama (Retry Aman Pasca Timeout)
+    if (savedKey && savedSig === sig) {
+      return savedKey;
+    }
+
+    // Jika payload atau santri berubah, bangkitkan key baru yang terikat pada signature baru
+    const newKey = generateClientUUID();
+    sessionStorage.setItem(keyStorageKey, newKey);
+    sessionStorage.setItem(sigStorageKey, sig);
+    return newKey;
+  };
+
+  const clearCheckoutKey = (currentSantriId: string) => {
+    if (typeof window === "undefined") return;
+    sessionStorage.removeItem(`sipeta_checkout_key_${currentSantriId}`);
+    sessionStorage.removeItem(`sipeta_checkout_sig_${currentSantriId}`);
+  };
+
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmittingPayment) return;
+    if (keranjang.length === 0) {
+      setFeedback({ ok: false, text: "Keranjang pembayaran masih kosong." });
+      return;
+    }
+
     setIsSubmittingPayment(true);
     setFeedback(null);
+
+    // Ambil atau bangkitkan Idempotency Key yang terikat dengan signature saat ini
+    const idempotencyKey = getOrCreateCheckoutKey(santri.id, currentCheckoutSignature);
+
     try {
       const res = await submitCheckoutPembayaran({
         tanggal_transfer: tanggalTransferBayar,
         nama_pengirim: namaPengirimBayar,
         bank_pengirim: bankPengirimBayar,
         bukti_transfer_url: buktiBayarUrl,
+        idempotency_key: idempotencyKey,
       });
-      setFeedback({ ok: res.ok, text: res.message });
+
+      if (res.ok) {
+        // Transaksi baru atau replay idempoten berhasil: bersihkan key dari sessionStorage
+        clearCheckoutKey(santri.id);
+
+        if (res.is_idempotent_replay) {
+          setFeedback({
+            ok: true,
+            text: `[Replay Idempoten] ${res.message} Pengajuan pembayaran sebelumnya telah berhasil dicatat oleh sistem tanpa tagihan ganda.`,
+          });
+        } else {
+          setFeedback({ ok: true, text: res.message });
+        }
+      } else {
+        // Jika terjadi error dari server
+        if (res.message?.includes("Konflik Idempotensi") || res.message?.includes("parameter pembayaran yang berbeda")) {
+          setFeedback({
+            ok: false,
+            text: `Konflik Idempotensi: ${res.message} Harap muat ulang halaman jika Anda hendak mengajukan rincian pembayaran yang berbeda.`,
+          });
+        } else {
+          // Error validasi / sisa saldo / timeout server: pertahankan bukti transfer & keranjang
+          setFeedback({ ok: false, text: res.message });
+        }
+      }
+    } catch (err: any) {
+      // Timeout jaringan / respons tidak diterima: Jangan hapus keranjang atau bukti transfer!
+      setFeedback({
+        ok: false,
+        text: `Koneksi terputus atau batas waktu tunggu habis (timeout). Berkas bukti transfer dan keranjang tetap aman. Silakan klik "Coba Lagi" untuk memastikan status transaksi tanpa risiko duplikasi.`,
+      });
     } finally {
       setIsSubmittingPayment(false);
     }

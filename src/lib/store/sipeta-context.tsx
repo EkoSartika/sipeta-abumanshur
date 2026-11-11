@@ -100,6 +100,7 @@ import { getRoleLabel } from "@/lib/utils/format";
 export interface ActionResponse {
   ok: boolean;
   message: string;
+  is_idempotent_replay?: boolean;
 }
 
 interface SipetaContextValue {
@@ -311,6 +312,7 @@ interface SipetaContextValue {
     nama_pengirim: string;
     bank_pengirim: string;
     bukti_transfer_url: string;
+    idempotency_key?: string;
   }) => Promise<ActionResponse>;
   uploadBuktiTransferPembayaran: (payload: {
     transaksi_id: string;
@@ -3734,9 +3736,14 @@ export function SipetaProvider({
         nominal_bayar: item.nominal_bayar,
       }));
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (payload.idempotency_key) {
+        headers["Idempotency-Key"] = payload.idempotency_key;
+      }
+
       const res = await fetch("/api/keuangan/transaksi", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           action: "CHECKOUT_PEMBAYARAN",
           santri_id: activeSantriId,
@@ -3746,6 +3753,7 @@ export function SipetaProvider({
           bank_pengirim: payload.bank_pengirim,
           bukti_transfer: payload.bukti_transfer_url,
           bukti_transfer_url: payload.bukti_transfer_url,
+          idempotency_key: payload.idempotency_key,
         }),
       });
 
@@ -3760,6 +3768,7 @@ export function SipetaProvider({
       return {
         ok: true,
         message: data.message || `Pengajuan pembayaran ${data.nomor_transaksi} berhasil disimpan permanen.`,
+        is_idempotent_replay: data.is_idempotent_replay === true,
       };
     } catch (err: any) {
       return { ok: false, message: `Kesalahan jaringan: ${err?.message || "Tidak dapat menghubungi server."}` };
