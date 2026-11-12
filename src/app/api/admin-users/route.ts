@@ -6,6 +6,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+
+export const preferredRegion = "sin1";
 import {
   createSupabaseAdminClient,
   createSupabaseServerClient,

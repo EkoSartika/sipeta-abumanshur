@@ -8,6 +8,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createPrivateSignedUrl, createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
+export const preferredRegion = "sin1";
+
 // Rate Limiter Sederhana di Level IP (Mencegah Brute Force Enumeration)
 const requestCounts = new Map<string, { count: number; resetAt: number }>();
 

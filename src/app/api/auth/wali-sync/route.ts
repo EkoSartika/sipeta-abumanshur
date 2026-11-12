@@ -15,6 +15,8 @@ import {
 import { packWaliAlamatWithFamilyMetadata } from "@/lib/utils/family-metadata";
 import type { IdentitasKeluargaSantri } from "@/types/database";
 
+export const preferredRegion = "sin1";
+
 export async function POST(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ ok: false, message: "Supabase belum terkonfigurasi." }, { status: 400 });

@@ -11,6 +11,8 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase/client";
 
+export const preferredRegion = "sin1";
+
 export async function GET() {
   const checkedAt = new Date().toISOString();
   const isConfigured = isSupabaseConfigured();

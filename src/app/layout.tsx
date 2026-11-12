@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SipetaProvider } from "@/lib/store/sipeta-context";
 
+export const preferredRegion = "sin1";
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://sipetaabumanshur.vercel.app"),
   title: "SIPETA — Sistem Informasi Pelayanan Terpadu | PP Modern Abu Manshur",

@@ -10,6 +10,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+
+export const preferredRegion = "sin1";
 import {
   createSupabaseAdminClient,
   createSupabaseServerClient,

@@ -13,6 +13,8 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
+export const preferredRegion = "sin1";
+
 // Skema Validasi Input Tambah Rekening Informasi (Tanpa manipulasi is_active)
 const tambahRekeningSchema = z.object({
   nama_bank: z.string().min(2, "Nama bank minimal 2 karakter."),

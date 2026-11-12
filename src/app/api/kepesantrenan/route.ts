@@ -17,6 +17,8 @@ import {
 } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
+export const preferredRegion = "sin1";
+
 const ALLOWED_MUTATION_ROLES = new Set([
   "pengelola",
   "asatidz",

@@ -13,6 +13,8 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { validatePasswordStrength } from "@/lib/utils/auth-mapping";
 
+export const preferredRegion = "sin1";
+
 const updateProfileSchema = z.object({
   nama_lengkap: z.string().min(2, "Nama lengkap minimal 2 karakter.").max(120),
   no_telepon: z.string().optional(),

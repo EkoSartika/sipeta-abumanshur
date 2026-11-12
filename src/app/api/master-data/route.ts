@@ -13,6 +13,8 @@ import {
 } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
+export const preferredRegion = "sin1";
+
 const ALLOWED_ADMIN_ROLES = new Set(["tu", "admin", "superadmin"]);
 
 async function verifyCaller(requireAdmin = false) {

@@ -12,6 +12,8 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { validatePasswordStrength } from "@/lib/utils/auth-mapping";
 
+export const preferredRegion = "sin1";
+
 const changePasswordSchema = z.object({
   new_password: z.string().min(8, "Kata sandi baru minimal 8 karakter."),
 });
