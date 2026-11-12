@@ -20,10 +20,21 @@ export async function middleware(request: NextRequest) {
   const hasSupabaseAuthCookie = request.cookies
     .getAll()
     .some((c) => c.name.startsWith("sb-"));
-  const isPublicFastApi =
-    pathname === "/api/health" || pathname === "/api/auth/wali-sync";
+  const isPublicOrLoginPage =
+    pathname === "/api/health" ||
+    pathname === "/api/auth/wali-sync" ||
+    pathname === "/api/auth/logout" ||
+    pathname === "/login" ||
+    pathname === "/admin/login" ||
+    pathname === "/superadmin/login" ||
+    pathname === "/tu/login" ||
+    pathname === "/asatidz/login" ||
+    pathname === "/pengelola/login" ||
+    pathname === "/bendahara/login" ||
+    pathname.startsWith("/images/") ||
+    pathname.startsWith("/icons/");
 
-  if (isSupabaseConfigured() && hasSupabaseAuthCookie && !isPublicFastApi) {
+  if (isSupabaseConfigured() && hasSupabaseAuthCookie && !isPublicOrLoginPage) {
     const supabaseUrl = getSupabaseUrl();
     const supabasePublishableKey = getSupabasePublishableKey();
 
@@ -94,5 +105,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|images/|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

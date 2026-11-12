@@ -114,74 +114,11 @@ export async function GET(request: NextRequest) {
     const santriList = santriRes.data ?? [];
     const waliList = waliRes.data ?? [];
 
-    // Auto-heal missing wali accounts for orphan santri without altering existing credentials
-    for (const s of santriList) {
-      const hasWali = waliList.some((w: any) => w.santri_id === s.id && w.user_id);
-      if (!hasWali) {
-        try {
-          const cleanNis = String(s.nis).trim();
-          const cleanUsername = normalizeUsername(cleanNis);
-          const initialPassword = cleanNis;
-          const syntheticEmail = usernameToInternalEmail(cleanUsername);
-          const defaultNamaWali = `Wali ${s.nama_lengkap}`;
-
-          const { data: usersData } = await adminClient.auth.admin.listUsers();
-          let targetUserId = usersData?.users?.find(
-            (u) => u.email?.toLowerCase() === syntheticEmail.toLowerCase()
-          )?.id;
-
-          if (!targetUserId) {
-            const { data: newAuth } = await adminClient.auth.admin.createUser({
-              email: syntheticEmail,
-              password: initialPassword,
-              email_confirm: true,
-              user_metadata: {
-                nama_lengkap: defaultNamaWali,
-                username: cleanUsername,
-                role: "wali",
-                santri_id: s.id,
-                santri_nis: cleanNis,
-                santri_nama: s.nama_lengkap,
-                penanggung_jawab: "Ayah",
-                must_change_password: true,
-              },
-            });
-            targetUserId = newAuth.user?.id;
-          }
-
-          if (targetUserId) {
-            await adminClient.from("profiles").upsert({
-              id: targetUserId,
-              nama_lengkap: defaultNamaWali,
-              username: cleanUsername,
-              email: syntheticEmail,
-              no_telepon: "-",
-              role: "wali",
-              is_active: true,
-              must_change_password: true,
-            });
-
-            await adminClient.from("wali_santri").upsert({
-              user_id: targetUserId,
-              santri_id: s.id,
-              nama_lengkap: defaultNamaWali,
-              hubungan: "Ayah",
-              no_telepon: "-",
-              email: syntheticEmail,
-              alamat: s.alamat || "-",
-            });
-          }
-        } catch {
-          // Ignore auto-heal error to keep GET fast
-        }
-      }
-    }
-
     return NextResponse.json({
       ok: true,
       data: {
-        santriList: santriRes.data ?? [],
-        waliList: waliRes.data ?? [],
+        santriList,
+        waliList,
         kelasList: kelasRes.data ?? [],
         kamarList: kamarRes.data ?? [],
       },
@@ -915,16 +852,30 @@ export async function DELETE(request: NextRequest) {
       .eq("id", callerUser.id)
       .single();
 
-    if (
-      !callerProfile ||
-      !callerProfile.is_active ||
-      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin" && callerProfile.role !== "tu")
-    ) {
+    if (!callerProfile || !callerProfile.is_active) {
+      return NextResponse.json(
+        { ok: false, message: "Akses ditolak: Profil pengguna tidak aktif atau tidak ditemukan." },
+        { status: 403 }
+      );
+    }
+
+    if (callerProfile.role === "tu") {
       return NextResponse.json(
         {
           ok: false,
           message:
-            "Akses ditolak: Hanya Pengasuh Pondok (Admin), Superadmin, atau Tata Usaha (TU) yang berwenang menghapus data santri.",
+            "Akses ditolak: Role Tata Usaha (TU) tidak memiliki hak penghapusan data santri demi integritas arsip.",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (callerProfile.role !== "superadmin" && callerProfile.role !== "admin") {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "Akses ditolak: Hanya Pengasuh Pondok (Admin) dan Superadmin yang berwenang menghapus data santri.",
         },
         { status: 403 }
       );

@@ -1330,23 +1330,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Ambil data profil dari database
-    const { data: profiles, error: profErr } = await adminClient
-      .from("profiles")
-      .select("id, nama_lengkap, email, username, role, is_active, no_telepon, must_change_password, created_at")
-      .order("created_at", { ascending: false });
+    // Ambil data profil dan relasi wali_santri secara paralel
+    const [profRes, waliRes] = await Promise.all([
+      adminClient
+        .from("profiles")
+        .select("id, nama_lengkap, email, username, role, is_active, no_telepon, must_change_password, created_at")
+        .order("created_at", { ascending: false }),
+      adminClient
+        .from("wali_santri")
+        .select("user_id, santri_id"),
+    ]);
 
-    if (profErr) {
+    if (profRes.error) {
       return NextResponse.json(
-        { ok: false, message: `Gagal memuat profil: ${profErr.message}` },
+        { ok: false, message: `Gagal memuat profil: ${profRes.error.message}` },
         { status: 500 }
       );
     }
 
-    // Ambil relasi wali_santri jika ada
-    const { data: waliList } = await adminClient
-      .from("wali_santri")
-      .select("user_id, santri_id");
+    const profiles = profRes.data ?? [];
+    const waliList = waliRes.data ?? [];
 
     const waliMap = new Map<string, string>();
     if (waliList) {

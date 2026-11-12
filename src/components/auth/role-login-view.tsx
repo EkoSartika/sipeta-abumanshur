@@ -49,12 +49,18 @@ export function RoleLoginView({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Jika sudah login, langsung arahkan ke root workspace
+  // Jika sudah login dengan role yang sesuai, arahkan langsung ke root workspace
   useEffect(() => {
     if (!authLoading && isAuthenticated && currentUser) {
-      router.push("/");
+      const isSameRole =
+        currentUser.role === expectedRole ||
+        ((expectedRole === "asatidz" || expectedRole === "pengelola") &&
+          (currentUser.role === "asatidz" || currentUser.role === "pengelola"));
+      if (isSameRole) {
+        router.push("/");
+      }
     }
-  }, [authLoading, isAuthenticated, currentUser, router]);
+  }, [authLoading, isAuthenticated, currentUser, expectedRole, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

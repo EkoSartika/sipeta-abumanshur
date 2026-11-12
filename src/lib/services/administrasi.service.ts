@@ -662,6 +662,10 @@ export class AdministrasiService {
     return this.adminSantriFetchInFlight;
   }
 
+  clearCache(): void {
+    this.adminSantriFetchInFlight = null;
+  }
+
   async getSantriList(): Promise<Santri[]> {
     if (!isSupabaseConfigured()) return [];
     const shared = await this.fetchAdminSantriShared();

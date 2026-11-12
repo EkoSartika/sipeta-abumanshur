@@ -406,7 +406,7 @@ export class AuthService {
   }
 
   /**
-   * Logout pengguna dan bersihkan sesi Supabase Auth
+   * Logout pengguna dan bersihkan sesi Supabase Auth secara instan
    */
   async logout(): Promise<{ ok: boolean; message: string }> {
     if (!isSupabaseConfigured()) {
@@ -414,7 +414,13 @@ export class AuthService {
     }
 
     try {
-      await this.client.auth.signOut();
+      // 1. Cabut sesi lokal seketika (scope: 'local') agar token lokal dan cookie langsung dihapus
+      // tanpa menahan UI menunggu network roundtrip ke server Supabase.
+      await this.client.auth.signOut({ scope: "local" });
+
+      // 2. Beritahukan pencabutan sesi global di background tanpa memblokir
+      this.client.auth.signOut().catch(() => {});
+
       return { ok: true, message: "Sesi berhasil ditutup." };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

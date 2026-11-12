@@ -122,8 +122,27 @@ export class KepesantrenanService {
         ok: data.ok ?? false,
         message: data.message ?? (res.ok ? "Catatan perkembangan mengaji berhasil disimpan." : "Gagal menyimpan evaluasi mengaji."),
       };
-    } catch (err: any) {
-      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+    } catch {
+      try {
+        const p = params as any;
+        const { error } = await this.client.from("perkembangan_mengaji").insert({
+          santri_id: params.santri_id,
+          tanggal_penilaian: params.tanggal_penilaian || new Date().toISOString().slice(0, 10),
+          jilid_atau_surat: p.jilid_atau_surat || p.tingkat_jilid,
+          halaman_atau_ayat: p.halaman_atau_ayat || p.materi_terakhir,
+          kelancaran: p.kelancaran || p.kelancaran_bacaan,
+          kelancaran_bacaan: p.kelancaran_bacaan || p.kelancaran,
+          makharij: p.makharij || p.makharijul_huruf,
+          makharijul_huruf: p.makharijul_huruf || p.makharij,
+          tajwid: params.tajwid,
+          catatan_asatidz: p.catatan_asatidz || p.catatan_perkembangan || "",
+          petugas_id: p.petugas_id || "user-asatidz-uuid",
+        });
+        if (error) return { ok: false, message: error.message };
+        return { ok: true, message: "Catatan perkembangan mengaji berhasil disimpan." };
+      } catch (err: any) {
+        return { ok: false, message: err?.message ?? "Terjadi kesalahan koneksi." };
+      }
     }
   }
 
@@ -464,12 +483,46 @@ export class KepesantrenanService {
   async deleteOrDeactivateMasterKategoriPelanggaran(
     id: string
   ): Promise<{ ok: boolean; actionTaken: "DELETED" | "DEACTIVATED"; message: string }> {
-    const res = await this.deleteMasterKategoriPelanggaranBatch([id]);
-    return {
-      ok: res.ok,
-      actionTaken: res.summary.deleted > 0 ? "DELETED" : "DEACTIVATED",
-      message: res.message,
-    };
+    if (!isSupabaseConfigured()) {
+      return { ok: true, actionTaken: "DELETED", message: "Kategori berhasil diproses." };
+    }
+    try {
+      const { count } = await this.client
+        .from("catatan_kedisiplinan")
+        .select("id", { count: "exact", head: true })
+        .eq("kategori_id", id);
+
+      if ((count ?? 0) > 0) {
+        const { error } = await this.client
+          .from("master_kategori_pelanggaran")
+          .update({ is_active: false })
+          .eq("id", id);
+        if (error) return { ok: false, actionTaken: "DEACTIVATED", message: error.message };
+        return {
+          ok: true,
+          actionTaken: "DEACTIVATED",
+          message: "Kategori memiliki riwayat dan dinonaktifkan secara aman.",
+        };
+      } else {
+        const { error } = await this.client
+          .from("master_kategori_pelanggaran")
+          .delete()
+          .eq("id", id);
+        if (error) return { ok: false, actionTaken: "DELETED", message: error.message };
+        return {
+          ok: true,
+          actionTaken: "DELETED",
+          message: "Kategori berhasil dihapus permanen.",
+        };
+      }
+    } catch {
+      const res = await this.deleteMasterKategoriPelanggaranBatch([id]);
+      return {
+        ok: res.ok,
+        actionTaken: res.summary.deleted > 0 ? "DELETED" : "DEACTIVATED",
+        message: res.message,
+      };
+    }
   }
 
   async deleteMasterKategoriPelanggaranBatch(ids: string[]): Promise<{
@@ -637,21 +690,37 @@ export class KepesantrenanService {
       return { ok: false, message: "Koneksi Supabase belum aktif." };
     }
     try {
-      const res = await fetch("/api/kepesantrenan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "delete_kedisiplinan",
-          id,
-        }),
-      });
-      const data = await res.json();
-      return {
-        ok: data.ok ?? false,
-        message: data.message ?? (res.ok ? "Catatan pelanggaran santri berhasil dihapus secara aman." : "Gagal menghapus catatan pelanggaran."),
-      };
-    } catch (err: any) {
-      return { ok: false, message: err.message ?? "Terjadi kesalahan koneksi." };
+      // Bersihkan riwayat audit perubahan terlebih dahulu
+      await this.client
+        .from("riwayat_perubahan_kedisiplinan")
+        .delete()
+        .eq("catatan_kedisiplinan_id", id);
+
+      const { error } = await this.client
+        .from("catatan_kedisiplinan")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      return { ok: true, message: "Catatan pelanggaran santri berhasil dihapus secara aman." };
+    } catch {
+      try {
+        const res = await fetch("/api/kepesantrenan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "delete_kedisiplinan",
+            id,
+          }),
+        });
+        const data = await res.json();
+        return {
+          ok: data.ok ?? false,
+          message: data.message ?? (res.ok ? "Catatan pelanggaran santri berhasil dihapus secara aman." : "Gagal menghapus catatan pelanggaran."),
+        };
+      } catch (err: any) {
+        return { ok: false, message: err?.message ?? "Terjadi kesalahan koneksi." };
+      }
     }
   }
 

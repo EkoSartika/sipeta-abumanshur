@@ -263,9 +263,6 @@ export async function GET(request: NextRequest) {
       trxQuery = trxQuery.eq("santri_id", santriFilter);
     }
 
-    const { data: trxList, error: trxErr } = await trxQuery;
-    if (trxErr) throw trxErr;
-
     // 2. Ambil Pengajuan Top-up Uang Saku
     let topupQuery = adminClient
       .from("pengajuan_uang_saku")
@@ -282,8 +279,13 @@ export async function GET(request: NextRequest) {
       topupQuery = topupQuery.eq("santri_id", santriFilter);
     }
 
-    const { data: topupList, error: topupErr } = await topupQuery;
-    if (topupErr) throw topupErr;
+    // Jalankan kueri Transaksi Pembayaran dan Pengajuan Top-up secara paralel
+    const [trxRes, topupRes] = await Promise.all([trxQuery, topupQuery]);
+    if (trxRes.error) throw trxRes.error;
+    if (topupRes.error) throw topupRes.error;
+
+    const trxList = trxRes.data ?? [];
+    const topupList = topupRes.data ?? [];
 
     return NextResponse.json({
       ok: true,

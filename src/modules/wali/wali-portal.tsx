@@ -1268,7 +1268,7 @@ export function WaliPortal({
                 <div className="mt-3 space-y-2">
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
                     <Landmark className="h-4 w-4 text-emerald-700" />
-                    <span>Informasi Rekening Tujuan Transfer Pesantren</span>
+                    <span>Rekening Resmi Pesantren — Informasi Rekening Tujuan Transfer</span>
                   </div>
                   {rekeningList.map((rek) => (
                     <div key={rek.id} className="rounded-xl bg-emerald-950 p-3.5 text-white">

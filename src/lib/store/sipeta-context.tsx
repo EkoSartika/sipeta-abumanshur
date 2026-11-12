@@ -538,155 +538,229 @@ export function SipetaProvider({
   const [dataSource, setDataSource] = useState<"supabase" | "demo">("demo");
   const [healthStatus, setHealthStatus] = useState<DatabaseHealthStatus | null>(null);
 
-  // Penggabungan (coalescing) refresh: jika refresh sedang berjalan, panggilan berikutnya
-  // menunggu satu putaran lanjutan saja, bukan menumpuk 23+ request paralel berulang kali.
+  // Penggabungan (coalescing) & throttling refresh: jika refresh sedang berjalan,
+  // request berikutnya disatukan agar tidak menumpuk 23+ kueri berulang kali.
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshQueuedRef = useRef<Promise<void> | null>(null);
+  const lastRefreshTimeRef = useRef<number>(0);
+  // Session generation epoch: memastikan hasil in-flight fetch dari sesi/role sebelumnya
+  // otomatis dibuang dan tidak dapat mencemari state sesi pengguna yang baru login/berganti.
+  const sessionEpochRef = useRef<number>(0);
 
-  // Sinkronisasi data real-time dari Supabase
+  // Sinkronisasi data real-time dari Supabase secara progresif & non-blocking
   const runRefreshFromSupabase = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
+    const currentEpoch = sessionEpochRef.current;
     try {
-      // Satu request untuk dua daftar transaksi (sebelumnya endpoint yang sama dipanggil dua kali)
-      const transaksiPromise = safeFetchJson("/api/keuangan/transaksi");
-      // Satu request daftar rekening; rekening resmi diturunkan dari daftar yang sama
-      const rekeningListPromise = administrasiService.getRekeningList();
-      const [
-        rekeningRes,
-        rekeningListRes,
-        kelasRes,
-        kamarRes,
-        santriRes,
-        waliRes,
-        riwayatPenempatanRes,
-        jenisRes,
-        tagihanRes,
-        transaksiRes,
-        topupRes,
-        mutasiSakuRes,
-        mengajiRes,
-        tahfidzRes,
-        prestasiRes,
-        kedisiplinanRes,
-        kategoriPelanggaranRes,
-        pengumumanRes,
-        notifikasiRes,
-        fetchedUsersRes,
-        tahunAjaranRes,
-        profilRes,
-        auditLogsRes,
-      ] = await Promise.allSettled([
-        rekeningListPromise.then((list) =>
-          Array.isArray(list) && list.length > 0 ? list.find((r) => r.is_active) || list[0] || null : null
-        ),
-        rekeningListPromise,
-        administrasiService.getKelasList(),
-        administrasiService.getKamarList(),
-        administrasiService.getSantriList(),
-        administrasiService.getWaliList(),
-        administrasiService.getRiwayatPenempatanList(),
-        administrasiService.getJenisPembayaranList(),
-        keuanganService.getTagihanBySantri(),
-        // Gunakan API route server-side agar RLS tidak memblokir pembacaan transaksi oleh Wali/Bendahara (Role TU/Pengelola otomatis fallback ke [])
-        transaksiPromise.then((d) => d.ok && d.data?.ok ? (d.data.transaksiPembayaranList ?? []) : []),
-        transaksiPromise.then((d) => d.ok && d.data?.ok ? (d.data.pengajuanUangSakuList ?? []) : []),
-        keuanganService.getMutasiUangSaku(),
-        kepesantrenanService.getPerkembanganMengaji(),
-        kepesantrenanService.getSetoranTahfidz(),
-        kepesantrenanService.getPrestasiSantri(),
-        kepesantrenanService.getCatatanKedisiplinan(),
-        kepesantrenanService.getMasterKategoriPelanggaran(true),
-        administrasiService.getPengumumanList(true),
-        notifikasiService.getNotifikasi(),
-        authService.getAllProfiles(),
-        administrasiService.getTahunAjaranList(),
-        administrasiService.getProfilPesantren(),
-        administrasiService.getAuditLogs(),
-      ]);
-
-      if (rekeningListRes.status === "fulfilled" && Array.isArray(rekeningListRes.value)) {
-        setRekeningList(rekeningListRes.value);
-      }
-      if (rekeningRes.status === "fulfilled" && rekeningRes.value) {
-        setRekeningResmi(rekeningRes.value);
-      } else if (rekeningListRes.status === "fulfilled" && Array.isArray(rekeningListRes.value) && rekeningListRes.value.length > 0) {
-        const active = rekeningListRes.value.find((r) => r.is_active) || rekeningListRes.value[0];
-        setRekeningResmi(active || null);
-      }
-      if (kelasRes.status === "fulfilled" && Array.isArray(kelasRes.value)) {
-        kelasListRef.current = kelasRes.value;
-        setKelasList(kelasRes.value);
-      }
-      if (kamarRes.status === "fulfilled" && Array.isArray(kamarRes.value)) {
-        kamarListRef.current = kamarRes.value;
-        setKamarList(kamarRes.value);
-      }
-      if (santriRes.status === "fulfilled" && Array.isArray(santriRes.value)) setSantriList(santriRes.value);
-      if (waliRes.status === "fulfilled" && Array.isArray(waliRes.value)) setWaliList(waliRes.value);
-      if (riwayatPenempatanRes.status === "fulfilled" && Array.isArray(riwayatPenempatanRes.value)) {
-        setRiwayatPenempatan(riwayatPenempatanRes.value);
-      }
-      if (jenisRes.status === "fulfilled" && Array.isArray(jenisRes.value)) setJenisPembayaranList(jenisRes.value);
-      if (tagihanRes.status === "fulfilled" && Array.isArray(tagihanRes.value)) setTagihanList(tagihanRes.value);
-      if (transaksiRes.status === "fulfilled" && Array.isArray(transaksiRes.value)) setTransaksiPembayaranList(transaksiRes.value);
-      if (topupRes.status === "fulfilled" && Array.isArray(topupRes.value)) setPengajuanUangSakuList(topupRes.value);
-      if (mutasiSakuRes.status === "fulfilled" && Array.isArray(mutasiSakuRes.value)) {
-        setMutasiUangSakuList(mutasiSakuRes.value);
-      }
-      if (mengajiRes.status === "fulfilled" && Array.isArray(mengajiRes.value)) setMengajiList(mengajiRes.value);
-      if (tahfidzRes.status === "fulfilled" && Array.isArray(tahfidzRes.value)) setTahfidzList(tahfidzRes.value);
-      if (prestasiRes.status === "fulfilled" && Array.isArray(prestasiRes.value)) setPrestasiList(prestasiRes.value);
-      if (kedisiplinanRes.status === "fulfilled" && Array.isArray(kedisiplinanRes.value)) setKedisiplinanList(kedisiplinanRes.value);
-      if (kategoriPelanggaranRes.status === "fulfilled" && Array.isArray(kategoriPelanggaranRes.value)) {
-        setMasterPelanggaranList(kategoriPelanggaranRes.value);
-      }
-      if (pengumumanRes.status === "fulfilled" && Array.isArray(pengumumanRes.value)) setPengumumanList(pengumumanRes.value);
-      if (notifikasiRes.status === "fulfilled" && Array.isArray(notifikasiRes.value)) setNotifikasiList(notifikasiRes.value);
-      if (fetchedUsersRes.status === "fulfilled" && Array.isArray(fetchedUsersRes.value)) {
-        const cleanUsers = fetchedUsersRes.value.filter((u) => u && !u.id.startsWith("usr-"));
-        if (cleanUsers.length > 0) {
-          setUsers(cleanUsers);
+      // 1. Jalankan kueri inti yang cepat terlebih dahulu dan perbarui state seketika
+      // agar tampilan rekening, tahun ajaran, dan kelas langsung siap dalam waktu <100ms.
+      const rekeningPromise = administrasiService.getRekeningList().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) {
+          setRekeningList(list);
+          const active = list.find((r) => r.is_active) || list[0] || null;
+          setRekeningResmi(active);
         }
-      }
-      const activeTaFromDb =
-        tahunAjaranRes.status === "fulfilled" && Array.isArray(tahunAjaranRes.value)
-          ? tahunAjaranRes.value.find((t) => t.is_active)
-          : undefined;
-      if (tahunAjaranRes.status === "fulfilled" && Array.isArray(tahunAjaranRes.value)) {
-        setTahunAjaranList(tahunAjaranRes.value);
-      }
-      if (profilRes.status === "fulfilled" && profilRes.value) {
-        setProfilPesantren((prev) => ({
-          ...prev,
-          ...profilRes.value,
-          tahun_pelajaran_aktif: activeTaFromDb?.nama || profilRes.value!.tahun_pelajaran_aktif,
-        }));
-      } else if (activeTaFromDb) {
-        setProfilPesantren((prev) => ({
-          ...prev,
-          tahun_pelajaran_aktif: activeTaFromDb.nama,
-        }));
-      }
-      if (auditLogsRes.status === "fulfilled" && Array.isArray(auditLogsRes.value)) {
-        setAuditLogs(auditLogsRes.value);
-      }
+        return list;
+      }).catch(() => []);
+
+      const kelasPromise = administrasiService.getKelasList().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) {
+          kelasListRef.current = list;
+          setKelasList(list);
+        }
+        return list;
+      }).catch(() => []);
+
+      const kamarPromise = administrasiService.getKamarList().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) {
+          kamarListRef.current = list;
+          setKamarList(list);
+        }
+        return list;
+      }).catch(() => []);
+
+      const tahunAjaranPromise = administrasiService.getTahunAjaranList().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) {
+          setTahunAjaranList(list);
+          const active = list.find((t) => t.is_active);
+          if (active) {
+            setProfilPesantren((prev) => ({
+              ...prev,
+              tahun_pelajaran_aktif: active.nama,
+            }));
+          }
+        }
+        return list;
+      }).catch(() => []);
+
+      const profilPromise = administrasiService.getProfilPesantren().then((prof) => {
+        if (sessionEpochRef.current !== currentEpoch) return prof;
+        if (prof) setProfilPesantren((prev) => ({ ...prev, ...prof }));
+        return prof;
+      }).catch(() => null);
+
+      const pengumumanPromise = administrasiService.getPengumumanList(true).then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setPengumumanList(list);
+        return list;
+      }).catch(() => []);
+
+      const notifikasiPromise = notifikasiService.getNotifikasi().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setNotifikasiList(list);
+        return list;
+      }).catch(() => []);
+
+      // 2. Kueri data transaksi & tagihan secara progresif
+      const transaksiPromise = safeFetchJson("/api/keuangan/transaksi").then((d) => {
+        if (sessionEpochRef.current !== currentEpoch) return d;
+        if (d.ok && d.data?.ok) {
+          if (Array.isArray(d.data.transaksiPembayaranList)) {
+            setTransaksiPembayaranList(d.data.transaksiPembayaranList);
+          }
+          if (Array.isArray(d.data.pengajuanUangSakuList)) {
+            setPengajuanUangSakuList(d.data.pengajuanUangSakuList);
+          }
+        }
+        return d;
+      }).catch(() => null);
+
+      const tagihanPromise = keuanganService.getTagihanBySantri().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setTagihanList(list);
+        return list;
+      }).catch(() => []);
+
+      const mutasiSakuPromise = keuanganService.getMutasiUangSaku().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setMutasiUangSakuList(list);
+        return list;
+      }).catch(() => []);
+
+      // 3. Kueri kepesantrenan (mengaji, tahfidz, prestasi, kedisiplinan)
+      const mengajiPromise = kepesantrenanService.getPerkembanganMengaji().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setMengajiList(list);
+        return list;
+      }).catch(() => []);
+
+      const tahfidzPromise = kepesantrenanService.getSetoranTahfidz().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setTahfidzList(list);
+        return list;
+      }).catch(() => []);
+
+      const prestasiPromise = kepesantrenanService.getPrestasiSantri().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setPrestasiList(list);
+        return list;
+      }).catch(() => []);
+
+      const kedisiplinanPromise = kepesantrenanService.getCatatanKedisiplinan().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setKedisiplinanList(list);
+        return list;
+      }).catch(() => []);
+
+      const kategoriPelanggaranPromise = kepesantrenanService.getMasterKategoriPelanggaran(true).then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setMasterPelanggaranList(list);
+        return list;
+      }).catch(() => []);
+
+      // 4. Kueri santri, wali, akun staf, riwayat penempatan, dan audit
+      const santriPromise = administrasiService.getSantriList().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setSantriList(list);
+        return list;
+      }).catch(() => []);
+
+      const waliPromise = administrasiService.getWaliList().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setWaliList(list);
+        return list;
+      }).catch(() => []);
+
+      const jenisPromise = administrasiService.getJenisPembayaranList().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setJenisPembayaranList(list);
+        return list;
+      }).catch(() => []);
+
+      const riwayatPenempatanPromise = administrasiService.getRiwayatPenempatanList().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setRiwayatPenempatan(list);
+        return list;
+      }).catch(() => []);
+
+      const usersPromise = authService.getAllProfiles().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) {
+          const cleanUsers = list.filter((u) => u && !u.id.startsWith("usr-"));
+          if (cleanUsers.length > 0) setUsers(cleanUsers);
+        }
+        return list;
+      }).catch(() => []);
+
+      const auditLogsPromise = administrasiService.getAuditLogs().then((list) => {
+        if (sessionEpochRef.current !== currentEpoch) return list;
+        if (Array.isArray(list)) setAuditLogs(list);
+        return list;
+      }).catch(() => []);
+
+      // Tunggu seluruh promise selesai di latar belakang agar refreshInFlightRef dapat diselesaikan
+      await Promise.allSettled([
+        rekeningPromise,
+        kelasPromise,
+        kamarPromise,
+        tahunAjaranPromise,
+        profilPromise,
+        pengumumanPromise,
+        notifikasiPromise,
+        transaksiPromise,
+        tagihanPromise,
+        mutasiSakuPromise,
+        mengajiPromise,
+        tahfidzPromise,
+        prestasiPromise,
+        kedisiplinanPromise,
+        kategoriPelanggaranPromise,
+        santriPromise,
+        waliPromise,
+        jenisPromise,
+        riwayatPenempatanPromise,
+        usersPromise,
+        auditLogsPromise,
+      ]);
     } catch (e) {
       console.warn("Sinkronisasi Supabase ditunda/offline:", e);
     }
   }, []);
 
-  const refreshFromSupabase = useCallback((): Promise<void> => {
+  const refreshFromSupabase = useCallback((force = false): Promise<void> => {
+    const now = Date.now();
+    // Hindari pemanggilan ganda dalam window 1.2 detik jika sudah ada request in-flight
+    if (!force && now - lastRefreshTimeRef.current < 1200 && refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
+    }
+
     if (!refreshInFlightRef.current) {
+      lastRefreshTimeRef.current = now;
       refreshInFlightRef.current = runRefreshFromSupabase().finally(() => {
         refreshInFlightRef.current = null;
       });
       return refreshInFlightRef.current;
     }
-    // Refresh sedang berjalan: jadwalkan tepat satu putaran lanjutan agar data hasil mutasi terbaru tetap termuat
+
+    // Refresh sedang berjalan: jadwalkan satu putaran lanjutan saja
     if (!refreshQueuedRef.current) {
       refreshQueuedRef.current = refreshInFlightRef.current.then(() => {
         refreshQueuedRef.current = null;
-        return refreshFromSupabase();
+        return runRefreshFromSupabase();
       });
     }
     return refreshQueuedRef.current;
@@ -947,14 +1021,36 @@ export function SipetaProvider({
           message: "Akun Anda telah dinonaktifkan. Hubungi Administrator untuk informasi lebih lanjut.",
         };
       }
-      setUsers((prev) => [res.user!, ...prev.filter((p) => p.id !== res.user!.id && !p.id.startsWith("usr-"))]);
+      // Tingkatkan epoch sesi dan bersihkan cache agar data role sebelumnya tidak tertinggal
+      sessionEpochRef.current++;
+      lastRefreshTimeRef.current = 0;
+      refreshInFlightRef.current = null;
+      refreshQueuedRef.current = null;
+      administrasiService.clearCache();
+
+      // Reset data operasional role sebelum memuat data baru milik pengguna saat ini
+      setSantriList([]);
+      setWaliList([]);
+      setTagihanList([]);
+      setTransaksiPembayaranList([]);
+      setPengajuanUangSakuList([]);
+      setMutasiUangSakuList([]);
+      setMengajiList([]);
+      setTahfidzList([]);
+      setPrestasiList([]);
+      setKedisiplinanList([]);
+      setAuditLogs([]);
+      setKeranjang([]);
+      setRiwayatPenempatan([]);
+
+      setUsers([res.user]);
       setCurrentUser(res.user);
       setCurrentUserId(res.user.id);
       setIsAuthenticated(true);
       setAuthMode("supabase");
       // Login sudah tervalidasi server (auth + profil + role). Pemuatan data portal berjalan
-      // di latar belakang agar pengguna tidak menunggu seluruh dataset sebelum masuk dashboard.
-      refreshFromSupabase().catch((err) => {
+      // di latar belakang secara progresif agar pengguna langsung masuk dashboard.
+      refreshFromSupabase(true).catch((err) => {
         console.warn("Sinkronisasi data pasca-login tertunda:", err);
       });
       return { ok: true, message: res.message };
@@ -964,18 +1060,40 @@ export function SipetaProvider({
 
   const logout = async (): Promise<ActionResponse> => {
     const wasSupabase = authMode === "supabase";
-    // Bersihkan state UI & penyimpanan lokal seketika agar perpindahan ke layar login instan
+    // 1. Batalkan seluruh in-flight request dari sesi ini melalui epoch invalidation
+    sessionEpochRef.current++;
+    lastRefreshTimeRef.current = 0;
+    refreshInFlightRef.current = null;
+    refreshQueuedRef.current = null;
+    administrasiService.clearCache();
+
+    // 2. Bersihkan seluruh state data operasional & pengguna seketika
+    setSantriList([]);
+    setWaliList([]);
+    setTagihanList([]);
+    setTransaksiPembayaranList([]);
+    setPengajuanUangSakuList([]);
+    setMutasiUangSakuList([]);
+    setMengajiList([]);
+    setTahfidzList([]);
+    setPrestasiList([]);
+    setKedisiplinanList([]);
+    setAuditLogs([]);
+    setKeranjang([]);
+    setRiwayatPenempatan([]);
+    setUsers([]);
     setCurrentUser(null);
     setCurrentUserId(null);
     setIsAuthenticated(false);
     setAuthMode("unauthenticated");
+
     try {
       window.localStorage.removeItem(STORAGE_KEY);
       if (typeof window !== "undefined" && window.localStorage) {
         const keysToRemove: string[] = [];
         for (let i = 0; i < window.localStorage.length; i++) {
           const k = window.localStorage.key(i);
-          if (k && (k.startsWith("sb-") || k.includes("supabase"))) {
+          if (k && (k.startsWith("sb-") || k.includes("supabase") || k.startsWith("sipeta"))) {
             keysToRemove.push(k);
           }
         }
@@ -985,12 +1103,31 @@ export function SipetaProvider({
       // Ignore storage errors
     }
 
-    if (wasSupabase) {
-      // Jalankan pencabutan sesi server tanpa menahan UI lebih dari 400ms
+    // 3. Bersihkan cookies browser seketika agar request navigasi & middleware berikutnya tidak membawa token usang
+    if (typeof document !== "undefined") {
       try {
+        const cookies = document.cookie.split(";");
+        for (const cookie of cookies) {
+          const eqPos = cookie.indexOf("=");
+          const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+          if (name.startsWith("sb-") || name.includes("supabase") || name.startsWith("sipeta")) {
+            document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+            const hostname = window.location.hostname;
+            document.cookie = `${name}=; path=/; domain=${hostname}; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+          }
+        }
+      } catch {
+        // Ignore cookie errors
+      }
+    }
+
+    if (wasSupabase) {
+      // Jalankan pencabutan sesi server tanpa menahan UI lebih dari 200ms
+      try {
+        void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
         await Promise.race([
           authService.logout(),
-          new Promise((resolve) => setTimeout(resolve, 400)),
+          new Promise((resolve) => setTimeout(resolve, 200)),
         ]);
       } catch (err) {
         console.warn("Logout error:", err);
