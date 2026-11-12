@@ -141,15 +141,16 @@ describe("SIPETA: Validasi Rekening Resmi Pesantren & Otorisasi Pengasuh", () =>
 
       CREATE TABLE public.audit_logs (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID REFERENCES public.profiles(id),
-        user_role public.user_role NOT NULL,
+        user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+        user_role public.user_role,
         aktivitas TEXT NOT NULL,
         jenis_objek TEXT NOT NULL,
-        objek_id TEXT,
+        objek_id TEXT NOT NULL,
         data_sebelum JSONB,
         data_sesudah JSONB,
         alasan_perubahan TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        sumber_aktivitas JSONB,
+        waktu TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
       CREATE SCHEMA IF NOT EXISTS storage;
