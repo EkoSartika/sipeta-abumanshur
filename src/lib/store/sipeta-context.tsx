@@ -12,9 +12,11 @@
 // ============================================================================
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { safeFetchJson } from "@/lib/utils/http";
 import type {
   AuditLogItem,
   CatatanKedisiplinan,
+  DokumenUnduhan,
   ImportBatchReport,
   ImportSantriRow,
   JenisPembayaran,
@@ -49,6 +51,7 @@ import type {
 } from "@/types/database";
 import {
   INITIAL_AUDIT_LOGS,
+  INITIAL_DOKUMEN_UNDUHAN,
   INITIAL_JENIS_PEMBAYARAN,
   INITIAL_KAMAR,
   INITIAL_KEDISIPLINAN,
@@ -131,6 +134,7 @@ interface SipetaContextValue {
   masterPelanggaranList: MasterKategoriPelanggaran[];
   kedisiplinanList: CatatanKedisiplinan[];
   pengumumanList: Pengumuman[];
+  dokumenList: DokumenUnduhan[];
   notifikasiList: NotifikasiItem[];
   auditLogs: AuditLogItem[];
 
@@ -302,6 +306,18 @@ interface SipetaContextValue {
   }) => ActionResponse;
   updatePengumuman: (id: string, payload: Partial<Pengumuman>) => ActionResponse;
   deletePengumuman: (id: string) => ActionResponse;
+
+  // Manajemen Dokumen & Unduhan (TU & Pengasuh)
+  createDokumen: (payload: {
+    judul: string;
+    deskripsi: string;
+    kategori: DokumenUnduhan["kategori"];
+    file_name: string;
+    file_size_formatted: string;
+    file_type: DokumenUnduhan["file_type"];
+    file_url?: string;
+  }) => ActionResponse;
+  deleteDokumen: (id: string) => ActionResponse;
 
   // Orang Tua / Wali Actions
   addOrUpdateKeranjang: (tagihanId: string, nominalBayar: number) => ActionResponse;
@@ -487,6 +503,9 @@ export function SipetaProvider({
   const [pengumumanList, setPengumumanList] = useState<Pengumuman[]>(
     useDemoInitialData ? INITIAL_PENGUMUMAN : []
   );
+  const [dokumenList, setDokumenList] = useState<DokumenUnduhan[]>(
+    INITIAL_DOKUMEN_UNDUHAN
+  );
   const [notifikasiList, setNotifikasiList] = useState<NotifikasiItem[]>(
     useDemoInitialData ? INITIAL_NOTIFIKASI : []
   );
@@ -538,8 +557,8 @@ export function SipetaProvider({
         administrasiService.getJenisPembayaranList(),
         keuanganService.getTagihanBySantri(),
         // Gunakan API route server-side agar RLS tidak memblokir pembacaan transaksi oleh Wali/Bendahara (Role TU/Pengelola otomatis fallback ke [])
-        fetch("/api/keuangan/transaksi").then((r) => r.ok ? r.json() : Promise.resolve({ ok: false })).then((d) => d.ok ? (d.transaksiPembayaranList ?? []) : []),
-        fetch("/api/keuangan/transaksi").then((r) => r.ok ? r.json() : Promise.resolve({ ok: false })).then((d) => d.ok ? (d.pengajuanUangSakuList ?? []) : []),
+        safeFetchJson("/api/keuangan/transaksi").then((d) => d.ok && d.data?.ok ? (d.data.transaksiPembayaranList ?? []) : []),
+        safeFetchJson("/api/keuangan/transaksi").then((d) => d.ok && d.data?.ok ? (d.data.pengajuanUangSakuList ?? []) : []),
         keuanganService.getMutasiUangSaku(),
         kepesantrenanService.getPerkembanganMengaji(),
         kepesantrenanService.getSetoranTahfidz(),
@@ -3665,6 +3684,67 @@ export function SipetaProvider({
   };
 
   // ============================================================================
+  // MANAJEMEN DOKUMEN & UNDUHAN (TU & PENGASUH)
+  // ============================================================================
+
+  const createDokumen: SipetaContextValue["createDokumen"] = (payload) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin" &&
+        currentUser.role !== "tu")
+    ) {
+      return { ok: false, message: "Hanya Tata Usaha (TU) dan Pengasuh/Admin yang berhak mengunggah dokumen." };
+    }
+
+    if (!payload.judul.trim() || !payload.file_name.trim()) {
+      return { ok: false, message: "Judul dokumen dan nama berkas wajib diisi." };
+    }
+
+    const newDok: DokumenUnduhan = {
+      id: `dok-${Date.now()}`,
+      judul: payload.judul.trim(),
+      deskripsi: payload.deskripsi.trim(),
+      kategori: payload.kategori,
+      file_name: payload.file_name.trim(),
+      file_size_formatted: payload.file_size_formatted || "1.0 MB",
+      file_type: payload.file_type || "PDF",
+      file_url: payload.file_url || "#",
+      tanggal_unggah: new Date().toISOString().slice(0, 10),
+      diunggah_oleh_nama: currentUser.nama_lengkap,
+      is_published: true,
+    };
+
+    setDokumenList((prev) => [newDok, ...prev]);
+    appendAuditLog("UNGGAH_DOKUMEN", "dokumen_unduhan", newDok.id, {
+      judul: newDok.judul,
+      kategori: newDok.kategori,
+      file_name: newDok.file_name,
+    });
+
+    return { ok: true, message: `Dokumen "${newDok.judul}" berhasil diunggah ke perpustakaan dokumen.` };
+  };
+
+  const deleteDokumen: SipetaContextValue["deleteDokumen"] = (id) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== "admin" &&
+        currentUser.role !== "superadmin" &&
+        currentUser.role !== "tu")
+    ) {
+      return { ok: false, message: "Akses ditolak." };
+    }
+
+    const target = dokumenList.find((d) => d.id === id);
+    if (!target) return { ok: false, message: "Dokumen tidak ditemukan." };
+
+    setDokumenList((prev) => prev.filter((d) => d.id !== id));
+    appendAuditLog("HAPUS_DOKUMEN", "dokumen_unduhan", id, { judul: target.judul });
+
+    return { ok: true, message: `Dokumen "${target.judul}" berhasil dihapus dari perpustakaan.` };
+  };
+
+  // ============================================================================
   // ORANG TUA / WALI ACTIONS (KERANJANG CICILAN, CHECKOUT, & TOP-UP SAKU)
   // ============================================================================
 
@@ -3741,7 +3821,12 @@ export function SipetaProvider({
         headers["Idempotency-Key"] = payload.idempotency_key;
       }
 
-      const res = await fetch("/api/keuangan/transaksi", {
+      const httpRes = await safeFetchJson<{
+        ok: boolean;
+        message: string;
+        nomor_transaksi?: string;
+        is_idempotent_replay?: boolean;
+      }>("/api/keuangan/transaksi", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -3757,10 +3842,14 @@ export function SipetaProvider({
         }),
       });
 
-      const data = await res.json();
-      if (!data.ok) {
-        return { ok: false, message: data.message || "Gagal menyimpan transaksi ke server." };
+      if (!httpRes.ok || !httpRes.data?.ok) {
+        return {
+          ok: false,
+          message: httpRes.data?.message || httpRes.message || "Gagal menyimpan transaksi ke server.",
+        };
       }
+
+      const data = httpRes.data;
 
       // Refresh dari Supabase agar data real muncul di state
       await refreshFromSupabase();
@@ -3862,7 +3951,11 @@ export function SipetaProvider({
     }
 
     try {
-      const res = await fetch("/api/keuangan/transaksi", {
+      const httpRes = await safeFetchJson<{
+        ok: boolean;
+        message: string;
+        nomor_pengajuan?: string;
+      }>("/api/keuangan/transaksi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3878,10 +3971,14 @@ export function SipetaProvider({
         }),
       });
 
-      const data = await res.json();
-      if (!data.ok) {
-        return { ok: false, message: data.message || "Gagal menyimpan pengajuan top-up ke server." };
+      if (!httpRes.ok || !httpRes.data?.ok) {
+        return {
+          ok: false,
+          message: httpRes.data?.message || httpRes.message || "Gagal menyimpan pengajuan top-up ke server.",
+        };
       }
+
+      const data = httpRes.data;
 
       await refreshFromSupabase();
       return {
@@ -3963,7 +4060,7 @@ export function SipetaProvider({
     }
 
     try {
-      const res = await fetch("/api/keuangan/transaksi", {
+      const httpRes = await safeFetchJson<{ ok: boolean; message: string }>("/api/keuangan/transaksi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3974,10 +4071,14 @@ export function SipetaProvider({
         }),
       });
 
-      const data = await res.json();
-      if (!data.ok) {
-        return { ok: false, message: data.message || "Gagal memverifikasi transaksi." };
+      if (!httpRes.ok || !httpRes.data?.ok) {
+        return {
+          ok: false,
+          message: httpRes.data?.message || httpRes.message || "Gagal memverifikasi transaksi.",
+        };
       }
+
+      const data = httpRes.data;
 
       await refreshFromSupabase();
       return {
@@ -4025,7 +4126,7 @@ export function SipetaProvider({
     }
 
     try {
-      const res = await fetch("/api/keuangan/transaksi", {
+      const httpRes = await safeFetchJson<{ ok: boolean; message: string }>("/api/keuangan/transaksi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -4036,10 +4137,14 @@ export function SipetaProvider({
         }),
       });
 
-      const data = await res.json();
-      if (!data.ok) {
-        return { ok: false, message: data.message || "Gagal memverifikasi pengajuan top-up." };
+      if (!httpRes.ok || !httpRes.data?.ok) {
+        return {
+          ok: false,
+          message: httpRes.data?.message || httpRes.message || "Gagal memverifikasi pengajuan top-up.",
+        };
       }
+
+      const data = httpRes.data;
 
       await refreshFromSupabase();
       return {
@@ -4911,6 +5016,7 @@ export function SipetaProvider({
         masterPelanggaranList,
         kedisiplinanList,
         pengumumanList,
+        dokumenList,
         notifikasiList,
         auditLogs,
         // Status Koneksi Backend
@@ -4965,6 +5071,8 @@ export function SipetaProvider({
         createPengumuman,
         updatePengumuman,
         deletePengumuman,
+        createDokumen,
+        deleteDokumen,
         addOrUpdateKeranjang,
         removeFromKeranjang,
         clearKeranjang,

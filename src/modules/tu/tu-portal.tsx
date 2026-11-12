@@ -65,6 +65,7 @@ import {
 } from "@/lib/utils/auth-mapping";
 import type {
   CatatanKedisiplinan,
+  DokumenUnduhan,
   ImportBatchReport,
   ImportSantriRow,
   ImportValidationSummary,
@@ -125,6 +126,9 @@ export function TuPortal({
     createPengumuman,
     updatePengumuman,
     deletePengumuman,
+    dokumenList,
+    createDokumen,
+    deleteDokumen,
     tagihanList,
     mengajiList,
     tahunAjaranList,
@@ -381,6 +385,20 @@ export function TuPortal({
 
   const [editPengumumanModal, setEditPengumumanModal] = useState<Pengumuman | null>(null);
   const [deletePengumumanConfirmModal, setDeletePengumumanConfirmModal] = useState<Pengumuman | null>(null);
+
+  // ==========================================================================
+  // STATE MANAJEMEN DOKUMEN & UNDUHAN (TU)
+  // ==========================================================================
+  const [judulDokumen, setJudulDokumen] = useState("");
+  const [deskripsiDokumen, setDeskripsiDokumen] = useState("");
+  const [kategoriDokumen, setKategoriDokumen] = useState<
+    "Akademik" | "Administrasi" | "Panduan & Regulasi" | "Kalender & Jadwal" | "Keuangan & Formulir"
+  >("Panduan & Regulasi");
+  const [namaBerkasDokumen, setNamaBerkasDokumen] = useState("");
+  const [tipeBerkasDokumen, setTipeBerkasDokumen] = useState<"PDF" | "DOCX" | "XLSX" | "LAINNYA">("PDF");
+  const [ukuranBerkasDokumen, setUkuranBerkasDokumen] = useState("1.0 MB");
+  const [urlBerkasDokumen, setUrlBerkasDokumen] = useState("#");
+  const [pengumumanSubTab, setPengumumanSubTab] = useState<"pengumuman" | "dokumen">("pengumuman");
 
   // ==========================================================================
   // STATE REKAPITULASI & LAPORAN (TU)
@@ -1235,6 +1253,31 @@ export function TuPortal({
     const res = deletePengumuman(deletePengumumanConfirmModal.id);
     setFeedback({ ok: res.ok, text: res.message });
     setDeletePengumumanConfirmModal(null);
+  };
+
+  const handleCreateDokumenSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!judulDokumen.trim() || !namaBerkasDokumen.trim()) {
+      setFeedback({ ok: false, text: "Judul dokumen dan nama berkas wajib diisi." });
+      return;
+    }
+
+    const res = createDokumen({
+      judul: judulDokumen.trim(),
+      deskripsi: deskripsiDokumen.trim(),
+      kategori: kategoriDokumen,
+      file_name: namaBerkasDokumen.trim(),
+      file_size_formatted: ukuranBerkasDokumen.trim() || "1.0 MB",
+      file_type: tipeBerkasDokumen,
+      file_url: urlBerkasDokumen.trim() || "#",
+    });
+
+    setFeedback({ ok: res.ok, text: res.message });
+    if (res.ok) {
+      setJudulDokumen("");
+      setDeskripsiDokumen("");
+      setNamaBerkasDokumen("");
+    }
   };
 
   // ==========================================================================
@@ -3569,7 +3612,36 @@ export function TuPortal({
          ===================================================================== */}
       {activeTab === "pengumuman" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sub-tab Switcher: Pengumuman vs Dokumen */}
+          <div className="flex border-b border-slate-200 bg-white rounded-2xl p-1.5 gap-2 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setPengumumanSubTab("pengumuman")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-colors ${
+                pengumumanSubTab === "pengumuman"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <Megaphone className="h-4 w-4" />
+              Pengumuman Resmi Pesantren
+            </button>
+            <button
+              type="button"
+              onClick={() => setPengumumanSubTab("dokumen")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-colors ${
+                pengumumanSubTab === "dokumen"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              Dokumen & Unduhan ({dokumenList.length})
+            </button>
+          </div>
+
+          {pengumumanSubTab === "pengumuman" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Form Tambah Pengumuman */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
@@ -3805,6 +3877,207 @@ export function TuPortal({
               </div>
             </div>
           </div>
+          )}
+
+          {pengumumanSubTab === "dokumen" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Form Tambah Dokumen */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-indigo-700" />
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      Tambah Dokumen & Unduhan
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Dokumen resmi yang dapat diunduh oleh wali santri
+                  </p>
+                </div>
+
+                <form onSubmit={handleCreateDokumenSubmit} className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="font-semibold text-slate-700">Judul Dokumen *</label>
+                    <input
+                      type="text"
+                      required
+                      value={judulDokumen}
+                      onChange={(e) => setJudulDokumen(e.target.value)}
+                      placeholder="Contoh: Kalender Akademik 2025/2026"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700">Kategori Dokumen *</label>
+                    <select
+                      value={kategoriDokumen}
+                      onChange={(e) => setKategoriDokumen(e.target.value as any)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    >
+                      <option value="Akademik">Akademik</option>
+                      <option value="Tata Tertib & Aturan">Tata Tertib & Aturan</option>
+                      <option value="Formulir & Administrasi">Formulir & Administrasi</option>
+                      <option value="Brosur & Informasi">Brosur & Informasi</option>
+                      <option value="Panduan Pembayaran">Panduan Pembayaran</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700">Deskripsi Singkat</label>
+                    <textarea
+                      rows={3}
+                      value={deskripsiDokumen}
+                      onChange={(e) => setDeskripsiDokumen(e.target.value)}
+                      placeholder="Penjelasan ringkas tentang isi dokumen ini..."
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700">Nama Berkas *</label>
+                    <input
+                      type="text"
+                      required
+                      value={namaBerkasDokumen}
+                      onChange={(e) => setNamaBerkasDokumen(e.target.value)}
+                      placeholder="Contoh: kalender-akademik-2025-2026.pdf"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="font-semibold text-slate-700">Format / Tipe</label>
+                      <select
+                        value={tipeBerkasDokumen}
+                        onChange={(e) => setTipeBerkasDokumen(e.target.value as any)}
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                      >
+                        <option value="PDF">PDF (.pdf)</option>
+                        <option value="DOCX">Word (.docx)</option>
+                        <option value="XLSX">Excel (.xlsx)</option>
+                        <option value="LAINNYA">Lainnya</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700">Ukuran Perkiraan</label>
+                      <input
+                        type="text"
+                        value={ukuranBerkasDokumen}
+                        onChange={(e) => setUkuranBerkasDokumen(e.target.value)}
+                        placeholder="Contoh: 1.5 MB"
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700">URL / Tautan Berkas</label>
+                    <input
+                      type="text"
+                      value={urlBerkasDokumen}
+                      onChange={(e) => setUrlBerkasDokumen(e.target.value)}
+                      placeholder="https://... atau biarkan kosong"
+                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full mt-2 rounded-xl bg-indigo-600 px-4 py-2.5 font-bold text-white shadow-sm hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Simpan Dokumen
+                  </button>
+                </form>
+              </div>
+
+              {/* Daftar Dokumen yang Tersedia */}
+              <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-indigo-700" />
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      Perpustakaan Dokumen Unduhan Pesantren
+                    </h3>
+                  </div>
+                  <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2.5 py-1 rounded-full border border-indigo-200">
+                    Total: {dokumenList.length} berkas
+                  </span>
+                </div>
+
+                {dokumenList.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 text-sm">
+                    Belum ada dokumen yang diunggah.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {dokumenList.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 bg-slate-50/50 hover:bg-white transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="p-2.5 rounded-xl bg-indigo-100 text-indigo-700 flex-shrink-0 mt-0.5">
+                            {doc.file_type === "XLSX" ? (
+                              <FileSpreadsheet className="h-5 w-5" />
+                            ) : (
+                              <FileText className="h-5 w-5" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-sm text-slate-900">{doc.judul}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                                {doc.kategori}
+                              </span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">
+                                {doc.file_type}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 mt-1">{doc.deskripsi}</p>
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 mt-1.5">
+                              <span>Berkas: {doc.file_name}</span>
+                              <span>•</span>
+                              <span>Ukuran: {doc.file_size_formatted}</span>
+                              <span>•</span>
+                              <span>Diunggah: {doc.tanggal_unggah}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
+                          <a
+                            href={doc.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 text-xs font-semibold transition"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Unduh
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Hapus dokumen "${doc.judul}"?`)) {
+                                const res = deleteDokumen(doc.id);
+                                setFeedback({ ok: res.ok, text: res.message });
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition"
+                            title="Hapus Dokumen"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

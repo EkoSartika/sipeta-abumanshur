@@ -487,6 +487,20 @@ export interface Pengumuman {
   status_publikasi?: "DRAF" | "PUBLIKASI";
 }
 
+export interface DokumenUnduhan {
+  id: string;
+  judul: string;
+  deskripsi: string;
+  kategori: "Akademik" | "Administrasi" | "Panduan & Regulasi" | "Kalender & Jadwal" | "Keuangan & Formulir";
+  file_name: string;
+  file_size_formatted: string;
+  file_type: "PDF" | "DOCX" | "XLSX" | "LAINNYA";
+  file_url: string;
+  tanggal_unggah: string;
+  diunggah_oleh_nama: string;
+  is_published: boolean;
+}
+
 export interface NotifikasiItem {
   id: string;
   user_id: string;

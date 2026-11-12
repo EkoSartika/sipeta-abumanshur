@@ -7,6 +7,7 @@
 import type {
   AuditLogItem,
   CatatanKedisiplinan,
+  DokumenUnduhan,
   JenisPembayaran,
   Kamar,
   Kelas,
@@ -1164,4 +1165,64 @@ export const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
     waktu: "2026-10-10T13:20:00Z",
   },
 ];
+
+export const INITIAL_DOKUMEN_UNDUHAN: DokumenUnduhan[] = [
+  {
+    id: "dok-001",
+    judul: "Kalender Akademik & Jadwal Libur Santri 2026/2027",
+    deskripsi:
+      "Panduan resmi waktu kedatangan, jadwal ujian semester, serta tanggal penjemputan libur Ramadhan santri Pondok Pesantren Modern Abu Manshur.",
+    kategori: "Kalender & Jadwal",
+    file_name: "Kalender-Akademik-Abu-Manshur-2026-2027.pdf",
+    file_size_formatted: "1.2 MB",
+    file_type: "PDF",
+    file_url: "#",
+    tanggal_unggah: "2026-11-01",
+    diunggah_oleh_nama: "Staf Tata Usaha (Ust. Ahmad Fauzi)",
+    is_published: true,
+  },
+  {
+    id: "dok-002",
+    judul: "Tata Tertib, Kedisiplinan & Regulasi Asrama Santri",
+    deskripsi:
+      "Buku panduan disiplin santri, ketentuan kunjungan orang tua (mahram), aturan barang bawaan, dan prosedur perizinan pulang.",
+    kategori: "Panduan & Regulasi",
+    file_name: "Buku-Panduan-Tata-Tertib-Santri-2026.pdf",
+    file_size_formatted: "850 KB",
+    file_type: "PDF",
+    file_url: "#",
+    tanggal_unggah: "2026-10-15",
+    diunggah_oleh_nama: "Bagian Pengasuhan Santri",
+    is_published: true,
+  },
+  {
+    id: "dok-003",
+    judul: "Panduan Teknis Sistem Pembayaran & Idempotensi SIPETA",
+    deskripsi:
+      "Petunjuk cara melakukan checkout cicilan tagihan multi-pos, top-up uang saku tunai, dan prosedur verifikasi rekening resmi BSI Pesantren.",
+    kategori: "Keuangan & Formulir",
+    file_name: "Panduan-Pembayaran-Wali-Santri-SIPETA.pdf",
+    file_size_formatted: "2.4 MB",
+    file_type: "PDF",
+    file_url: "#",
+    tanggal_unggah: "2026-11-05",
+    diunggah_oleh_nama: "Bendahara Keuangan",
+    is_published: true,
+  },
+  {
+    id: "dok-004",
+    judul: "Formulir Surat Permohonan Izin Khusus Pulang Santri",
+    deskripsi:
+      "Format resmi surat permohonan izin pulang karena urusan darurat keluarga atau kesehatan untuk diserahkan ke bagian Tata Usaha.",
+    kategori: "Administrasi",
+    file_name: "Form-Izin-Khusus-Pulang-Santri.docx",
+    file_size_formatted: "320 KB",
+    file_type: "DOCX",
+    file_url: "#",
+    tanggal_unggah: "2026-10-20",
+    diunggah_oleh_nama: "Staf Tata Usaha (Ust. Ahmad Fauzi)",
+    is_published: true,
+  },
+];
+
 

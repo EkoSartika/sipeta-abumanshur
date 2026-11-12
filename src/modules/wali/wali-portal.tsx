@@ -9,13 +9,18 @@ import {
   CheckCircle2,
   ClipboardList,
   CreditCard,
+  Download,
   FileCheck2,
+  FileSpreadsheet,
+  FileText,
   History,
   Info,
   Landmark,
   LayoutDashboard,
+  Megaphone,
   Plus,
   Receipt,
+  Search,
   ShieldAlert,
   ShoppingCart,
   Sparkles,
@@ -25,6 +30,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
+import { compressImageClientSide } from "@/lib/utils/image-compression";
 import {
   formatRupiah,
   formatTanggal,
@@ -84,6 +90,7 @@ export function WaliPortal({
     prestasiList,
     kedisiplinanList,
     pengumumanList,
+    dokumenList,
     notifikasiList,
     getSaldoSantri,
     addOrUpdateKeranjang,
@@ -307,7 +314,7 @@ export function WaliPortal({
     [keranjang]
   );
 
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     target: "bayar" | "saku"
   ) => {
@@ -318,9 +325,15 @@ export function WaliPortal({
       setFeedback({ ok: false, text: check.error ?? "File tidak valid." });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : SAMPLE_TRANSFER_PROOF_1;
+
+    try {
+      setFeedback({ ok: true, text: `Mengoptimalkan gambar "${file.name}"...` });
+      const { dataUrl, sizeBytes, originalBytes } = await compressImageClientSide(file, {
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.82,
+      });
+
       if (target === "bayar") {
         setBuktiBayarUrl(dataUrl);
         setBuktiBayarFilename(file.name);
@@ -328,9 +341,28 @@ export function WaliPortal({
         setBuktiTopupUrl(dataUrl);
         setBuktiTopupFilename(file.name);
       }
-      setFeedback({ ok: true, text: `File "${file.name}" siap diunggah.` });
-    };
-    reader.readAsDataURL(file);
+
+      const sizeKb = Math.round(sizeBytes / 1024);
+      const origKb = Math.round(originalBytes / 1024);
+      setFeedback({
+        ok: true,
+        text: `File "${file.name}" siap diunggah (${sizeKb} KB, dioptimalkan dari ${origKb} KB).`,
+      });
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === "string" ? reader.result : SAMPLE_TRANSFER_PROOF_1;
+        if (target === "bayar") {
+          setBuktiBayarUrl(dataUrl);
+          setBuktiBayarFilename(file.name);
+        } else {
+          setBuktiTopupUrl(dataUrl);
+          setBuktiTopupFilename(file.name);
+        }
+        setFeedback({ ok: true, text: `File "${file.name}" siap diunggah.` });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAddBillToCart = (tagihanId: string, defaultAmount: number) => {
@@ -1726,32 +1758,6 @@ export function WaliPortal({
         activeTab === "prestasi" ||
         activeTab === "kedisiplinan") && (
         <div className="space-y-5">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { id: "mengaji", label: `Perkembangan Mengaji (${myMengaji.length})` },
-              { id: "tahfidz", label: `Setoran Tahfidz (${myTahfidz.length})` },
-              { id: "prestasi", label: `Prestasi Santri (${myPrestasi.length})` },
-              { id: "kedisiplinan", label: `Catatan Kedisiplinan (${myKedisiplinan.length})` },
-            ].map((st) => (
-              <button
-                key={st.id}
-                type="button"
-                onClick={() =>
-                  setSubTabPesantren(
-                    st.id as "mengaji" | "tahfidz" | "prestasi" | "kedisiplinan"
-                  )
-                }
-                className={`rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold transition ${
-                  effectiveSubTab === st.id
-                    ? "bg-emerald-800 text-white shadow-sm"
-                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                {st.label}
-              </button>
-            ))}
-          </div>
-
           {effectiveSubTab === "mengaji" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
               <h3 className="text-base font-bold text-slate-900">
@@ -1932,29 +1938,31 @@ export function WaliPortal({
       )}
 
       {/* =====================================================================
-          TAB 5: NOTIFIKASI & PENGUMUMAN (BAB 12 PRD)
+          TAB 5: NOTIFIKASI
          ===================================================================== */}
-      {(activeTab === "notifikasi" ||
-        activeTab === "pengumuman" ||
-        activeTab === "dokumen") && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-bold text-slate-900">
-                Notifikasi Akun Orang Tua ({unreadNotifCount} Belum Dibaca)
-              </h3>
-              {unreadNotifCount > 0 && (
-                <button
-                  type="button"
-                  onClick={markAllNotifikasiRead}
-                  className="text-xs font-semibold text-emerald-700 hover:underline"
-                >
-                  Tandai Semua Dibaca
-                </button>
-              )}
-            </div>
-            <div className="mt-3 space-y-2.5">
-              {myNotifikasi.map((n) => (
+      {activeTab === "notifikasi" && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900">
+              Notifikasi Akun Orang Tua ({unreadNotifCount} Belum Dibaca)
+            </h3>
+            {unreadNotifCount > 0 && (
+              <button
+                type="button"
+                onClick={markAllNotifikasiRead}
+                className="text-xs font-semibold text-emerald-700 hover:underline"
+              >
+                Tandai Semua Dibaca
+              </button>
+            )}
+          </div>
+          <div className="mt-3 space-y-2.5">
+            {myNotifikasi.length === 0 ? (
+              <p className="text-xs text-slate-500 italic py-6 text-center">
+                Belum ada notifikasi untuk akun Anda.
+              </p>
+            ) : (
+              myNotifikasi.map((n) => (
                 <div
                   key={n.id}
                   onClick={() => markNotifikasiRead(n.id)}
@@ -1972,39 +1980,176 @@ export function WaliPortal({
                   </div>
                   <p className="mt-1 text-xs text-slate-700">{n.pesan}</p>
                 </div>
-              ))}
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 6: PENGUMUMAN PESANTREN (INFORMASI RESMI RESMI TERPISAH)
+         ===================================================================== */}
+      {activeTab === "pengumuman" && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <Megaphone className="h-4 w-4" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Papan Pengumuman Resmi Pesantren
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Informasi penting, jadwal kegiatan, dan maklumat resmi Pondok Pesantren Modern Abu Manshur untuk Wali Santri.
+              </p>
             </div>
+            <span className="self-start sm:self-auto rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200">
+              {myPengumuman.length} Pengumuman Aktif
+            </span>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
-              Papan Pengumuman Resmi Pesantren
-            </h3>
-            <div className="mt-3 space-y-3">
-              {myPengumuman.length === 0 ? (
-                <p className="text-xs text-slate-500 italic py-4 text-center">
-                  Belum ada pengumuman aktif untuk santri Anda saat ini.
+          <div className="space-y-4">
+            {myPengumuman.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center">
+                <Megaphone className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                <p className="text-sm font-semibold text-slate-700">Belum ada pengumuman aktif</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Pengumuman baru yang diterbitkan pihak pesantren akan ditampilkan di sini.
                 </p>
-              ) : (
-                myPengumuman.map((p) => (
-                  <div key={p.id} className="rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="rounded bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">
+              </div>
+            ) : (
+              myPengumuman.map((p) => (
+                <div
+                  key={p.id}
+                  className={`rounded-2xl border p-5 transition space-y-3 ${
+                    p.is_penting
+                      ? "border-amber-300 bg-amber-50/50"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-md px-2.5 py-0.5 font-bold uppercase text-[10px] ${
+                          p.is_penting
+                            ? "bg-amber-200 text-amber-950"
+                            : "bg-emerald-100 text-emerald-900"
+                        }`}
+                      >
                         {p.kategori}
                       </span>
-                      <span className="text-slate-400">{formatTanggal(p.tanggal_publikasi)}</span>
+                      {p.is_penting && (
+                        <span className="rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
+                          Penting
+                        </span>
+                      )}
                     </div>
-                    <h4 className="mt-1.5 text-sm font-bold text-slate-900">{p.judul}</h4>
-                    <p className="mt-1 text-xs text-slate-600 leading-relaxed">{p.isi}</p>
+                    <span className="text-slate-400 text-[11px]">
+                      Diterbitkan: {formatTanggal(p.tanggal_publikasi)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900">{p.judul}</h4>
+                    <p className="mt-2 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                      {p.isi}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-100/80 text-[11px] text-slate-500">
+                    <span>Oleh: {p.created_by_nama || "Pihak Pesantren"}</span>
                     {p.masa_berlaku && (
-                      <p className="mt-2 text-[11px] text-slate-400">
-                        Berlaku sampai: {formatTanggal(p.masa_berlaku)}
-                      </p>
+                      <span className="font-medium text-amber-800">
+                        Berlaku hingga: {formatTanggal(p.masa_berlaku)}
+                      </span>
                     )}
                   </div>
-                ))
-              )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 7: DOKUMEN & UNDUHAN (PERPUSTAKAAN DOKUMEN MANDIRI)
+         ===================================================================== */}
+      {activeTab === "dokumen" && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-800 border border-blue-200">
+                  <Download className="h-4 w-4" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Perpustakaan Dokumen &amp; Berkas Unduhan Resmi
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Kumpulan berkas kalender akademik, tata tertib, regulasi kepengasuhan, serta formulir resmi pesantren yang dapat diunduh langsung.
+              </p>
             </div>
+            <span className="self-start sm:self-auto rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-200">
+              {dokumenList.filter((d) => d.is_published).length} Dokumen Tersedia
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {dokumenList
+              .filter((d) => d.is_published)
+              .map((dok) => (
+                <div
+                  key={dok.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-blue-300 hover:shadow-sm transition flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="rounded-md bg-blue-50 px-2.5 py-0.5 font-bold text-blue-800 text-[10px] uppercase">
+                        {dok.kategori}
+                      </span>
+                      <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">
+                        {dok.file_type} • {dok.file_size_formatted}
+                      </span>
+                    </div>
+
+                    <h4 className="text-base font-bold text-slate-900 leading-snug">
+                      {dok.judul}
+                    </h4>
+
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {dok.deskripsi}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span className="truncate max-w-[200px]">Berkas: {dok.file_name}</span>
+                      <span>{formatTanggal(dok.tanggal_unggah)}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeedback({
+                          ok: true,
+                          text: `Mengunduh berkas resmi "${dok.file_name}". Jika file tidak terunduh otomatis, hubungi Tata Usaha.`,
+                        });
+                        // Simulasi unduhan file jika URL '#'
+                        if (dok.file_url && dok.file_url !== "#") {
+                          window.open(dok.file_url, "_blank");
+                        }
+                      }}
+                      className="w-full rounded-xl bg-blue-700 py-2.5 text-xs font-bold text-white hover:bg-blue-800 transition flex items-center justify-center gap-2 shadow-xs"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Unduh Dokumen ({dok.file_type})</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       )}
