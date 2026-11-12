@@ -175,6 +175,7 @@ export default function SipetaHomePage() {
           { id: "dashboard", label: "Dashboard Pengawasan", icon: LayoutGrid },
           { id: "santri_asrama", label: "Pengawasan Santri & Asrama", icon: Users, badge: santriList.length },
           { id: "keuangan", label: "Pengawasan & Persetujuan Keuangan", icon: Wallet, badge: pendingAdminFeeCount || undefined },
+          { id: "rekening", label: "Pengaturan Rekening Pesantren", icon: Landmark },
           { id: "tahun_ajaran", label: "Master Tahun Pelajaran", icon: Calendar },
           { id: "laporan_tahfidz", label: "Laporan Tahfidz", icon: Sparkles },
           { id: "laporan_kedisiplinan", label: "Laporan Kedisiplinan", icon: ShieldAlert },

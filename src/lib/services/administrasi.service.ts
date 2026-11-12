@@ -33,6 +33,16 @@ export class AdministrasiService {
   // --------------------------------------------------------------------------
   // MASTER DATA: REKENING RESMI & TAHUN AJARAN
   // --------------------------------------------------------------------------
+  async getRekeningList(): Promise<RekeningPesantren[]> {
+    if (!isSupabaseConfigured()) return [];
+    const { data } = await this.client
+      .from("rekening_pesantren")
+      .select("*")
+      .order("is_active", { ascending: false })
+      .order("created_at", { ascending: false });
+    return (data as RekeningPesantren[]) ?? [];
+  }
+
   async getRekeningResmi(): Promise<RekeningPesantren | null> {
     if (!isSupabaseConfigured()) return null;
     const { data } = await this.client
@@ -40,8 +50,43 @@ export class AdministrasiService {
       .select("*")
       .eq("is_active", true)
       .limit(1)
-      .single();
+      .maybeSingle();
     return data ?? null;
+  }
+
+  async createRekening(payload: {
+    nama_bank: string;
+    kode_bank?: string;
+    nomor_rekening: string;
+    atas_nama: string;
+    catatan_instruksi?: string;
+    is_active?: boolean;
+  }): Promise<{ ok: boolean; message: string; data?: RekeningPesantren }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+
+    // Jika mengaktifkan rekening ini, nonaktifkan rekening aktif lainnya terlebih dahulu (integritas unique index)
+    if (payload.is_active) {
+      await this.client
+        .from("rekening_pesantren")
+        .update({ is_active: false })
+        .eq("is_active", true);
+    }
+
+    const { data, error } = await this.client
+      .from("rekening_pesantren")
+      .insert({
+        nama_bank: payload.nama_bank,
+        kode_bank: payload.kode_bank || null,
+        nomor_rekening: payload.nomor_rekening,
+        atas_nama: payload.atas_nama,
+        catatan_instruksi: payload.catatan_instruksi || null,
+        is_active: payload.is_active ?? false,
+      })
+      .select()
+      .single();
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Rekening resmi pesantren berhasil ditambahkan.", data: data as RekeningPesantren };
   }
 
   async updateRekeningResmi(payload: Partial<RekeningPesantren>): Promise<{ ok: boolean; message: string }> {
@@ -52,6 +97,59 @@ export class AdministrasiService {
       .eq("is_active", true);
     if (error) return { ok: false, message: error.message };
     return { ok: true, message: "Rekening resmi pesantren berhasil diperbarui." };
+  }
+
+  async updateRekeningById(id: string, payload: Partial<RekeningPesantren>): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+
+    if (payload.is_active) {
+      // Nonaktifkan rekening lain sebelum mengaktifkan yang ini
+      await this.client
+        .from("rekening_pesantren")
+        .update({ is_active: false })
+        .eq("is_active", true)
+        .neq("id", id);
+    }
+
+    const { error } = await this.client
+      .from("rekening_pesantren")
+      .update({
+        ...payload,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Rekening berhasil diperbarui." };
+  }
+
+  async setRekeningUtama(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+
+    // 1. Nonaktifkan rekening yang saat ini aktif
+    await this.client
+      .from("rekening_pesantren")
+      .update({ is_active: false })
+      .eq("is_active", true);
+
+    // 2. Aktifkan rekening yang dipilih
+    const { error } = await this.client
+      .from("rekening_pesantren")
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Rekening utama aktif berhasil ditetapkan." };
+  }
+
+  async deleteRekeningById(id: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+    const { error } = await this.client
+      .from("rekening_pesantren")
+      .delete()
+      .eq("id", id);
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: "Rekening berhasil dihapus." };
   }
 
   async getTahunAjaranList(): Promise<TahunAjaran[]> {

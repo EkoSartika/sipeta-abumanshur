@@ -82,7 +82,10 @@ export interface RekeningPesantren {
   atas_nama: string;
   catatan_instruksi: string;
   is_active: boolean;
+  is_utama?: boolean;
+  created_at?: string;
   updated_at: string;
+  updated_by?: string;
 }
 
 export interface TahunAjaran {

@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Award,
   Bell,
   BookOpen,
@@ -1252,17 +1253,32 @@ export function WaliPortal({
               </div>
 
               {/* Informasi Rekening Resmi Tunggal Pesantren */}
-              <div className="mt-3 rounded-xl bg-emerald-950 p-3.5 text-white">
-                <div className="flex items-center gap-2 text-xs text-emerald-300 font-semibold">
-                  <Landmark className="h-4 w-4" />
-                  <span>Rekening Resmi Pesantren</span>
+              {!rekeningResmi || !rekeningResmi.is_active ? (
+                <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-900">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-800">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                    <span>Rekening Resmi Belum Aktif / Dikonfigurasi</span>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-700">
+                    Rekening resmi pesantren belum dikonfigurasi atau tidak aktif. Pembayaran via transfer ditahan sementara hingga pihak pesantren mengaktifkan rekening resmi.
+                  </p>
                 </div>
-                <p className="mt-1 text-sm font-bold">{rekeningResmi?.nama_bank || "Bank BSI"}</p>
-                <p className="font-mono text-lg font-extrabold tracking-wider text-amber-300">
-                  {rekeningResmi?.nomor_rekening || "-"}
-                </p>
-                <p className="text-xs text-emerald-100">a.n. {rekeningResmi?.atas_nama || "-"}</p>
-              </div>
+              ) : (
+                <div className="mt-3 rounded-xl bg-emerald-950 p-3.5 text-white">
+                  <div className="flex items-center gap-2 text-xs text-emerald-300 font-semibold">
+                    <Landmark className="h-4 w-4" />
+                    <span>Rekening Resmi Pesantren</span>
+                  </div>
+                  <p className="mt-1 text-sm font-bold">{rekeningResmi.nama_bank}</p>
+                  <p className="font-mono text-lg font-extrabold tracking-wider text-amber-300">
+                    {rekeningResmi.nomor_rekening}
+                  </p>
+                  <p className="text-xs text-emerald-100">a.n. {rekeningResmi.atas_nama}</p>
+                  {rekeningResmi.catatan_instruksi && (
+                    <p className="mt-1 text-[11px] text-emerald-200/80 italic">{rekeningResmi.catatan_instruksi}</p>
+                  )}
+                </div>
+              )}
 
               {keranjang.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-500">
@@ -1353,10 +1369,14 @@ export function WaliPortal({
 
                   <button
                     type="submit"
-                    disabled={isSubmittingPayment}
+                    disabled={isSubmittingPayment || !rekeningResmi || !rekeningResmi.is_active}
                     className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white shadow hover:bg-emerald-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isSubmittingPayment ? "Mengirim & Memproses Pembayaran..." : "Konfirmasi & Kirim Pengajuan Pembayaran"}
+                    {!rekeningResmi || !rekeningResmi.is_active
+                      ? "Rekening Resmi Belum Aktif"
+                      : isSubmittingPayment
+                      ? "Mengirim & Memproses Pembayaran..."
+                      : "Konfirmasi & Kirim Pengajuan Pembayaran"}
                   </button>
                 </form>
               )}
@@ -1649,13 +1669,25 @@ export function WaliPortal({
                 Bendahara.
               </p>
 
-              <div className="mt-3 rounded-xl bg-emerald-950 p-3 text-white text-xs">
-                <p className="text-emerald-300 font-semibold">{rekeningResmi?.nama_bank || "Bank BSI"}</p>
-                <p className="font-mono text-base font-bold text-amber-300">
-                  {rekeningResmi?.nomor_rekening || "-"}
-                </p>
-                <p className="text-emerald-100">a.n. {rekeningResmi?.atas_nama || "-"}</p>
-              </div>
+              {!rekeningResmi || !rekeningResmi.is_active ? (
+                <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-900 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                    <span>Rekening Resmi Belum Aktif</span>
+                  </div>
+                  <p className="mt-1 text-amber-700">
+                    Pengajuan transfer uang saku ditangguhkan sementara karena rekening resmi pesantren belum dikonfigurasi atau tidak aktif.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl bg-emerald-950 p-3 text-white text-xs">
+                  <p className="text-emerald-300 font-semibold">{rekeningResmi.nama_bank}</p>
+                  <p className="font-mono text-base font-bold text-amber-300">
+                    {rekeningResmi.nomor_rekening}
+                  </p>
+                  <p className="text-emerald-100">a.n. {rekeningResmi.atas_nama}</p>
+                </div>
+              )}
 
               <form onSubmit={handleTopupSubmit} className="mt-4 space-y-3">
                 <div>
@@ -1738,10 +1770,14 @@ export function WaliPortal({
 
                 <button
                   type="submit"
-                  disabled={isSubmittingTopup}
+                  disabled={isSubmittingTopup || !rekeningResmi || !rekeningResmi.is_active}
                   className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {isSubmittingTopup ? "Mengirim Pengajuan..." : "Kirim Pengajuan Uang Saku"}
+                  {!rekeningResmi || !rekeningResmi.is_active
+                    ? "Rekening Resmi Belum Aktif"
+                    : isSubmittingTopup
+                    ? "Mengirim Pengajuan..."
+                    : "Kirim Pengajuan Uang Saku"}
                 </button>
               </form>
             </div>
