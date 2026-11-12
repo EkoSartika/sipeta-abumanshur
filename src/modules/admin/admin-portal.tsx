@@ -98,8 +98,6 @@ export function AdminPortal({
     rekeningList,
     createRekening,
     updateRekening,
-    setUtamaRekening,
-    toggleActiveRekening,
     deleteRekening,
     auditLogs,
     profilPesantren,
@@ -155,7 +153,6 @@ export function AdminPortal({
   const [newAccNumber, setNewAccNumber] = useState("");
   const [newAccHolder, setNewAccHolder] = useState("");
   const [newInstructions, setNewInstructions] = useState("");
-  const [newIsActive, setNewIsActive] = useState(true);
 
   const [editingRekening, setEditingRekening] = useState<RekeningPesantren | null>(null);
   const [editBankName, setEditBankName] = useState("");
@@ -184,7 +181,6 @@ export function AdminPortal({
       nomor_rekening: newAccNumber,
       atas_nama: newAccHolder,
       catatan_instruksi: newInstructions,
-      is_active: newIsActive,
     });
     setRekeningFeedback({ ok: res.ok, text: res.message });
     if (res.ok) {
@@ -211,18 +207,6 @@ export function AdminPortal({
     if (res.ok) {
       setEditingRekening(null);
     }
-  };
-
-  const handleSetUtama = async (id: string) => {
-    setRekeningFeedback(null);
-    const res = await setUtamaRekening(id);
-    setRekeningFeedback({ ok: res.ok, text: res.message });
-  };
-
-  const handleToggleActive = async (id: string, currentActive: boolean) => {
-    setRekeningFeedback(null);
-    const res = await toggleActiveRekening(id, !currentActive);
-    setRekeningFeedback({ ok: res.ok, text: res.message });
   };
 
   const handleDeleteRekening = async (id: string, nama: string) => {
@@ -1231,16 +1215,7 @@ export function AdminPortal({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newIsActive}
-                      onChange={(e) => setNewIsActive(e.target.checked)}
-                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                    />
-                    <span>Jadikan Rekening Utama Aktif Sekarang</span>
-                  </label>
+                <div className="flex justify-end pt-2">
                   <button
                     type="submit"
                     className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
@@ -1437,27 +1412,6 @@ export function AdminPortal({
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
-                          </div>
-
-                          <div>
-                            {!isUtama ? (
-                              <button
-                                type="button"
-                                onClick={() => handleSetUtama(r.id)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold transition shadow-xs"
-                              >
-                                <Check className="h-3 w-3" />
-                                Jadikan Utama
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleToggleActive(r.id, true)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-50 font-semibold transition"
-                              >
-                                Nonaktifkan
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>

@@ -593,11 +593,14 @@ export function SipetaProvider({
         administrasiService.getAuditLogs(),
       ]);
 
-      if (rekeningRes.status === "fulfilled") {
-        setRekeningResmi(rekeningRes.value);
-      }
       if (rekeningListRes.status === "fulfilled" && Array.isArray(rekeningListRes.value)) {
         setRekeningList(rekeningListRes.value);
+      }
+      if (rekeningRes.status === "fulfilled" && rekeningRes.value) {
+        setRekeningResmi(rekeningRes.value);
+      } else if (rekeningListRes.status === "fulfilled" && Array.isArray(rekeningListRes.value) && rekeningListRes.value.length > 0) {
+        const active = rekeningListRes.value.find((r) => r.is_active) || rekeningListRes.value[0];
+        setRekeningResmi(active || null);
       }
       if (kelasRes.status === "fulfilled" && Array.isArray(kelasRes.value)) {
         kelasListRef.current = kelasRes.value;
@@ -1743,11 +1746,37 @@ export function SipetaProvider({
       };
     }
     const cleanNoRek = payload.nomor_rekening.trim();
-    if (cleanNoRek.length < 8) {
-      return { ok: false, message: "Nomor rekening tidak valid. Minimal 8 digit/karakter." };
+    if (cleanNoRek.length < 5) {
+      return { ok: false, message: "Nomor rekening tidak valid. Minimal 5 digit." };
     }
     if (!payload.nama_bank.trim() || !payload.atas_nama.trim()) {
       return { ok: false, message: "Nama bank dan atas nama wajib diisi." };
+    }
+
+    if (authMode === "supabase" || isSupabaseConfigured()) {
+      const res = await administrasiService.createRekening({
+        nama_bank: payload.nama_bank.trim(),
+        kode_bank: payload.kode_bank?.trim() || "451",
+        nomor_rekening: cleanNoRek,
+        atas_nama: payload.atas_nama.trim(),
+        catatan_instruksi: payload.catatan_instruksi?.trim() || "",
+      });
+
+      if (!res.ok) {
+        return { ok: false, message: res.message };
+      }
+
+      await refreshFromSupabase();
+
+      appendAuditLog(
+        "CREATE_REKENING_RESMI",
+        "rekening_pesantren",
+        res.data?.id || `rek-${Date.now()}`,
+        { ...payload, nomor_rekening: cleanNoRek },
+        `Penambahan rekening informasi pesantren baru (${payload.nama_bank} - ${cleanNoRek}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`
+      );
+
+      return { ok: true, message: res.message || "Rekening informasi pesantren berhasil ditambahkan." };
     }
 
     const newId = `rek-${Date.now()}`;
@@ -1758,46 +1787,15 @@ export function SipetaProvider({
       nomor_rekening: cleanNoRek,
       atas_nama: payload.atas_nama.trim(),
       catatan_instruksi: payload.catatan_instruksi?.trim() || "",
-      is_active: payload.is_active ?? false,
-      is_utama: payload.is_active ?? false,
+      is_active: false,
+      is_utama: false,
       updated_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
     };
 
-    if (newRek.is_active) {
-      setRekeningList((prev) => [
-        newRek,
-        ...prev.map((r) => ({ ...r, is_active: false, is_utama: false })),
-      ]);
-      setRekeningResmi(newRek);
-    } else {
-      setRekeningList((prev) => [newRek, ...prev]);
-    }
+    setRekeningList((prev) => [newRek, ...prev]);
 
-    if (authMode === "supabase" || isSupabaseConfigured()) {
-      const res = await administrasiService.createRekening({
-        nama_bank: newRek.nama_bank,
-        kode_bank: newRek.kode_bank,
-        nomor_rekening: newRek.nomor_rekening,
-        atas_nama: newRek.atas_nama,
-        catatan_instruksi: newRek.catatan_instruksi,
-        is_active: newRek.is_active,
-      });
-      if (!res.ok) {
-        return { ok: false, message: res.message };
-      }
-      refreshFromSupabase();
-    }
-
-    appendAuditLog(
-      "CREATE_REKENING_RESMI",
-      "rekening_pesantren",
-      newId,
-      { ...newRek },
-      `Penambahan rekening pesantren baru (${newRek.nama_bank} - ${newRek.nomor_rekening}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`
-    );
-
-    return { ok: true, message: "Rekening resmi pesantren berhasil ditambahkan." };
+    return { ok: true, message: "Rekening informasi pesantren berhasil ditambahkan (Demo Standalone)." };
   };
 
   const updateRekening: SipetaContextValue["updateRekening"] = async (id, payload) => {
@@ -1813,8 +1811,25 @@ export function SipetaProvider({
       return { ok: false, message: "Rekening tidak ditemukan." };
     }
 
-    if (payload.nomor_rekening && payload.nomor_rekening.trim().length < 8) {
-      return { ok: false, message: "Nomor rekening tidak valid. Minimal 8 digit/karakter." };
+    if (payload.nomor_rekening && payload.nomor_rekening.trim().length < 5) {
+      return { ok: false, message: "Nomor rekening tidak valid. Minimal 5 digit." };
+    }
+
+    if (authMode === "supabase" || isSupabaseConfigured()) {
+      const res = await administrasiService.updateRekeningById(id, payload);
+      if (!res.ok) return { ok: false, message: res.message };
+      await refreshFromSupabase();
+
+      appendAuditLog(
+        "UPDATE_REKENING_RESMI",
+        "rekening_pesantren",
+        id,
+        { ...payload },
+        `Pembaruan data rekening (${existing.nama_bank} - ${existing.nomor_rekening}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`,
+        { ...existing }
+      );
+
+      return { ok: true, message: res.message || "Rekening berhasil diperbarui." };
     }
 
     const updated: RekeningPesantren = {
@@ -1826,102 +1841,23 @@ export function SipetaProvider({
     setRekeningList((prev) => prev.map((r) => (r.id === id ? updated : r)));
     if (updated.is_active) {
       setRekeningResmi(updated);
-    } else if (rekeningResmi?.id === id) {
-      setRekeningResmi(null);
     }
 
-    if (authMode === "supabase" || isSupabaseConfigured()) {
-      const res = await administrasiService.updateRekeningById(id, payload);
-      if (!res.ok) return { ok: false, message: res.message };
-      refreshFromSupabase();
-    }
-
-    appendAuditLog(
-      "UPDATE_REKENING_RESMI",
-      "rekening_pesantren",
-      id,
-      { ...updated },
-      `Pembaruan data rekening (${updated.nama_bank} - ${updated.nomor_rekening}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`,
-      { ...existing }
-    );
-
-    return { ok: true, message: "Rekening resmi berhasil diperbarui." };
+    return { ok: true, message: "Rekening berhasil diperbarui (Demo Standalone)." };
   };
 
-  const setUtamaRekening: SipetaContextValue["setUtamaRekening"] = async (id) => {
-    if (!currentUser || (currentUser.role !== "superadmin" && currentUser.role !== "admin")) {
-      return {
-        ok: false,
-        message: "Hanya Pengasuh (Admin) dan Superadmin yang berwenang menentukan rekening utama.",
-      };
-    }
-
-    const target = rekeningList.find((r) => r.id === id);
-    if (!target) return { ok: false, message: "Rekening tidak ditemukan." };
-
-    setRekeningList((prev) =>
-      prev.map((r) => ({
-        ...r,
-        is_active: r.id === id,
-        is_utama: r.id === id,
-      }))
-    );
-    setRekeningResmi({ ...target, is_active: true, is_utama: true });
-
-    if (authMode === "supabase" || isSupabaseConfigured()) {
-      const res = await administrasiService.setRekeningUtama(id);
-      if (!res.ok) return { ok: false, message: res.message };
-      refreshFromSupabase();
-    }
-
-    appendAuditLog(
-      "SET_UTAMA_REKENING_RESMI",
-      "rekening_pesantren",
-      id,
-      { id, is_active: true, is_utama: true },
-      `Penetapan rekening utama aktif (${target.nama_bank} - ${target.nomor_rekening}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`
-    );
-
-    return { ok: true, message: `Rekening ${target.nama_bank} berhasil ditetapkan sebagai rekening utama aktif.` };
+  const setUtamaRekening: SipetaContextValue["setUtamaRekening"] = async () => {
+    return {
+      ok: false,
+      message: "Operasi perpindahan status aktif rekening telah dinonaktifkan. Pengaturan rekening beroperasi murni sebagai daftar informasi tujuan transfer.",
+    };
   };
 
-  const toggleActiveRekening: SipetaContextValue["toggleActiveRekening"] = async (id, isActive) => {
-    if (!currentUser || (currentUser.role !== "superadmin" && currentUser.role !== "admin")) {
-      return {
-        ok: false,
-        message: "Hanya Pengasuh (Admin) dan Superadmin yang berwenang mengubah status aktif rekening.",
-      };
-    }
-
-    if (isActive) {
-      return setUtamaRekening(id);
-    } else {
-      const target = rekeningList.find((r) => r.id === id);
-      if (!target) return { ok: false, message: "Rekening tidak ditemukan." };
-
-      setRekeningList((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, is_active: false, is_utama: false } : r))
-      );
-      if (rekeningResmi?.id === id) {
-        setRekeningResmi(null);
-      }
-
-      if (authMode === "supabase" || isSupabaseConfigured()) {
-        const res = await administrasiService.updateRekeningById(id, { is_active: false });
-        if (!res.ok) return { ok: false, message: res.message };
-        refreshFromSupabase();
-      }
-
-      appendAuditLog(
-        "DEACTIVATE_REKENING_RESMI",
-        "rekening_pesantren",
-        id,
-        { id, is_active: false },
-        `Penonaktifan rekening (${target.nama_bank} - ${target.nomor_rekening}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`
-      );
-
-      return { ok: true, message: `Rekening ${target.nama_bank} telah dinonaktifkan.` };
-    }
+  const toggleActiveRekening: SipetaContextValue["toggleActiveRekening"] = async () => {
+    return {
+      ok: false,
+      message: "Operasi pengubahan status aktif rekening telah dinonaktifkan. Seluruh rekening tersimpan ditampilkan sebagai informasi kepada wali santri.",
+    };
   };
 
   const deleteRekening: SipetaContextValue["deleteRekening"] = async (id) => {
@@ -1948,15 +1884,26 @@ export function SipetaProvider({
       };
     }
 
-    setRekeningList((prev) => prev.filter((r) => r.id !== id));
-    if (rekeningResmi?.id === id) {
-      setRekeningResmi(null);
-    }
-
     if (authMode === "supabase" || isSupabaseConfigured()) {
       const res = await administrasiService.deleteRekeningById(id);
       if (!res.ok) return { ok: false, message: res.message };
-      refreshFromSupabase();
+      await refreshFromSupabase();
+
+      appendAuditLog(
+        "DELETE_REKENING_RESMI",
+        "rekening_pesantren",
+        id,
+        { id, nama_bank: target.nama_bank, nomor_rekening: target.nomor_rekening },
+        `Penghapusan rekening (${target.nama_bank} - ${target.nomor_rekening}) oleh ${currentUser.nama_lengkap} (${getRoleLabel(currentUser.role)})`
+      );
+
+      return { ok: true, message: res.message || "Rekening berhasil dihapus." };
+    }
+
+    setRekeningList((prev) => prev.filter((r) => r.id !== id));
+    if (rekeningResmi?.id === id) {
+      const remaining = rekeningList.filter((r) => r.id !== id);
+      setRekeningResmi(remaining.find((r) => r.is_active) || remaining[0] || null);
     }
 
     appendAuditLog(

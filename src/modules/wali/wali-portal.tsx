@@ -81,6 +81,7 @@ export function WaliPortal({
     kelasList,
     kamarList,
     rekeningResmi,
+    rekeningList,
     tagihanList,
     keranjang,
     transaksiPembayaranList,
@@ -1252,31 +1253,44 @@ export function WaliPortal({
                 </h3>
               </div>
 
-              {/* Informasi Rekening Resmi Tunggal Pesantren */}
-              {!rekeningResmi || !rekeningResmi.is_active ? (
+              {/* Informasi Rekening Resmi Pesantren */}
+              {rekeningList.length === 0 ? (
                 <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-900">
                   <div className="flex items-center gap-2 text-xs font-bold text-amber-800">
                     <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                    <span>Rekening Resmi Belum Aktif / Dikonfigurasi</span>
+                    <span>Rekening Resmi Belum Dikonfigurasi</span>
                   </div>
                   <p className="mt-1 text-xs text-amber-700">
-                    Rekening resmi pesantren belum dikonfigurasi atau tidak aktif. Pembayaran via transfer ditahan sementara hingga pihak pesantren mengaktifkan rekening resmi.
+                    Rekening resmi pesantren belum dikonfigurasi. Informasi rekening transfer akan ditampilkan setelah Pengasuh menambahkan rekening.
                   </p>
                 </div>
               ) : (
-                <div className="mt-3 rounded-xl bg-emerald-950 p-3.5 text-white">
-                  <div className="flex items-center gap-2 text-xs text-emerald-300 font-semibold">
-                    <Landmark className="h-4 w-4" />
-                    <span>Rekening Resmi Pesantren</span>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                    <Landmark className="h-4 w-4 text-emerald-700" />
+                    <span>Informasi Rekening Tujuan Transfer Pesantren</span>
                   </div>
-                  <p className="mt-1 text-sm font-bold">{rekeningResmi.nama_bank}</p>
-                  <p className="font-mono text-lg font-extrabold tracking-wider text-amber-300">
-                    {rekeningResmi.nomor_rekening}
-                  </p>
-                  <p className="text-xs text-emerald-100">a.n. {rekeningResmi.atas_nama}</p>
-                  {rekeningResmi.catatan_instruksi && (
-                    <p className="mt-1 text-[11px] text-emerald-200/80 italic">{rekeningResmi.catatan_instruksi}</p>
-                  )}
+                  {rekeningList.map((rek) => (
+                    <div key={rek.id} className="rounded-xl bg-emerald-950 p-3.5 text-white">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-bold text-emerald-200">
+                          {rek.nama_bank} {rek.kode_bank ? `(Kode: ${rek.kode_bank})` : ""}
+                        </p>
+                        {rek.is_active && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-700 text-white">
+                            Aktif
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-mono text-lg font-extrabold tracking-wider text-amber-300 mt-1">
+                        {rek.nomor_rekening}
+                      </p>
+                      <p className="text-xs text-emerald-100">a.n. <strong>{rek.atas_nama}</strong></p>
+                      {rek.catatan_instruksi && (
+                        <p className="mt-1 text-[11px] text-emerald-200/80 italic">{rek.catatan_instruksi}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -1669,23 +1683,31 @@ export function WaliPortal({
                 Bendahara.
               </p>
 
-              {!rekeningResmi || !rekeningResmi.is_active ? (
+              {rekeningList.length === 0 ? (
                 <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-900 text-xs">
                   <div className="flex items-center gap-1.5 font-bold text-amber-800">
                     <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                    <span>Rekening Resmi Belum Aktif</span>
+                    <span>Rekening Resmi Belum Dikonfigurasi</span>
                   </div>
                   <p className="mt-1 text-amber-700">
-                    Pengajuan transfer uang saku ditangguhkan sementara karena rekening resmi pesantren belum dikonfigurasi atau tidak aktif.
+                    Pengajuan transfer uang saku ditangguhkan sementara karena rekening resmi pesantren belum dikonfigurasi.
                   </p>
                 </div>
               ) : (
-                <div className="mt-3 rounded-xl bg-emerald-950 p-3 text-white text-xs">
-                  <p className="text-emerald-300 font-semibold">{rekeningResmi.nama_bank}</p>
-                  <p className="font-mono text-base font-bold text-amber-300">
-                    {rekeningResmi.nomor_rekening}
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
+                    <Landmark className="h-3.5 w-3.5" />
+                    <span>Rekening Tujuan Transfer:</span>
                   </p>
-                  <p className="text-emerald-100">a.n. {rekeningResmi.atas_nama}</p>
+                  {rekeningList.map((rek) => (
+                    <div key={rek.id} className="rounded-xl bg-emerald-950 p-3 text-white text-xs">
+                      <p className="text-emerald-300 font-semibold">{rek.nama_bank}</p>
+                      <p className="font-mono text-base font-bold text-amber-300">
+                        {rek.nomor_rekening}
+                      </p>
+                      <p className="text-emerald-100">a.n. {rek.atas_nama}</p>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -1770,10 +1792,10 @@ export function WaliPortal({
 
                 <button
                   type="submit"
-                  disabled={isSubmittingTopup || !rekeningResmi || !rekeningResmi.is_active}
+                  disabled={isSubmittingTopup || rekeningList.length === 0}
                   className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {!rekeningResmi || !rekeningResmi.is_active
+                  {rekeningList.length === 0
                     ? "Rekening Resmi Belum Aktif"
                     : isSubmittingTopup
                     ? "Mengirim Pengajuan..."

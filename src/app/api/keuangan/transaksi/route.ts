@@ -90,37 +90,16 @@ async function getAuthenticatedUserClient(request: NextRequest) {
   return { user, client: supabase, error: null };
 }
 
-// Helper untuk memastikan rekening resmi pesantren selalu tersedia
-async function ensureRekeningResmiAktif(adminClient: any) {
-  const { data: existing } = await adminClient
+// Helper untuk mendapatkan rekening resmi aktif pesantren dari database
+async function getRekeningResmiAktif(client: any) {
+  const { data: existing } = await client
     .from("rekening_pesantren")
     .select("*")
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
 
-  if (existing) return existing;
-
-  // Jika belum ada di database, inisialisasi satu rekening resmi aktif
-  const defaultRekening = {
-    nama_bank: "Bank Syariah Indonesia (BSI)",
-    kode_bank: "451",
-    nomor_rekening: "7141234567",
-    atas_nama: "Pondok Pesantren Modern Abu Manshur",
-    catatan_instruksi: "Transfer via ATM, Mobile Banking, atau Teller.",
-    is_active: true,
-  };
-
-  const { data: created, error } = await adminClient
-    .from("rekening_pesantren")
-    .insert(defaultRekening)
-    .select()
-    .single();
-
-  if (error || !created) {
-    return defaultRekening;
-  }
-  return created;
+  return existing || null;
 }
 
 // Helper upload base64 ke Supabase Storage (Private Bucket)
@@ -545,7 +524,16 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const rekening = await ensureRekeningResmiAktif(adminClient);
+      const rekening = await getRekeningResmiAktif(adminClient);
+      if (!rekening) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: "Rekening resmi pesantren belum dikonfigurasi atau tidak aktif. Pengajuan uang saku via transfer ditangguhkan sementara.",
+          },
+          { status: 400 }
+        );
+      }
 
       // Upload bukti transfer jika berupa base64
       let storagePath = buktiTransfer;
