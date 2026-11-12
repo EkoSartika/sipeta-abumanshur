@@ -664,6 +664,25 @@ export function SipetaProvider({
   // Inisialisasi Backend Health Check & Sesi Autentikasi
   useEffect(() => {
     let isMounted = true;
+    let authResolved = false;
+
+    // Safety resolver: membebaskan tampilan dari splash screen
+    const resolveAuth = () => {
+      if (!authResolved) {
+        authResolved = true;
+        setAuthLoading(false);
+      }
+    };
+
+    // Safety circuit-breaker: maksimal 3.5 detik
+    // CATATAN ARSITEKTUR SIPETA:
+    // Circuit breaker HANYA membebaskan tampilan dari splash screen (setAuthLoading(false))
+    // agar pengguna tidak terblokir visual jika jaringan lambat/cold-start.
+    // Circuit breaker SAMA SEKALI TIDAK memalsukan status pengguna menjadi unauthenticated!
+    const safetyTimer = setTimeout(() => {
+      resolveAuth();
+    }, 3500);
+
     async function initBackend() {
       try {
         if (!isSupabaseConfigured()) {
@@ -684,80 +703,134 @@ export function SipetaProvider({
             setIsAuthenticated(false);
             setAuthMode("unauthenticated");
           }
+          resolveAuth();
           return;
         }
 
-        const health = await checkSupabaseHealth();
-        if (!isMounted) return;
+        // 1. Cek health status dengan batas timeout 3 detik agar tidak memblokir bootstrap
+        const health = await Promise.race([
+          checkSupabaseHealth(),
+          new Promise<DatabaseHealthStatus>((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  isConfigured: true,
+                  isConnected: false,
+                  connectionState: "CONNECTION_FAILED",
+                  mode: "demo_local",
+                  message: "Pemeriksaan koneksi Supabase melebihi batas waktu (timeout).",
+                  checkedAt: new Date().toISOString(),
+                }),
+              3000
+            )
+          ),
+        ]);
+
+        if (!isMounted) {
+          resolveAuth();
+          return;
+        }
         setHealthStatus(health);
 
         if (health.isConnected) {
           setConnectionStatus("connected");
           setIsLiveSupabase(true);
           setDataSource("supabase");
-
-          // Cek sesi autentikasi Supabase nyata dari cookies (@supabase/ssr)
-          const profile = await authService.getCurrentProfile();
-          if (isMounted) {
-            if (profile && profile.is_active) {
-              setUsers([profile]);
-              setCurrentUser(profile);
-              setCurrentUserId(profile.id);
-              setIsAuthenticated(true);
-              setAuthMode("supabase");
-              await refreshFromSupabase();
-            } else {
-              // Belum ada sesi auth Supabase atau akun tidak aktif
-              setCurrentUser(null);
-              setCurrentUserId(null);
-              setIsAuthenticated(false);
-              setAuthMode("unauthenticated");
-              // Ambil data publik (profil pesantren, tahun pelajaran, pengumuman) dari Supabase
-              try {
-                const [pubAnnouncements, pubProfil, pubTa] = await Promise.all([
-                  administrasiService.getPengumumanList(false),
-                  administrasiService.getProfilPesantren(),
-                  administrasiService.getTahunAjaranList(),
-                ]);
-                if (isMounted) {
-                  if (Array.isArray(pubAnnouncements)) {
-                    setPengumumanList(pubAnnouncements);
-                  }
-                  const activePubTa = Array.isArray(pubTa) ? pubTa.find((t) => t.is_active) : undefined;
-                  if (Array.isArray(pubTa)) {
-                    setTahunAjaranList(pubTa);
-                  }
-                  if (pubProfil) {
-                    setProfilPesantren((prev) => ({
-                      ...prev,
-                      ...pubProfil,
-                      tahun_pelajaran_aktif: activePubTa?.nama || pubProfil.tahun_pelajaran_aktif,
-                    }));
-                  } else if (activePubTa) {
-                    setProfilPesantren((prev) => ({
-                      ...prev,
-                      tahun_pelajaran_aktif: activePubTa.nama,
-                    }));
-                  }
-                }
-              } catch {
-                // Abaikan jika gagal memuat data publik
-              }
-            }
-          }
         } else {
           setConnectionStatus("demo");
           setIsLiveSupabase(false);
           setDataSource("demo");
-          if (isMounted) {
-            setCurrentUser(null);
-            setCurrentUserId(null);
-            setIsAuthenticated(false);
-            setAuthMode("unauthenticated");
-          }
+        }
+
+        // 2. Cek status sesi autentikasi secara presisi:
+        // Membedakan 3 kondisi:
+        // A. Sesi valid ('authenticated')
+        // B. Tidak ada sesi ('unauthenticated')
+        // C. Jaringan gagal / Supabase timeout ('network_error')
+        const sessionResult = await authService.checkSession();
+        if (!isMounted) {
+          resolveAuth();
+          return;
+        }
+
+        if (sessionResult.status === "authenticated") {
+          // KONDISI 1: SESI VALID
+          setUsers([sessionResult.user]);
+          setCurrentUser(sessionResult.user);
+          setCurrentUserId(sessionResult.user.id);
+          setIsAuthenticated(true);
+          setAuthMode("supabase");
+
+          // Hilangkan splash screen seketika
+          resolveAuth();
+
+          // Sinkronisasi data detail berjalan di latar belakang secara asinkron
+          // CATATAN: refreshFromSupabase TIDAK MENIMPA state autentikasi ataupun melakukan redirect
+          refreshFromSupabase().catch((err) => {
+            console.warn("Sinkronisasi latar belakang tertunda:", err);
+          });
+        } else if (sessionResult.status === "unauthenticated") {
+          // KONDISI 2: TIDAK ADA SESI
+          setCurrentUser(null);
+          setCurrentUserId(null);
+          setIsAuthenticated(false);
+          setAuthMode("unauthenticated");
+
+          // Hilangkan splash screen seketika
+          resolveAuth();
+
+          // Ambil data publik (profil pesantren, tahun pelajaran, pengumuman) secara asinkron di latar belakang
+          Promise.all([
+            administrasiService.getPengumumanList(false),
+            administrasiService.getProfilPesantren(),
+            administrasiService.getTahunAjaranList(),
+          ])
+            .then(([pubAnnouncements, pubProfil, pubTa]) => {
+              if (isMounted) {
+                if (Array.isArray(pubAnnouncements)) {
+                  setPengumumanList(pubAnnouncements);
+                }
+                const activePubTa = Array.isArray(pubTa) ? pubTa.find((t) => t.is_active) : undefined;
+                if (Array.isArray(pubTa)) {
+                  setTahunAjaranList(pubTa);
+                }
+                if (pubProfil) {
+                  setProfilPesantren((prev) => ({
+                    ...prev,
+                    ...pubProfil,
+                    tahun_pelajaran_aktif: activePubTa?.nama || pubProfil.tahun_pelajaran_aktif,
+                  }));
+                } else if (activePubTa) {
+                  setProfilPesantren((prev) => ({
+                    ...prev,
+                    tahun_pelajaran_aktif: activePubTa.nama,
+                  }));
+                }
+              }
+            })
+            .catch(() => {
+              // Abaikan jika gagal memuat data publik di background
+            });
+        } else if (sessionResult.status === "network_error") {
+          // KONDISI 3: SUPABASE TIMEOUT / JARINGAN GAGAL
+          // PENTING: Jangan memalsukan status pengguna menjadi unauthenticated!
+          // Jangan menghapus currentUser jika sebelumnya sudah tersimpan atau sedang diproses.
+          setHealthStatus((prev) => ({
+            isConfigured: true,
+            isConnected: false,
+            connectionState: "CONNECTION_FAILED",
+            mode: "demo_local",
+            message: "Jaringan lambat atau gagal menghubungi server autentikasi: " + sessionResult.error,
+            checkedAt: new Date().toISOString(),
+            ...(prev ?? {}),
+          }));
+
+          // Bebaskan splash screen agar pengguna tidak stuck
+          resolveAuth();
         }
       } catch (err) {
         if (isMounted) {
+          // Jangan memalsukan status pengguna jika terjadi exception jaringan tak terduga
           setHealthStatus({
             isConfigured: true,
             isConnected: false,
@@ -767,25 +840,18 @@ export function SipetaProvider({
             error: err instanceof Error ? err.message : String(err),
             checkedAt: new Date().toISOString(),
           });
-          setConnectionStatus("demo");
-          setIsLiveSupabase(false);
-          setDataSource("demo");
-          setCurrentUser(null);
-          setCurrentUserId(null);
-          setIsAuthenticated(false);
-          setAuthMode("unauthenticated");
         }
+        resolveAuth();
       } finally {
-        if (isMounted) {
-          setAuthLoading(false);
-        }
+        resolveAuth();
       }
     }
     initBackend();
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimer);
     };
-  }, []);
+  }, [refreshFromSupabase]);
 
   // Real-time synchronization untuk Profil Pesantren & Tahun Pelajaran ke seluruh role & perangkat
   useEffect(() => {
@@ -2013,8 +2079,12 @@ export function SipetaProvider({
 
     // Pergantian semester & tahun pelajaran aktif HANYA boleh melalui RPC resmi (setActiveSemester / setActiveTahunAjaran).
     const effectivePayload = { ...payload };
-    delete effectivePayload.semester_aktif;
-    delete effectivePayload.tahun_pelajaran_aktif;
+    if (effectivePayload.semester_aktif !== undefined) {
+      delete effectivePayload.semester_aktif;
+    }
+    if (effectivePayload.tahun_pelajaran_aktif !== undefined) {
+      delete effectivePayload.tahun_pelajaran_aktif;
+    }
 
     const updatedProfil: ProfilPesantren = {
       ...profilPesantren,

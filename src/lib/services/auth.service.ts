@@ -18,14 +18,24 @@ export interface AuthResponse {
   message: string;
 }
 
+export type AuthSessionCheckResult =
+  | { status: "authenticated"; user: UserProfile }
+  | { status: "unauthenticated"; reason?: string }
+  | { status: "network_error"; error: string };
+
 export class AuthService {
   private client = createSupabaseBrowserClient();
 
   /**
-   * Mendapatkan sesi autentikasi dan profil pengguna saat ini dari Supabase
+   * Memeriksa status sesi secara presisi dengan membedakan 3 kondisi:
+   * 1. 'authenticated': Sesi Supabase valid & profil aktif
+   * 2. 'unauthenticated': Kredensial kosong / sesi tidak ada / akun dinonaktifkan
+   * 3. 'network_error': Jaringan terputus / fetch error / Supabase unreachable
    */
-  async getCurrentProfile(): Promise<UserProfile | null> {
-    if (!isSupabaseConfigured()) return null;
+  async checkSession(): Promise<AuthSessionCheckResult> {
+    if (!isSupabaseConfigured()) {
+      return { status: "unauthenticated", reason: "not_configured" };
+    }
 
     try {
       const {
@@ -33,7 +43,28 @@ export class AuthService {
         error: userError,
       } = await this.client.auth.getUser();
 
-      if (userError || !user) return null;
+      if (userError) {
+        const msg = (userError.message || "").toLowerCase();
+        const isNetworkErr =
+          msg.includes("failed to fetch") ||
+          msg.includes("network") ||
+          msg.includes("timeout") ||
+          userError.status === 0;
+
+        if (isNetworkErr) {
+          return {
+            status: "network_error",
+            error: userError.message || "Gagal menghubungi server autentikasi Supabase.",
+          };
+        }
+
+        // AuthSessionMissingError atau 400/401 menandakan memang tidak ada sesi
+        return { status: "unauthenticated", reason: userError.message };
+      }
+
+      if (!user) {
+        return { status: "unauthenticated", reason: "no_user" };
+      }
 
       // Ambil profil dari tabel public.profiles
       const { data: profile, error: profileError } = await this.client
@@ -42,45 +73,92 @@ export class AuthService {
         .eq("id", user.id)
         .single();
 
-      if (profileError || !profile) return null;
+      if (profileError) {
+        const pMsg = (profileError.message || "").toLowerCase();
+        const isNetworkErr =
+          pMsg.includes("failed to fetch") ||
+          pMsg.includes("network") ||
+          pMsg.includes("timeout") ||
+          profileError.code === "PGRST000";
+
+        if (isNetworkErr) {
+          return {
+            status: "network_error",
+            error: profileError.message || "Koneksi database terputus saat membaca profil.",
+          };
+        }
+
+        // PGRST116: Baris tidak ditemukan (profil belum dibuat)
+        if (profileError.code === "PGRST116") {
+          return { status: "unauthenticated", reason: "profile_not_found" };
+        }
+
+        return {
+          status: "network_error",
+          error: profileError.message || "Gagal mengambil data profil.",
+        };
+      }
+
+      if (!profile) {
+        return { status: "unauthenticated", reason: "profile_null" };
+      }
 
       // Jika akun dinonaktifkan, blokir sesi
       if (!profile.is_active) {
         await this.client.auth.signOut();
-        return null;
+        return { status: "unauthenticated", reason: "account_inactive" };
       }
 
       let santriId: string | undefined = undefined;
       let displayNama = profile.nama_lengkap;
       let displayTelepon = profile.no_telepon ?? "-";
       if (profile.role === "wali") {
-        const { data: wali } = await this.client
-          .from("wali_santri")
-          .select("santri_id, nama_lengkap, no_telepon")
-          .eq("user_id", profile.id)
-          .single();
-        santriId = wali?.santri_id;
-        if (wali?.nama_lengkap) displayNama = wali.nama_lengkap;
-        if (wali?.no_telepon) displayTelepon = wali.no_telepon;
+        try {
+          const { data: wali } = await this.client
+            .from("wali_santri")
+            .select("santri_id, nama_lengkap, no_telepon")
+            .eq("user_id", profile.id)
+            .single();
+          santriId = wali?.santri_id;
+          if (wali?.nama_lengkap) displayNama = wali.nama_lengkap;
+          if (wali?.no_telepon) displayTelepon = wali.no_telepon;
+        } catch {
+          // Abaikan kegagalan data relasi santri non-kritis
+        }
       }
 
       const cleanUsername = extractUsername(profile.email, profile.username);
 
       return {
-        id: profile.id,
-        email: profile.email,
-        username: cleanUsername,
-        nama_lengkap: displayNama,
-        no_telepon: displayTelepon,
-        role: profile.role as UserRole,
-        is_active: profile.is_active,
-        santri_id: santriId,
-        must_change_password: profile.must_change_password === true,
-        created_at: profile.created_at,
+        status: "authenticated",
+        user: {
+          id: profile.id,
+          email: profile.email,
+          username: cleanUsername,
+          nama_lengkap: displayNama,
+          no_telepon: displayTelepon,
+          role: profile.role as UserRole,
+          is_active: profile.is_active,
+          santri_id: santriId,
+          must_change_password: profile.must_change_password === true,
+          created_at: profile.created_at,
+        },
       };
-    } catch {
-      return null;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        status: "network_error",
+        error: msg || "Terjadi kesalahan koneksi tak terduga.",
+      };
     }
+  }
+
+  /**
+   * Mendapatkan sesi autentikasi dan profil pengguna saat ini dari Supabase
+   */
+  async getCurrentProfile(): Promise<UserProfile | null> {
+    const res = await this.checkSession();
+    return res.status === "authenticated" ? res.user : null;
   }
 
   /**

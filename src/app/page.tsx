@@ -98,6 +98,22 @@ export default function SipetaHomePage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  // Anti-stuck Loading & Fallback State
+  const [loadingTimeoutReached, setLoadingTimeoutReached] = useState(false);
+  const [bypassLoading, setBypassLoading] = useState(false);
+
+  // Fallback timer jika authLoading memakan waktu lebih dari 2.5 detik
+  React.useEffect(() => {
+    if (!authLoading) {
+      setLoadingTimeoutReached(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setLoadingTimeoutReached(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [authLoading]);
+
   // Public Login State
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -263,10 +279,10 @@ export default function SipetaHomePage() {
   // ==========================================================================
   // 1. SPLASH SCREEN SAAT MEMERIKSA STATUS AUTENTIKASI
   // ==========================================================================
-  if (authLoading) {
+  if (authLoading && !bypassLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-4">
-        <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-4 py-8">
+        <div className="flex flex-col items-center gap-4 max-w-md w-full text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white p-2 shadow-md border border-emerald-100">
             <img
               src="/images/logo-abu-manshur.png"
@@ -286,6 +302,55 @@ export default function SipetaHomePage() {
             <RefreshCw className="h-4 w-4 animate-spin text-emerald-700" />
             <span>Memeriksa status autentikasi...</span>
           </div>
+
+          {/* Fallback interaktif jika inisialisasi jaringan lambat (>2.5 detik) */}
+          {loadingTimeoutReached && (
+            <div className="mt-4 w-full rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-left shadow-sm animate-in fade-in duration-300">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-amber-900">
+                    Pemeriksaan memakan waktu lebih lama dari biasanya
+                  </p>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    Koneksi database sedang memproses permintaan. Anda dapat langsung membuka portal login tujuan:
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <Link
+                  href="/login"
+                  className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 font-medium text-white hover:bg-emerald-800 transition"
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span>Wali Santri</span>
+                </Link>
+                <Link
+                  href="/admin/login"
+                  className="flex items-center justify-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 font-medium text-white hover:bg-slate-900 transition"
+                >
+                  <UserCheck className="h-3.5 w-3.5" />
+                  <span>Pengasuh</span>
+                </Link>
+                <Link
+                  href="/superadmin/login"
+                  className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-700 px-3 py-2 font-medium text-white hover:bg-indigo-800 transition"
+                >
+                  <Shield className="h-3.5 w-3.5" />
+                  <span>Superadmin</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setBypassLoading(true)}
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 font-medium text-slate-700 hover:bg-slate-100 transition"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                  <span>Buka Beranda</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
