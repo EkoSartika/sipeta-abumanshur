@@ -61,32 +61,48 @@ export class AdministrasiService {
     atas_nama: string;
     catatan_instruksi?: string;
     is_active?: boolean;
+    alasan?: string;
   }): Promise<{ ok: boolean; message: string; data?: RekeningPesantren }> {
-    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-
-    // Jika mengaktifkan rekening ini, nonaktifkan rekening aktif lainnya terlebih dahulu (integritas unique index)
-    if (payload.is_active) {
-      await this.client
-        .from("rekening_pesantren")
-        .update({ is_active: false })
-        .eq("is_active", true);
+    if (!isSupabaseConfigured()) {
+      return {
+        ok: true,
+        message: "Rekening resmi pesantren berhasil ditambahkan (Demo Standalone).",
+        data: {
+          id: `rek-${Date.now()}`,
+          ...payload,
+          is_active: payload.is_active ?? false,
+        } as RekeningPesantren,
+      };
     }
 
-    const { data, error } = await this.client
-      .from("rekening_pesantren")
-      .insert({
-        nama_bank: payload.nama_bank,
-        kode_bank: payload.kode_bank || null,
-        nomor_rekening: payload.nomor_rekening,
-        atas_nama: payload.atas_nama,
-        catatan_instruksi: payload.catatan_instruksi || null,
-        is_active: payload.is_active ?? false,
-      })
-      .select()
-      .single();
-
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Rekening resmi pesantren berhasil ditambahkan.", data: data as RekeningPesantren };
+    try {
+      const res = await fetch("/api/admin/rekening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nama_bank: payload.nama_bank,
+          kode_bank: payload.kode_bank || null,
+          nomor_rekening: payload.nomor_rekening,
+          atas_nama: payload.atas_nama,
+          catatan_instruksi: payload.catatan_instruksi || null,
+          alasan: payload.alasan || "Penambahan rekening pesantren",
+        }),
+      });
+      const json = await res.json();
+      return json;
+    } catch {
+      // Fallback direct RPC jika dipanggil dari internal server context
+      const { data, error } = await this.client.rpc("rpc_ganti_rekening_resmi_v1", {
+        p_nama_bank: payload.nama_bank,
+        p_kode_bank: payload.kode_bank || null,
+        p_nomor_rekening: payload.nomor_rekening,
+        p_atas_nama: payload.atas_nama,
+        p_catatan_instruksi: payload.catatan_instruksi || null,
+        p_alasan: payload.alasan || "Penambahan rekening pesantren",
+      });
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, message: (data as any)?.message ?? "Rekening berhasil ditambahkan.", data: (data as any)?.rekening_aktif };
+    }
   }
 
   async updateRekeningResmi(payload: Partial<RekeningPesantren>): Promise<{ ok: boolean; message: string }> {
@@ -103,12 +119,8 @@ export class AdministrasiService {
     if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
 
     if (payload.is_active) {
-      // Nonaktifkan rekening lain sebelum mengaktifkan yang ini
-      await this.client
-        .from("rekening_pesantren")
-        .update({ is_active: false })
-        .eq("is_active", true)
-        .neq("id", id);
+      // Jika mengaktifkan, wajib melalui proses pergantian atomik
+      return this.setRekeningUtama(id, "Aktivasi rekening melalui form perbaruan data");
     }
 
     const { error } = await this.client
@@ -123,33 +135,49 @@ export class AdministrasiService {
     return { ok: true, message: "Rekening berhasil diperbarui." };
   }
 
-  async setRekeningUtama(id: string): Promise<{ ok: boolean; message: string }> {
-    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
+  async setRekeningUtama(id: string, alasan?: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: true, message: "Rekening utama aktif berhasil ditetapkan (Demo Standalone)." };
 
-    // 1. Nonaktifkan rekening yang saat ini aktif
-    await this.client
-      .from("rekening_pesantren")
-      .update({ is_active: false })
-      .eq("is_active", true);
-
-    // 2. Aktifkan rekening yang dipilih
-    const { error } = await this.client
-      .from("rekening_pesantren")
-      .update({ is_active: true, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Rekening utama aktif berhasil ditetapkan." };
+    try {
+      const res = await fetch("/api/admin/rekening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_rekening_id: id,
+          alasan: alasan || "Pergantian rekening resmi aktif oleh Pengasuh/Superadmin",
+        }),
+      });
+      const json = await res.json();
+      return json;
+    } catch {
+      // Fallback direct RPC jika context non-fetch
+      const { data, error } = await this.client.rpc("rpc_ganti_rekening_resmi_v1", {
+        p_target_rekening_id: id,
+        p_alasan: alasan || "Pergantian rekening resmi aktif",
+      });
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, message: (data as any)?.message ?? "Rekening utama aktif berhasil ditetapkan secara atomik." };
+    }
   }
 
-  async deleteRekeningById(id: string): Promise<{ ok: boolean; message: string }> {
-    if (!isSupabaseConfigured()) return { ok: false, message: "Supabase belum dihubungkan." };
-    const { error } = await this.client
-      .from("rekening_pesantren")
-      .delete()
-      .eq("id", id);
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: "Rekening berhasil dihapus." };
+  async deleteRekeningById(id: string, alasan?: string): Promise<{ ok: boolean; message: string }> {
+    if (!isSupabaseConfigured()) return { ok: true, message: "Rekening berhasil dihapus (Demo Standalone)." };
+
+    try {
+      const res = await fetch(`/api/admin/rekening?id=${encodeURIComponent(id)}&alasan=${encodeURIComponent(alasan || "")}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      return json;
+    } catch {
+      // Fallback direct RPC
+      const { data, error } = await this.client.rpc("rpc_hapus_rekening_pesantren_v1", {
+        p_rekening_id: id,
+        p_alasan: alasan || "Penghapusan rekening",
+      });
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, message: (data as any)?.message ?? "Rekening berhasil dihapus." };
+    }
   }
 
   async getTahunAjaranList(): Promise<TahunAjaran[]> {
