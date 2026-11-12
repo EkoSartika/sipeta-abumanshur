@@ -16,7 +16,14 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  if (isSupabaseConfigured()) {
+  const pathname = request.nextUrl.pathname;
+  const hasSupabaseAuthCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-"));
+  const isPublicFastApi =
+    pathname === "/api/health" || pathname === "/api/auth/wali-sync";
+
+  if (isSupabaseConfigured() && hasSupabaseAuthCookie && !isPublicFastApi) {
     const supabaseUrl = getSupabaseUrl();
     const supabasePublishableKey = getSupabasePublishableKey();
 
@@ -50,8 +57,6 @@ export async function middleware(request: NextRequest) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      const pathname = request.nextUrl.pathname;
 
       // Blokir akses API dan rute terlindungi jika wali santri belum mengganti password awal
       if (user && user.user_metadata?.must_change_password === true) {

@@ -35,6 +35,13 @@ export class AdministrasiService {
   // --------------------------------------------------------------------------
   async getRekeningList(): Promise<RekeningPesantren[]> {
     if (!isSupabaseConfigured()) return [];
+    const { data, error } = await this.client
+      .from("rekening_pesantren")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && Array.isArray(data)) {
+      return data as RekeningPesantren[];
+    }
     try {
       const res = await fetch("/api/admin/rekening", { method: "GET" });
       if (res.ok) {
@@ -44,12 +51,8 @@ export class AdministrasiService {
         }
       }
     } catch {
-      // Fallback direct PostgREST jika di luar konteks browser fetch
+      // Fallback jika di luar konteks browser fetch
     }
-    const { data } = await this.client
-      .from("rekening_pesantren")
-      .select("*")
-      .order("created_at", { ascending: false });
     return (data as RekeningPesantren[]) ?? [];
   }
 
@@ -465,6 +468,15 @@ export class AdministrasiService {
   // --------------------------------------------------------------------------
   async getKelasList(): Promise<Kelas[]> {
     if (!isSupabaseConfigured()) return [];
+    const { data, error } = await this.client
+      .from("kelas")
+      .select("*")
+      .eq("is_active", true)
+      .order("tingkat")
+      .order("kode_kelas");
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data as Kelas[];
+    }
     try {
       const res = await fetch("/api/master-data?type=kelas");
       if (res.ok) {
@@ -472,12 +484,6 @@ export class AdministrasiService {
         if (json.ok && Array.isArray(json.data)) return json.data;
       }
     } catch {}
-    const { data } = await this.client
-      .from("kelas")
-      .select("*")
-      .eq("is_active", true)
-      .order("tingkat")
-      .order("kode_kelas");
     return (data as Kelas[]) ?? [];
   }
 
@@ -548,6 +554,14 @@ export class AdministrasiService {
 
   async getKamarList(): Promise<Kamar[]> {
     if (!isSupabaseConfigured()) return [];
+    const { data, error } = await this.client
+      .from("kamar")
+      .select("*")
+      .eq("is_active", true)
+      .order("kode_kamar");
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data as Kamar[];
+    }
     try {
       const res = await fetch("/api/master-data?type=kamar");
       if (res.ok) {
@@ -555,11 +569,6 @@ export class AdministrasiService {
         if (json.ok && Array.isArray(json.data)) return json.data;
       }
     } catch {}
-    const { data } = await this.client
-      .from("kamar")
-      .select("*")
-      .eq("is_active", true)
-      .order("kode_kamar");
     return (data as Kamar[]) ?? [];
   }
 
@@ -631,30 +640,44 @@ export class AdministrasiService {
   // --------------------------------------------------------------------------
   // DATA SANTRI & WALI (RELASI 1:1)
   // --------------------------------------------------------------------------
+  private adminSantriFetchInFlight: Promise<{ santriList?: Santri[]; waliList?: any[] } | null> | null = null;
+
+  private fetchAdminSantriShared(): Promise<{ santriList?: Santri[]; waliList?: any[] } | null> {
+    if (!this.adminSantriFetchInFlight) {
+      this.adminSantriFetchInFlight = (async () => {
+        try {
+          const res = await fetch("/api/admin-santri");
+          if (res.ok) {
+            const json = await res.json();
+            if (json.ok && json.data) {
+              return json.data as { santriList?: Santri[]; waliList?: any[] };
+            }
+          }
+        } catch {}
+        return null;
+      })().finally(() => {
+        this.adminSantriFetchInFlight = null;
+      });
+    }
+    return this.adminSantriFetchInFlight;
+  }
+
   async getSantriList(): Promise<Santri[]> {
     if (!isSupabaseConfigured()) return [];
-    try {
-      const res = await fetch("/api/admin-santri");
-      if (res.ok) {
-        const json = await res.json();
-        if (json.ok && Array.isArray(json.data?.santriList)) return json.data.santriList;
-      }
-    } catch {}
+    const shared = await this.fetchAdminSantriShared();
+    if (shared && Array.isArray(shared.santriList)) {
+      return shared.santriList;
+    }
     const { data } = await this.client.from("santri").select("*").order("nama_lengkap");
     return (data as Santri[]) ?? [];
   }
 
   async getWaliList(): Promise<WaliSantri[]> {
     if (!isSupabaseConfigured()) return [];
-    try {
-      const res = await fetch("/api/admin-santri");
-      if (res.ok) {
-        const json = await res.json();
-        if (json.ok && Array.isArray(json.data?.waliList)) {
-          return json.data.waliList.map((row: any) => unpackWaliSantriRecord(row));
-        }
-      }
-    } catch {}
+    const shared = await this.fetchAdminSantriShared();
+    if (shared && Array.isArray(shared.waliList)) {
+      return shared.waliList.map((row: any) => unpackWaliSantriRecord(row));
+    }
     const { data } = await this.client.from("wali_santri").select("*");
     if (!data) return [];
     return (data as Record<string, any>[]).map((row) => unpackWaliSantriRecord(row));

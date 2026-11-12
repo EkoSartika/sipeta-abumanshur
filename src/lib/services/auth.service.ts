@@ -38,6 +38,15 @@ export class AuthService {
     }
 
     try {
+      // Fast-path: periksa keberadaan sesi lokal terlebih dahulu sebelum memanggil server Auth.
+      // Jika tidak ada token sesi lokal sama sekali, tidak perlu melakukan roundtrip jaringan ke getUser().
+      if (typeof this.client.auth.getSession === "function") {
+        const { data: sessionData, error: sessionErr } = await this.client.auth.getSession();
+        if (!sessionErr && sessionData && !sessionData.session) {
+          return { status: "unauthenticated", reason: "no_local_session" };
+        }
+      }
+
       const {
         data: { user },
         error: userError,
@@ -167,37 +176,63 @@ export class AuthService {
   async getAllProfiles(): Promise<UserProfile[]> {
     if (!isSupabaseConfigured()) return [];
     try {
-      // 1. Coba melalui secure server endpoint GET /api/admin-users
-      try {
-        const res = await fetch("/api/admin-users", {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-            return json.data;
+      // 1. Kueri paralel langsung ke PostgREST melalui RLS (jauh lebih cepat tanpa serverless overhead)
+      const [profilesRes, waliRes] = await Promise.all([
+        this.client.from("profiles").select("*").order("created_at", { ascending: false }),
+        this.client.from("wali_santri").select("user_id, santri_id"),
+      ]);
+
+      const profiles = profilesRes.data;
+      if (!profilesRes.error && Array.isArray(profiles) && profiles.length > 1) {
+        const waliMap = new Map<string, string>();
+        if (waliRes.data) {
+          for (const w of waliRes.data) {
+            if (w.user_id && w.santri_id) {
+              waliMap.set(w.user_id, w.santri_id);
+            }
           }
         }
-      } catch {
-        // Fallback ke kueri browser client langsung melalui RLS
+
+        return profiles.map((p) => ({
+          id: p.id,
+          email: p.email,
+          username: extractUsername(p.email, p.username),
+          nama_lengkap: p.nama_lengkap,
+          no_telepon: p.no_telepon ?? "-",
+          role: p.role as UserRole,
+          is_active: p.is_active,
+          santri_id: waliMap.get(p.id),
+          must_change_password: p.must_change_password === true,
+          created_at: p.created_at,
+        }));
       }
 
-      // 2. Kueri browser client langsung melalui RLS
-      const { data: profiles, error } = await this.client
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // 2. Jika hanya 1 baris (misal RLS hanya mengembalikan diri sendiri) dan pemanggil adalah superadmin/admin,
+      // gunakan endpoint /api/admin-users. Jika role bukan superadmin/admin, langsung kembalikan profil yang ada
+      // tanpa membuang request HTTP 403 ke /api/admin-users.
+      const singleRole = Array.isArray(profiles) && profiles.length === 1 ? (profiles[0]?.role as UserRole) : undefined;
+      if (!singleRole || singleRole === "superadmin" || singleRole === "admin") {
+        try {
+          const res = await fetch("/api/admin-users", {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
+              return json.data;
+            }
+          }
+        } catch {
+          // Fallback ke hasil kueri langsung
+        }
+      }
 
-      if (error || !profiles || profiles.length === 0) return [];
-
-      const { data: waliList } = await this.client
-        .from("wali_santri")
-        .select("user_id, santri_id");
+      if (!profiles || profiles.length === 0) return [];
 
       const waliMap = new Map<string, string>();
-      if (waliList) {
-        for (const w of waliList) {
+      if (waliRes.data) {
+        for (const w of waliRes.data) {
           if (w.user_id && w.santri_id) {
             waliMap.set(w.user_id, w.santri_id);
           }
@@ -235,26 +270,37 @@ export class AuthService {
 
     try {
       const cleanInput = identifier.trim();
+      const { email, username } = resolveLoginIdentifier(cleanInput);
 
-      // Jika yang login memasukkan NIS / angka, atau mencoba login wali, lakukan pra-sinkronisasi aman
-      if (/^\d{3,}$/.test(cleanInput) || expectedRole === "wali") {
+      // 1. Coba signInWithPassword langsung terlebih dahulu agar login instan untuk akun yang sudah ada
+      let { data, error } = await this.client.auth.signInWithPassword({
+        email,
+        password: kataSandi,
+      });
+
+      // 2. Hanya jika gagal DAN merupakan percobaan login Wali / NIS, jalankan wali-sync lalu coba sekali lagi
+      if ((error || !data.user) && (/^\d{3,}$/.test(cleanInput) || expectedRole === "wali")) {
         try {
-          await fetch("/api/auth/wali-sync", {
+          const syncRes = await fetch("/api/auth/wali-sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ identifier: cleanInput }),
           });
+          if (syncRes.ok) {
+            const syncJson = await syncRes.json().catch(() => null);
+            if (syncJson?.synced) {
+              const retry = await this.client.auth.signInWithPassword({
+                email,
+                password: kataSandi,
+              });
+              data = retry.data;
+              error = retry.error;
+            }
+          }
         } catch {
-          // Lanjutkan alur normal jika fetch lokal gagal
+          // Lanjutkan penanganan error normal jika sinkronisasi gagal
         }
       }
-
-      const { email, displayIdentifier, username } = resolveLoginIdentifier(cleanInput);
-
-      const { data, error } = await this.client.auth.signInWithPassword({
-        email,
-        password: kataSandi,
-      });
 
       if (error || !data.user) {
         return {
@@ -263,12 +309,20 @@ export class AuthService {
         };
       }
 
-      // Validasi status akun aktif pada public.profiles
-      const { data: profile, error: profileErr } = await this.client
-        .from("profiles")
-        .select("*")
-        .eq("id", data.user.id)
-        .single();
+      // Validasi status akun aktif pada public.profiles (dan paralelkan pengambilan wali_santri jika portal wali)
+      const [profileRes, preWaliRes] = await Promise.all([
+        this.client.from("profiles").select("*").eq("id", data.user.id).single(),
+        expectedRole === "wali" || /^\d{3,}$/.test(cleanInput)
+          ? this.client
+              .from("wali_santri")
+              .select("santri_id, nama_lengkap, no_telepon")
+              .eq("user_id", data.user.id)
+              .single()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+
+      const profile = profileRes.data;
+      const profileErr = profileRes.error;
 
       if (profileErr || !profile) {
         await this.client.auth.signOut();
@@ -308,11 +362,15 @@ export class AuthService {
       let displayNama = profile.nama_lengkap;
       let displayTelepon = profile.no_telepon ?? "-";
       if (profile.role === "wali") {
-        const { data: wali } = await this.client
-          .from("wali_santri")
-          .select("santri_id, nama_lengkap, no_telepon")
-          .eq("user_id", profile.id)
-          .single();
+        let wali = preWaliRes.data;
+        if (!wali) {
+          const { data: fetchedWali } = await this.client
+            .from("wali_santri")
+            .select("santri_id, nama_lengkap, no_telepon")
+            .eq("user_id", profile.id)
+            .single();
+          wali = fetchedWali;
+        }
         santriId = wali?.santri_id;
         if (wali?.nama_lengkap) displayNama = wali.nama_lengkap;
         if (wali?.no_telepon) displayTelepon = wali.no_telepon;

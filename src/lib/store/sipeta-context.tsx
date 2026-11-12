@@ -538,10 +538,19 @@ export function SipetaProvider({
   const [dataSource, setDataSource] = useState<"supabase" | "demo">("demo");
   const [healthStatus, setHealthStatus] = useState<DatabaseHealthStatus | null>(null);
 
+  // Penggabungan (coalescing) refresh: jika refresh sedang berjalan, panggilan berikutnya
+  // menunggu satu putaran lanjutan saja, bukan menumpuk 23+ request paralel berulang kali.
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshQueuedRef = useRef<Promise<void> | null>(null);
+
   // Sinkronisasi data real-time dari Supabase
-  const refreshFromSupabase = useCallback(async () => {
+  const runRefreshFromSupabase = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
     try {
+      // Satu request untuk dua daftar transaksi (sebelumnya endpoint yang sama dipanggil dua kali)
+      const transaksiPromise = safeFetchJson("/api/keuangan/transaksi");
+      // Satu request daftar rekening; rekening resmi diturunkan dari daftar yang sama
+      const rekeningListPromise = administrasiService.getRekeningList();
       const [
         rekeningRes,
         rekeningListRes,
@@ -567,8 +576,10 @@ export function SipetaProvider({
         profilRes,
         auditLogsRes,
       ] = await Promise.allSettled([
-        administrasiService.getRekeningResmi(),
-        administrasiService.getRekeningList(),
+        rekeningListPromise.then((list) =>
+          Array.isArray(list) && list.length > 0 ? list.find((r) => r.is_active) || list[0] || null : null
+        ),
+        rekeningListPromise,
         administrasiService.getKelasList(),
         administrasiService.getKamarList(),
         administrasiService.getSantriList(),
@@ -577,8 +588,8 @@ export function SipetaProvider({
         administrasiService.getJenisPembayaranList(),
         keuanganService.getTagihanBySantri(),
         // Gunakan API route server-side agar RLS tidak memblokir pembacaan transaksi oleh Wali/Bendahara (Role TU/Pengelola otomatis fallback ke [])
-        safeFetchJson("/api/keuangan/transaksi").then((d) => d.ok && d.data?.ok ? (d.data.transaksiPembayaranList ?? []) : []),
-        safeFetchJson("/api/keuangan/transaksi").then((d) => d.ok && d.data?.ok ? (d.data.pengajuanUangSakuList ?? []) : []),
+        transaksiPromise.then((d) => d.ok && d.data?.ok ? (d.data.transaksiPembayaranList ?? []) : []),
+        transaksiPromise.then((d) => d.ok && d.data?.ok ? (d.data.pengajuanUangSakuList ?? []) : []),
         keuanganService.getMutasiUangSaku(),
         kepesantrenanService.getPerkembanganMengaji(),
         kepesantrenanService.getSetoranTahfidz(),
@@ -664,6 +675,23 @@ export function SipetaProvider({
     }
   }, []);
 
+  const refreshFromSupabase = useCallback((): Promise<void> => {
+    if (!refreshInFlightRef.current) {
+      refreshInFlightRef.current = runRefreshFromSupabase().finally(() => {
+        refreshInFlightRef.current = null;
+      });
+      return refreshInFlightRef.current;
+    }
+    // Refresh sedang berjalan: jadwalkan tepat satu putaran lanjutan agar data hasil mutasi terbaru tetap termuat
+    if (!refreshQueuedRef.current) {
+      refreshQueuedRef.current = refreshInFlightRef.current.then(() => {
+        refreshQueuedRef.current = null;
+        return refreshFromSupabase();
+      });
+    }
+    return refreshQueuedRef.current;
+  }, [runRefreshFromSupabase]);
+
   // Inisialisasi Backend Health Check & Sesi Autentikasi
   useEffect(() => {
     let isMounted = true;
@@ -710,8 +738,9 @@ export function SipetaProvider({
           return;
         }
 
-        // 1. Cek health status dengan batas timeout 3 detik agar tidak memblokir bootstrap
-        const health = await Promise.race([
+        // 1. Jalankan pemeriksaan health status dan sesi autentikasi secara paralel
+        // agar splash screen tidak terblokir menunggu /api/health terlebih dahulu.
+        Promise.race([
           checkSupabaseHealth(),
           new Promise<DatabaseHealthStatus>((resolve) =>
             setTimeout(
@@ -727,23 +756,21 @@ export function SipetaProvider({
               3000
             )
           ),
-        ]);
-
-        if (!isMounted) {
-          resolveAuth();
-          return;
-        }
-        setHealthStatus(health);
-
-        if (health.isConnected) {
-          setConnectionStatus("connected");
-          setIsLiveSupabase(true);
-          setDataSource("supabase");
-        } else {
-          setConnectionStatus("demo");
-          setIsLiveSupabase(false);
-          setDataSource("demo");
-        }
+        ])
+          .then((health) => {
+            if (!isMounted) return;
+            setHealthStatus(health);
+            if (health.isConnected) {
+              setConnectionStatus("connected");
+              setIsLiveSupabase(true);
+              setDataSource("supabase");
+            } else {
+              setConnectionStatus("demo");
+              setIsLiveSupabase(false);
+              setDataSource("demo");
+            }
+          })
+          .catch(() => {});
 
         // 2. Cek status sesi autentikasi secara presisi:
         // Membedakan 3 kondisi:
@@ -763,6 +790,9 @@ export function SipetaProvider({
           setCurrentUserId(sessionResult.user.id);
           setIsAuthenticated(true);
           setAuthMode("supabase");
+          setConnectionStatus("connected");
+          setIsLiveSupabase(true);
+          setDataSource("supabase");
 
           // Hilangkan splash screen seketika
           resolveAuth();
@@ -922,36 +952,48 @@ export function SipetaProvider({
       setCurrentUserId(res.user.id);
       setIsAuthenticated(true);
       setAuthMode("supabase");
-      await refreshFromSupabase();
+      // Login sudah tervalidasi server (auth + profil + role). Pemuatan data portal berjalan
+      // di latar belakang agar pengguna tidak menunggu seluruh dataset sebelum masuk dashboard.
+      refreshFromSupabase().catch((err) => {
+        console.warn("Sinkronisasi data pasca-login tertunda:", err);
+      });
       return { ok: true, message: res.message };
     }
     return { ok: false, message: res.message };
   };
 
   const logout = async (): Promise<ActionResponse> => {
+    const wasSupabase = authMode === "supabase";
+    // Bersihkan state UI & penyimpanan lokal seketika agar perpindahan ke layar login instan
+    setCurrentUser(null);
+    setCurrentUserId(null);
+    setIsAuthenticated(false);
+    setAuthMode("unauthenticated");
     try {
-      if (authMode === "supabase") {
-        await authService.logout();
-      }
-    } catch (err) {
-      console.warn("Logout error:", err);
-    } finally {
-      setCurrentUser(null);
-      setCurrentUserId(null);
-      setIsAuthenticated(false);
-      setAuthMode("unauthenticated");
-      try {
-        window.localStorage.removeItem(STORAGE_KEY);
-        if (typeof window !== "undefined" && window.localStorage) {
-          for (let i = 0; i < window.localStorage.length; i++) {
-            const k = window.localStorage.key(i);
-            if (k && (k.startsWith("sb-") || k.includes("supabase"))) {
-              window.localStorage.removeItem(k);
-            }
+      window.localStorage.removeItem(STORAGE_KEY);
+      if (typeof window !== "undefined" && window.localStorage) {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const k = window.localStorage.key(i);
+          if (k && (k.startsWith("sb-") || k.includes("supabase"))) {
+            keysToRemove.push(k);
           }
         }
-      } catch {
-        // Ignore storage errors
+        keysToRemove.forEach((k) => window.localStorage.removeItem(k));
+      }
+    } catch {
+      // Ignore storage errors
+    }
+
+    if (wasSupabase) {
+      // Jalankan pencabutan sesi server tanpa menahan UI lebih dari 400ms
+      try {
+        await Promise.race([
+          authService.logout(),
+          new Promise((resolve) => setTimeout(resolve, 400)),
+        ]);
+      } catch (err) {
+        console.warn("Logout error:", err);
       }
     }
     return { ok: true, message: "Berhasil keluar dari sesi." };
@@ -1292,8 +1334,8 @@ export function SipetaProvider({
             return [...filtered, userObj];
           });
         }
-        // Pastikan daftar akun dan log audit langsung disinkronisasi dari database
-        await refreshFromSupabase();
+        // Sinkronisasi daftar akun dan log audit di latar belakang (state akun sudah diperbarui di atas)
+        void refreshFromSupabase().catch(() => {});
       }
       return { ok: res.ok, message: res.message };
     }
@@ -1434,9 +1476,6 @@ export function SipetaProvider({
     if (authMode === "supabase") {
       const res = await authService.manageUserAccount(userId, payload);
       if (res.ok) {
-        // Segarkan data dari Supabase agar sinkron dengan database
-        await refreshFromSupabase();
-
         setUsers((prev) =>
           prev.map((u) => {
             if (u.id !== userId) return u;
@@ -1469,6 +1508,9 @@ export function SipetaProvider({
               : null
           );
         }
+
+        // Segarkan data lengkap dari Supabase di latar belakang
+        void refreshFromSupabase().catch(() => {});
       }
       return res;
     }
@@ -1583,7 +1625,7 @@ export function SipetaProvider({
         } else {
           setUsers((prev) => prev.filter((u) => u.id !== userId && u.id !== target?.id && u.username !== userId));
         }
-        await refreshFromSupabase();
+        void refreshFromSupabase().catch(() => {});
       }
       return res;
     }
@@ -1643,7 +1685,7 @@ export function SipetaProvider({
             .filter((u) => !deletedIds.includes(u.id) && !userIds.includes(u.id) && !(u.username && userIds.includes(u.username)))
             .map((u) => (deactivatedIds.includes(u.id) || (u.username && userIds.includes(u.username) && deactivatedIds.length > 0) ? { ...u, is_active: false } : u))
         );
-        await refreshFromSupabase();
+        void refreshFromSupabase().catch(() => {});
       }
       return res;
     }
@@ -1766,7 +1808,10 @@ export function SipetaProvider({
         return { ok: false, message: res.message };
       }
 
-      await refreshFromSupabase();
+      if (res.data) {
+        setRekeningList((prev) => [res.data!, ...prev.filter((r) => r.id !== res.data!.id)]);
+      }
+      void refreshFromSupabase().catch(() => {});
 
       appendAuditLog(
         "CREATE_REKENING_RESMI",
@@ -1818,7 +1863,15 @@ export function SipetaProvider({
     if (authMode === "supabase" || isSupabaseConfigured()) {
       const res = await administrasiService.updateRekeningById(id, payload);
       if (!res.ok) return { ok: false, message: res.message };
-      await refreshFromSupabase();
+
+      const confirmedUpdated: RekeningPesantren = res.data
+        ? { ...existing, ...res.data }
+        : { ...existing, ...payload, updated_at: new Date().toISOString() };
+      setRekeningList((prev) => prev.map((r) => (r.id === id ? confirmedUpdated : r)));
+      if (confirmedUpdated.is_active) {
+        setRekeningResmi(confirmedUpdated);
+      }
+      void refreshFromSupabase().catch(() => {});
 
       appendAuditLog(
         "UPDATE_REKENING_RESMI",
@@ -1887,7 +1940,13 @@ export function SipetaProvider({
     if (authMode === "supabase" || isSupabaseConfigured()) {
       const res = await administrasiService.deleteRekeningById(id);
       if (!res.ok) return { ok: false, message: res.message };
-      await refreshFromSupabase();
+
+      setRekeningList((prev) => prev.filter((r) => r.id !== id));
+      if (rekeningResmi?.id === id) {
+        const remaining = rekeningList.filter((r) => r.id !== id);
+        setRekeningResmi(remaining.find((r) => r.is_active) || remaining[0] || null);
+      }
+      void refreshFromSupabase().catch(() => {});
 
       appendAuditLog(
         "DELETE_REKENING_RESMI",
@@ -1957,7 +2016,7 @@ export function SipetaProvider({
         }));
       }
 
-      await refreshFromSupabase();
+      void refreshFromSupabase().catch(() => {});
       return {
         ok: true,
         message:
@@ -2046,7 +2105,7 @@ export function SipetaProvider({
         return { ok: false, message: dbRes.message };
       }
       setProfilPesantren(updatedProfil);
-      await refreshFromSupabase();
+      void refreshFromSupabase().catch(() => {});
     } else {
       setProfilPesantren(updatedProfil);
       try {
@@ -2141,13 +2200,11 @@ export function SipetaProvider({
       }
     );
 
-    // 7. Refresh data dari Supabase Cloud untuk menyinkronkan data terbaru
+    // 7. Refresh data dari Supabase Cloud di latar belakang
     if (isSupabaseConfigured()) {
-      try {
-        await refreshFromSupabase();
-      } catch (err) {
+      void refreshFromSupabase().catch((err) => {
         console.warn("Sinkronisasi pasca-perubahan semester:", err);
-      }
+      });
     }
 
     return {
@@ -2183,7 +2240,10 @@ export function SipetaProvider({
         tanggal_selesai: payload.tanggal_selesai,
       });
       if (res.ok) {
-        await refreshFromSupabase();
+        if (res.data) {
+          setTahunAjaranList((prev) => [res.data!, ...prev.filter((t) => t.id !== res.data!.id)]);
+        }
+        void refreshFromSupabase().catch(() => {});
         return { ok: true, message: res.message };
       }
       return { ok: false, message: res.message };
@@ -2214,7 +2274,8 @@ export function SipetaProvider({
     if (isSupabaseConfigured()) {
       const res = await administrasiService.deleteTahunAjaran(id);
       if (res.ok) {
-        await refreshFromSupabase();
+        setTahunAjaranList((prev) => prev.filter((t) => t.id !== id));
+        void refreshFromSupabase().catch(() => {});
         return { ok: true, message: res.message };
       }
       return { ok: false, message: res.message };
@@ -2829,7 +2890,15 @@ export function SipetaProvider({
     if (authMode === "supabase") {
       const res = await administrasiService.deleteSantriBatch(santriIds);
       if (res.ok) {
-        await refreshFromSupabase();
+        // Perbarui state santri & wali seketika setelah server mengonfirmasi penghapusan,
+        // lalu sinkronkan data lengkap di latar belakang.
+        setSantriList((prev) =>
+          prev.filter((s) => !santriIds.includes(s.id))
+        );
+        setWaliList((prev) =>
+          prev.filter((w) => !santriIds.includes(w.santri_id))
+        );
+        void refreshFromSupabase().catch(() => {});
       }
       return res;
     }
@@ -3113,7 +3182,7 @@ export function SipetaProvider({
     if (authMode === "supabase") {
       const res = await administrasiService.deleteKelas(id);
       if (!res.ok) return { ok: false, message: res.message || "Gagal menghapus kelas dari Supabase." };
-      await refreshFromSupabase();
+      void refreshFromSupabase().catch(() => {});
     }
 
     const nextList = kelasListRef.current.filter((k) => k.id !== id);
@@ -3227,7 +3296,7 @@ export function SipetaProvider({
     if (authMode === "supabase") {
       const res = await administrasiService.deleteKamar(id);
       if (!res.ok) return { ok: false, message: res.message || "Gagal menghapus kamar dari Supabase." };
-      await refreshFromSupabase();
+      void refreshFromSupabase().catch(() => {});
     }
 
     const nextList = kamarListRef.current.filter((k) => k.id !== id);
@@ -4695,12 +4764,14 @@ export function SipetaProvider({
     ) {
       return { ok: false, message: "Akses ditolak." };
     }
-    setMengajiList((prev) => prev.map((m) => (m.id === id ? { ...m, ...payload } : m)));
     if (authMode === "supabase") {
       const res = await kepesantrenanService.updatePenilaianMengaji(id, payload);
       if (!res.ok) return { ok: false, message: res.message };
-      await refreshFromSupabase();
+      setMengajiList((prev) => prev.map((m) => (m.id === id ? { ...m, ...payload } : m)));
+      void refreshFromSupabase().catch(() => {});
+      return { ok: true, message: "Evaluasi mengaji berhasil diperbarui." };
     }
+    setMengajiList((prev) => prev.map((m) => (m.id === id ? { ...m, ...payload } : m)));
     return { ok: true, message: "Evaluasi mengaji berhasil diperbarui." };
   };
 
@@ -4715,12 +4786,14 @@ export function SipetaProvider({
     ) {
       return { ok: false, message: "Akses ditolak." };
     }
-    setMengajiList((prev) => prev.filter((m) => m.id !== id));
     if (authMode === "supabase") {
       const res = await kepesantrenanService.deletePenilaianMengaji(id);
       if (!res.ok) return { ok: false, message: res.message };
-      await refreshFromSupabase();
+      setMengajiList((prev) => prev.filter((m) => m.id !== id));
+      void refreshFromSupabase().catch(() => {});
+      return { ok: true, message: "Catatan evaluasi mengaji berhasil dihapus." };
     }
+    setMengajiList((prev) => prev.filter((m) => m.id !== id));
     return { ok: true, message: "Catatan evaluasi mengaji berhasil dihapus." };
   };
 
@@ -4735,12 +4808,14 @@ export function SipetaProvider({
     ) {
       return { ok: false, message: "Akses ditolak." };
     }
-    setTahfidzList((prev) => prev.map((t) => (t.id === id ? { ...t, ...payload } : t)));
     if (authMode === "supabase") {
       const res = await kepesantrenanService.updateSetoranTahfidz(id, payload);
       if (!res.ok) return { ok: false, message: res.message };
-      await refreshFromSupabase();
+      setTahfidzList((prev) => prev.map((t) => (t.id === id ? { ...t, ...payload } : t)));
+      void refreshFromSupabase().catch(() => {});
+      return { ok: true, message: "Setoran tahfidz berhasil diperbarui." };
     }
+    setTahfidzList((prev) => prev.map((t) => (t.id === id ? { ...t, ...payload } : t)));
     return { ok: true, message: "Setoran tahfidz berhasil diperbarui." };
   };
 
@@ -4755,12 +4830,14 @@ export function SipetaProvider({
     ) {
       return { ok: false, message: "Akses ditolak." };
     }
-    setTahfidzList((prev) => prev.filter((t) => t.id !== id));
     if (authMode === "supabase") {
       const res = await kepesantrenanService.deleteSetoranTahfidz(id);
       if (!res.ok) return { ok: false, message: res.message };
-      await refreshFromSupabase();
+      setTahfidzList((prev) => prev.filter((t) => t.id !== id));
+      void refreshFromSupabase().catch(() => {});
+      return { ok: true, message: "Setoran tahfidz berhasil dihapus." };
     }
+    setTahfidzList((prev) => prev.filter((t) => t.id !== id));
     return { ok: true, message: "Setoran tahfidz berhasil dihapus." };
   };
 
@@ -4775,12 +4852,14 @@ export function SipetaProvider({
     ) {
       return { ok: false, message: "Akses ditolak." };
     }
-    setPrestasiList((prev) => prev.map((p) => (p.id === id ? { ...p, ...payload } : p)));
     if (authMode === "supabase") {
       const res = await kepesantrenanService.updatePrestasiSantri(id, payload);
       if (!res.ok) return { ok: false, message: res.message };
-      await refreshFromSupabase();
+      setPrestasiList((prev) => prev.map((p) => (p.id === id ? { ...p, ...payload } : p)));
+      void refreshFromSupabase().catch(() => {});
+      return { ok: true, message: "Data prestasi santri berhasil diperbarui." };
     }
+    setPrestasiList((prev) => prev.map((p) => (p.id === id ? { ...p, ...payload } : p)));
     return { ok: true, message: "Data prestasi santri berhasil diperbarui." };
   };
 
@@ -4795,12 +4874,14 @@ export function SipetaProvider({
     ) {
       return { ok: false, message: "Akses ditolak." };
     }
-    setPrestasiList((prev) => prev.filter((p) => p.id !== id));
     if (authMode === "supabase") {
       const res = await kepesantrenanService.deletePrestasiSantri(id);
       if (!res.ok) return { ok: false, message: res.message };
-      await refreshFromSupabase();
+      setPrestasiList((prev) => prev.filter((p) => p.id !== id));
+      void refreshFromSupabase().catch(() => {});
+      return { ok: true, message: "Data prestasi santri berhasil dihapus." };
     }
+    setPrestasiList((prev) => prev.filter((p) => p.id !== id));
     return { ok: true, message: "Data prestasi santri berhasil dihapus." };
   };
 
