@@ -1178,7 +1178,7 @@ export function BendaharaPortal({
 
           {/* SUBTAB 3: JURNAL KOREKSI / PENYESUAIAN */}
           {keuanganSubTab === "jurnal" && (
-            <div className="max-w-2xl mx-auto rounded-2xl border border-purple-200 bg-white p-6 shadow-sm space-y-4">
+            <div className="w-full rounded-2xl border border-purple-200 bg-white p-6 shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-purple-100 pb-3">
                 <RotateCcw className="h-5 w-5 text-purple-700" />
                 <div>
@@ -1274,7 +1274,7 @@ export function BendaharaPortal({
           pembayaran, tetapi tidak dapat mengubahnya.
          ===================================================================== */}
       {activeTab === "rekening_info" && (
-        <div className="max-w-2xl rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-5">
+        <div className="w-full rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-5">
           <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-800 border border-blue-200">

@@ -2455,7 +2455,7 @@ export function TuPortal({
                 </h3>
               </div>
 
-              <form onSubmit={handleMovePlacement} className="max-w-2xl space-y-4">
+              <form onSubmit={handleMovePlacement} className="w-full space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Pilih Santri yang Dipindahkan *

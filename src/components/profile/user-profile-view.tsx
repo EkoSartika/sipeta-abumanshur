@@ -141,7 +141,7 @@ export function UserProfileView() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 w-full">
       {/* Feedback Banner */}
       {feedback && (
         <div
@@ -173,9 +173,9 @@ export function UserProfileView() {
       )}
 
       {/* Main Profile Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Kolom Kiri: Kartu Identitas Akun (Read-Only) */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:col-span-5 xl:col-span-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col items-center text-center pb-5 border-b border-slate-100">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white font-extrabold text-2xl shadow-md border-2 border-emerald-100">
@@ -307,7 +307,7 @@ export function UserProfileView() {
         </div>
 
         {/* Kolom Kanan: Form Ubah Profil & Ubah Password */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-7 xl:col-span-8">
           {/* Card 1: Ubah Data Pribadi */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -327,6 +327,7 @@ export function UserProfileView() {
             </div>
 
             <form onSubmit={handleSaveProfile} className="mt-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label
                   htmlFor="profile-input-nama"
@@ -369,6 +370,7 @@ export function UserProfileView() {
                 <p className="mt-1 text-[10px] text-slate-500">
                   Digunakan untuk pemberitahuan tagihan, uang saku, dan informasi pesantren.
                 </p>
+              </div>
               </div>
 
               <div className="flex justify-end pt-2">
