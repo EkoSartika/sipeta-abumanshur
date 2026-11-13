@@ -329,6 +329,7 @@ export interface TransaksiPembayaran {
   nama_pengirim: string;
   bank_pengirim: string;
   bukti_transfer_url: string;
+  bukti_transfer_path?: string;
   status: StatusTransaksi;
   alokasi: AlokasiPembayaran[];
   verified_by_nama?: string;
@@ -361,6 +362,7 @@ export interface PengajuanUangSaku {
   nama_pengirim: string;
   bank_pengirim: string;
   bukti_transfer_url: string;
+  bukti_transfer_path?: string;
   keterangan: string;
   status: StatusTransaksi;
   verified_by_nama?: string;

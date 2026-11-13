@@ -17,6 +17,9 @@ export type SipetaBucket =
   | "foto-penyerahan-saku"
   | "dokumentasi-kepesantrenan";
 
+// In-Memory Cache untuk Signed URLs (Menghindari regenerasi berulang)
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
 export class StorageService {
   private client = createSupabaseBrowserClient();
 
@@ -71,31 +74,72 @@ export class StorageService {
   }
 
   // --------------------------------------------------------------------------
-  // MENDAPATKAN SIGNED URL AMAN (EXPIRING TEMPORARY LINK)
+  // MENDAPATKAN SIGNED URL AMAN (EXPIRING TEMPORARY LINK) DENGAN CACHING
   // --------------------------------------------------------------------------
   async getSignedUrl(
     bucket: SipetaBucket,
     path: string,
-    expiresInSeconds = 3600
+    expiresInSeconds = 900
   ): Promise<string | null> {
-    if (!isSupabaseConfigured() || !path) {
-      return null;
-    }
+    if (!path) return null;
 
-    // Jika path berupa data URL atau URL publik lokal, kembalikan langsung
+    // Jika path berupa data URL atau URL publik/lengkap, kembalikan langsung
     if (path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) {
       return path;
     }
 
-    const { data, error } = await this.client.storage
-      .from(bucket)
-      .createSignedUrl(path, expiresInSeconds);
-
-    if (error || !data?.signedUrl) {
-      return null;
+    const cacheKey = `${bucket}:${path}`;
+    const now = Date.now();
+    const cached = signedUrlCache.get(cacheKey);
+    // Gunakan cache jika masih valid (buffer 60 detik sebelum kedaluwarsa)
+    if (cached && cached.expiresAt > now + 60_000) {
+      return cached.url;
     }
 
-    return data.signedUrl;
+    if (!isSupabaseConfigured()) {
+      return path;
+    }
+
+    // 1. Coba buat signed URL langsung melalui browser client
+    try {
+      const { data, error } = await this.client.storage
+        .from(bucket)
+        .createSignedUrl(path, expiresInSeconds);
+
+      if (!error && data?.signedUrl) {
+        signedUrlCache.set(cacheKey, {
+          url: data.signedUrl,
+          expiresAt: now + expiresInSeconds * 1000,
+        });
+        return data.signedUrl;
+      }
+    } catch {
+      // Lanjutkan ke fallback API server-side
+    }
+
+    // 2. Fallback: Request ke endpoint server `/api/signed-url`
+    try {
+      const res = await fetch("/api/signed-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bucket, filePath: path }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.signedUrl) {
+          signedUrlCache.set(cacheKey, {
+            url: json.signedUrl,
+            expiresAt: now + (json.expiresIn || expiresInSeconds) * 1000,
+          });
+          return json.signedUrl;
+        }
+      }
+    } catch (err: any) {
+      console.warn("Gagal membuat signed URL melalui API fallback:", err?.message);
+    }
+
+    return null;
   }
 
   // --------------------------------------------------------------------------
@@ -115,4 +159,3 @@ export class StorageService {
 }
 
 export const storageService = new StorageService();
-

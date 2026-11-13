@@ -12,6 +12,7 @@ import {
   History,
   Info,
   Landmark,
+  RefreshCw,
   RotateCcw,
   ShieldCheck,
   Upload,
@@ -30,6 +31,8 @@ import { SAMPLE_HANDOVER_PHOTO_1, INITIAL_SANTRI } from "@/lib/store/initial-dat
 import { validateUploadedFile } from "@/lib/supabase/storage";
 import { MediaPreviewModal } from "@/components/ui/media-modal";
 import { AsatidzPortal } from "@/modules/pengelola/pengelola-portal";
+import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import type { SipetaBucket } from "@/lib/services/storage.service";
 import type { Santri } from "@/types/database";
 
 export type BendaharaTab =
@@ -70,7 +73,64 @@ export function BendaharaPortal({
     verifyTopupUangSaku,
     recordPenyerahanUangSaku,
     recordKoreksiLedgerSaku,
+    refreshAntreanBendaharaOnly,
+    isAntreanLoading,
   } = useSipeta();
+
+  // Sinkronisasi antrean otomatis (Mount, Tab Change, Window Focus, Polling, & Supabase Realtime)
+  useEffect(() => {
+    refreshAntreanBendaharaOnly();
+  }, [refreshAntreanBendaharaOnly]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshAntreanBendaharaOnly();
+      }
+    };
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [refreshAntreanBendaharaOnly]);
+
+  useEffect(() => {
+    // Refresh ringan setiap 20 detik jika tab aktif di layar
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshAntreanBendaharaOnly();
+      }
+    }, 20_000);
+    return () => clearInterval(interval);
+  }, [refreshAntreanBendaharaOnly]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    const client = createSupabaseBrowserClient();
+    const channel = client
+      .channel("bendahara-antrean-realtime-sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "transaksi_pembayaran" },
+        () => {
+          refreshAntreanBendaharaOnly(true);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pengajuan_uang_saku" },
+        () => {
+          refreshAntreanBendaharaOnly(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, [refreshAntreanBendaharaOnly]);
 
   const [internalTab, setInternalTab] = useState<BendaharaTab>("dashboard");
   const activeTab = ((controlledTab as BendaharaTab) || internalTab);
@@ -81,6 +141,16 @@ export function BendaharaPortal({
       setInternalTab(tab);
     }
   };
+
+  useEffect(() => {
+    if (
+      activeTab === "dashboard" ||
+      activeTab === "verifikasi_pembayaran" ||
+      activeTab === "verifikasi_saku"
+    ) {
+      refreshAntreanBendaharaOnly();
+    }
+  }, [activeTab, refreshAntreanBendaharaOnly]);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [catatanMap, setCatatanMap] = useState<Record<string, string>>({});
   const [isVerifying, setIsVerifying] = useState<string | null>(null);
@@ -120,7 +190,8 @@ export function BendaharaPortal({
     open: boolean;
     title: string;
     subtitle: string;
-    url: string | null;
+    url: string | null | undefined;
+    bucket?: SipetaBucket;
   }>({ open: false, title: "", subtitle: "", url: null });
 
   const pendingPembayaran = useMemo(
@@ -200,13 +271,27 @@ export function BendaharaPortal({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => refreshAntreanBendaharaOnly(true)}
+            disabled={isAntreanLoading}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 transition"
+            title="Segarkan antrean verifikasi pembayaran dan uang saku"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${isAntreanLoading ? "animate-spin text-emerald-600" : ""}`} />
+            <span>{isAntreanLoading ? "Menyinkronkan..." : "Segarkan Antrean"}</span>
+          </button>
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1 text-center">
             <span className="text-xs text-amber-700 mr-1.5 font-medium">Antrean Bayar Tagihan:</span>
-            <span className="text-sm font-bold text-amber-800">{pendingPembayaran.length}</span>
+            <span className="text-sm font-bold text-amber-800">
+              {isAntreanLoading && pendingPembayaran.length === 0 ? "..." : pendingPembayaran.length}
+            </span>
           </div>
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1 text-center">
             <span className="text-xs text-amber-700 mr-1.5 font-medium">Antrean Top-Up Saku:</span>
-            <span className="text-sm font-bold text-amber-800">{pendingTopupSaku.length}</span>
+            <span className="text-sm font-bold text-amber-800">
+              {isAntreanLoading && pendingTopupSaku.length === 0 ? "..." : pendingTopupSaku.length}
+            </span>
           </div>
         </div>
       </div>
@@ -378,7 +463,8 @@ export function BendaharaPortal({
                             subtitle: `Pengirim: ${trx.nama_pengirim} (${trx.bank_pengirim}) • Nominal: ${formatRupiah(
                               trx.total_nominal
                             )}`,
-                            url: trx.bukti_transfer_url,
+                            url: trx.bukti_transfer_url || trx.bukti_transfer_path,
+                            bucket: "bukti-pembayaran",
                           })
                         }
                         className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
@@ -528,7 +614,8 @@ export function BendaharaPortal({
                             open: true,
                             title: `Bukti Transfer (${t.nomor_transaksi})`,
                             subtitle: getSantriName(t.santri_id),
-                            url: t.bukti_transfer_url,
+                            url: t.bukti_transfer_url || t.bukti_transfer_path,
+                            bucket: "bukti-pembayaran",
                           })
                         }
                         className="w-full inline-flex items-center justify-center rounded-xl border border-slate-300 bg-slate-50 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-100 min-h-[44px] touch-manipulation cursor-pointer"
@@ -586,7 +673,8 @@ export function BendaharaPortal({
                                 open: true,
                                 title: `Bukti Transfer (${t.nomor_transaksi})`,
                                 subtitle: getSantriName(t.santri_id),
-                                url: t.bukti_transfer_url,
+                                url: t.bukti_transfer_url || t.bukti_transfer_path,
+                                bucket: "bukti-pembayaran",
                               })
                             }
                             className="text-xs font-semibold text-emerald-700 hover:underline"
@@ -644,7 +732,8 @@ export function BendaharaPortal({
                           subtitle: `Pengirim: ${p.nama_pengirim} • Nominal: ${formatRupiah(
                             p.nominal
                           )}`,
-                          url: p.bukti_transfer_url,
+                          url: p.bukti_transfer_url || p.bukti_transfer_path,
+                          bucket: "bukti-uang-saku",
                         })
                       }
                       className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
@@ -1255,6 +1344,7 @@ export function BendaharaPortal({
         title={previewModal.title}
         subtitle={previewModal.subtitle}
         imageUrl={previewModal.url}
+        bucket={previewModal.bucket}
       />
     </div>
   );

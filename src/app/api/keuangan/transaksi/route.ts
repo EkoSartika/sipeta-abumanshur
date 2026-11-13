@@ -129,9 +129,17 @@ async function uploadBase64ToStorage(
     }
     const buffer = Buffer.from(base64Data, "base64");
 
+    // Sesuaikan ekstensi file agar sesuai dengan contentType aktual
+    let cleanPath = storagePath;
+    if (contentType.includes("webp") && cleanPath.endsWith(".jpg")) {
+      cleanPath = cleanPath.replace(/\.jpg$/, ".webp");
+    } else if (contentType.includes("png") && cleanPath.endsWith(".jpg")) {
+      cleanPath = cleanPath.replace(/\.jpg$/, ".png");
+    }
+
     const { data, error } = await adminClient.storage
       .from(bucket)
-      .upload(storagePath, buffer, {
+      .upload(cleanPath, buffer, {
         contentType,
         upsert: true,
       });

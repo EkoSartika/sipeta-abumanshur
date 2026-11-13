@@ -44,6 +44,7 @@ import {
 import { SAMPLE_TRANSFER_PROOF_1, INITIAL_SANTRI } from "@/lib/store/initial-data";
 import { validateUploadedFile } from "@/lib/supabase/storage";
 import { MediaPreviewModal } from "@/components/ui/media-modal";
+import type { SipetaBucket } from "@/lib/services/storage.service";
 import type { TransaksiPembayaran, Santri } from "@/types/database";
 
 export type WaliTab =
@@ -174,7 +175,8 @@ export function WaliPortal({
     open: boolean;
     title: string;
     subtitle: string;
-    url: string | null;
+    url: string | null | undefined;
+    bucket?: SipetaBucket;
   }>({ open: false, title: "", subtitle: "", url: null });
 
   // Modal Unggah Bukti Susulan (Bab 5.3 PRD / rpc_unggah_bukti_transfer_pembayaran)
@@ -329,11 +331,13 @@ export function WaliPortal({
     }
 
     try {
-      setFeedback({ ok: true, text: `Mengoptimalkan gambar "${file.name}"...` });
-      const { dataUrl, sizeBytes, originalBytes } = await compressImageClientSide(file, {
-        maxWidth: 1280,
-        maxHeight: 1280,
-        quality: 0.82,
+      setFeedback({ ok: true, text: `Mengompresi & mengoptimalkan gambar "${file.name}"...` });
+      const { dataUrl, sizeBytes, originalBytes, compressionRatio } = await compressImageClientSide(file, {
+        maxWidth: 1440,
+        maxHeight: 1440,
+        targetSizeKb: 100,
+        maxSafeSizeKb: 200,
+        preferWebP: true,
       });
 
       if (target === "bayar") {
@@ -348,7 +352,7 @@ export function WaliPortal({
       const origKb = Math.round(originalBytes / 1024);
       setFeedback({
         ok: true,
-        text: `File "${file.name}" siap diunggah (${sizeKb} KB, dioptimalkan dari ${origKb} KB).`,
+        text: `Foto bukti transfer "${file.name}" siap (${sizeKb} KB, dioptimalkan dari ${origKb} KB • hemat ${compressionRatio}%). Tulisan nominal & tanggal tetap tajam.`,
       });
     } catch {
       const reader = new FileReader();
@@ -786,6 +790,7 @@ export function WaliPortal({
                               title: `Bukti Penyerahan Uang Saku (${m.nomor_transaksi})`,
                               subtitle: `${m.keterangan} • Petugas: ${m.petugas_nama}`,
                               url: m.foto_penyerahan_url ?? null,
+                              bucket: "foto-penyerahan-saku",
                             })
                           }
                           className="mt-1 inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
@@ -1208,7 +1213,8 @@ export function WaliPortal({
                                 open: true,
                                 title: `Bukti Transfer Pembayaran (${trx.nomor_transaksi})`,
                                 subtitle: `Pengirim: ${trx.nama_pengirim} (${trx.bank_pengirim}) • Total: ${formatRupiah(trx.total_nominal)}`,
-                                url: trx.bukti_transfer_url ?? null,
+                                url: trx.bukti_transfer_url || trx.bukti_transfer_path || null,
+                                bucket: "bukti-pembayaran",
                               })
                             }
                             className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
@@ -1511,6 +1517,7 @@ export function WaliPortal({
                                 m.keterangan
                               }`,
                               url: m.foto_penyerahan_url ?? null,
+                              bucket: "foto-penyerahan-saku",
                             })
                           }
                           className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 py-2.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100 min-h-[44px] touch-manipulation cursor-pointer"
@@ -1595,6 +1602,7 @@ export function WaliPortal({
                                     m.keterangan
                                   }`,
                                   url: m.foto_penyerahan_url ?? null,
+                              bucket: "foto-penyerahan-saku",
                                 })
                               }
                               className="inline-flex items-center gap-1 rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
@@ -1655,7 +1663,8 @@ export function WaliPortal({
                                 open: true,
                                 title: `Bukti Transfer Top-up Uang Saku (${p.nomor_pengajuan})`,
                                 subtitle: `Pengirim: ${p.nama_pengirim} (${p.bank_pengirim}) • Nominal: ${formatRupiah(p.nominal)}`,
-                                url: p.bukti_transfer_url ?? null,
+                                url: p.bukti_transfer_url || p.bukti_transfer_path || null,
+                                bucket: "bukti-uang-saku",
                               })
                             }
                             className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-200"
@@ -2273,7 +2282,7 @@ export function WaliPortal({
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp,application/pdf"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       const check = validateUploadedFile(file, "image_or_pdf");
@@ -2281,17 +2290,31 @@ export function WaliPortal({
                         setFeedback({ ok: false, text: check.error ?? "File tidak valid." });
                         return;
                       }
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        const dataUrl =
-                          typeof reader.result === "string"
-                            ? reader.result
-                            : SAMPLE_TRANSFER_PROOF_1;
+                      try {
+                        const { dataUrl, sizeBytes, originalBytes, compressionRatio } = await compressImageClientSide(file, {
+                          maxWidth: 1440,
+                          maxHeight: 1440,
+                          targetSizeKb: 100,
+                          maxSafeSizeKb: 200,
+                        });
                         setUploadBuktiUrl(dataUrl);
                         setUploadFilename(file.name);
-                        setFeedback({ ok: true, text: `File "${file.name}" siap diunggah.` });
-                      };
-                      reader.readAsDataURL(file);
+                        const sizeKb = Math.round(sizeBytes / 1024);
+                        const origKb = Math.round(originalBytes / 1024);
+                        setFeedback({ ok: true, text: `Foto bukti susulan "${file.name}" siap (${sizeKb} KB, hemat ${compressionRatio}%).` });
+                      } catch {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const dataUrl =
+                            typeof reader.result === "string"
+                              ? reader.result
+                              : SAMPLE_TRANSFER_PROOF_1;
+                          setUploadBuktiUrl(dataUrl);
+                          setUploadFilename(file.name);
+                          setFeedback({ ok: true, text: `File "${file.name}" siap diunggah.` });
+                        };
+                        reader.readAsDataURL(file);
+                      }
                     }}
                     className="hidden"
                   />
@@ -2327,6 +2350,7 @@ export function WaliPortal({
         title={previewModal.title}
         subtitle={previewModal.subtitle}
         imageUrl={previewModal.url}
+        bucket={previewModal.bucket}
       />
     </div>
   );
