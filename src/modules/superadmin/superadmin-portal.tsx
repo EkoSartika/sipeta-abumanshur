@@ -550,7 +550,7 @@ export function SuperadminPortal({
             <div
               className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm shadow-sm transition ${
                 feedback.ok
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-950"
+                  ? "border-emerald-300 bg-emerald-50 text-[#123C35]"
                   : "border-rose-300 bg-rose-50 text-rose-950"
               }`}
             >
@@ -589,7 +589,7 @@ export function SuperadminPortal({
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-emerald-950 shadow-md hover:bg-emerald-50 transition"
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-[#123C35] shadow-md hover:bg-emerald-50 transition"
                 >
                   <UserPlus className="h-4 w-4 text-emerald-800" />
                   <span>Buat Akun Petugas</span>
@@ -600,7 +600,7 @@ export function SuperadminPortal({
 
           {/* Quick Statistics Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Total Akun Terdaftar
               </span>
@@ -611,7 +611,7 @@ export function SuperadminPortal({
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
                 Akun Aktif
               </span>
-              <p className="mt-1 text-2xl font-extrabold text-emerald-900">{stats.active}</p>
+              <p className="mt-1 text-2xl font-extrabold text-[#123C35]">{stats.active}</p>
               <span className="text-[11px] text-emerald-700">Dapat login &amp; bertransaksi</span>
             </div>
             <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
@@ -621,7 +621,7 @@ export function SuperadminPortal({
               <p className="mt-1 text-2xl font-extrabold text-blue-900">{stats.wali}</p>
               <span className="text-[11px] text-blue-700">Relasi santri terdaftar</span>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Petugas Internal
               </span>
@@ -635,13 +635,13 @@ export function SuperadminPortal({
             <button
               type="button"
               onClick={() => setActiveTab("users")}
-              className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-center gap-3.5 rounded-2xl border border-[#E5E7EB] bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 group-hover:bg-emerald-800 group-hover:text-white transition shrink-0">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 group-hover:bg-[#123C35] group-hover:text-white transition shrink-0">
                 <Users className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-900 transition">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-[#123C35] transition">
                   Manajemen Akun &amp; Role
                 </h4>
               </div>
@@ -650,7 +650,7 @@ export function SuperadminPortal({
             <button
               type="button"
               onClick={() => setActiveTab("rekening")}
-              className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-center gap-3.5 rounded-2xl border border-[#E5E7EB] bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-800 border border-blue-200 group-hover:bg-blue-800 group-hover:text-white transition shrink-0">
                 <Landmark className="h-5 w-5" />
@@ -665,7 +665,7 @@ export function SuperadminPortal({
             <button
               type="button"
               onClick={() => setActiveTab("audit_log")}
-              className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-center gap-3.5 rounded-2xl border border-[#E5E7EB] bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-purple-800 border border-purple-200 group-hover:bg-purple-800 group-hover:text-white transition shrink-0">
                 <FileText className="h-5 w-5" />
@@ -679,7 +679,7 @@ export function SuperadminPortal({
           </div>
 
           {/* Ringkasan Jejak Audit Terkini */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-emerald-800" />
@@ -690,7 +690,7 @@ export function SuperadminPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("audit_log")}
-                className="text-xs font-bold text-emerald-800 hover:text-emerald-950 transition flex items-center gap-1"
+                className="text-xs font-bold text-emerald-800 hover:text-[#123C35] transition flex items-center gap-1"
               >
                 <span>Lihat Seluruh Log</span>
                 <ChevronRight className="h-3.5 w-3.5" />
@@ -723,7 +723,7 @@ export function SuperadminPortal({
         <div className="space-y-6">
           {/* Quick Statistics Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Total Akun Terdaftar
               </span>
@@ -734,7 +734,7 @@ export function SuperadminPortal({
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
                 Akun Aktif
               </span>
-              <p className="mt-1 text-2xl font-extrabold text-emerald-900">{stats.active}</p>
+              <p className="mt-1 text-2xl font-extrabold text-[#123C35]">{stats.active}</p>
               <span className="text-[11px] text-emerald-700">Dapat login & bertransaksi</span>
             </div>
             <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
@@ -744,7 +744,7 @@ export function SuperadminPortal({
               <p className="mt-1 text-2xl font-extrabold text-blue-900">{stats.wali}</p>
               <span className="text-[11px] text-blue-700">Relasi santri terdaftar</span>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Petugas Internal
               </span>
@@ -754,7 +754,7 @@ export function SuperadminPortal({
           </div>
 
           {/* Baris Filter & Tombol Buat Akun Baru */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
             <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
               {/* Search Box */}
               <div className="relative flex-1">
@@ -799,7 +799,7 @@ export function SuperadminPortal({
             <button
               type="button"
               onClick={handleOpenCreateModal}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-emerald-900 transition min-h-[44px] touch-manipulation cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#123C35] px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-[#1D6B59] transition min-h-[44px] touch-manipulation cursor-pointer"
             >
               <UserPlus className="h-4 w-4" />
               <span>Buat Akun Baru</span>
@@ -840,7 +840,7 @@ export function SuperadminPortal({
           {/* ================================================================= */}
           <div className="grid grid-cols-1 gap-3 md:hidden">
             {filteredUsers.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-xs text-slate-500">
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 text-center text-xs text-slate-500">
                 Tidak ada akun pengguna yang sesuai dengan filter pencarian.
               </div>
             ) : (
@@ -854,7 +854,7 @@ export function SuperadminPortal({
                 return (
                   <div
                     key={u.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
+                    className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm space-y-3"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2.5">
@@ -916,7 +916,7 @@ export function SuperadminPortal({
                       <button
                         type="button"
                         onClick={() => handleOpenManageModal(u)}
-                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-300 bg-emerald-50 px-1.5 py-2 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 min-h-[44px] touch-manipulation cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-300 bg-emerald-50 px-1.5 py-2 text-[11px] font-bold text-[#123C35] hover:bg-emerald-100 min-h-[44px] touch-manipulation cursor-pointer"
                       >
                         <UserCheck className="h-3.5 w-3.5 text-emerald-700" />
                         <span>Kelola Akun</span>
@@ -928,7 +928,7 @@ export function SuperadminPortal({
                         onClick={() => handleToggleActive(u)}
                         className={`inline-flex items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-[11px] font-bold transition min-h-[44px] touch-manipulation cursor-pointer ${
                           isSuperadminSelf || u.role === "superadmin"
-                            ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                            ? "opacity-50 cursor-not-allowed border-[#E5E7EB] bg-slate-100 text-slate-400"
                             : u.is_active
                             ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
                             : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -962,7 +962,7 @@ export function SuperadminPortal({
                         onClick={() => setDeleteModalUser(u)}
                         className={`inline-flex items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-[11px] font-bold transition min-h-[44px] touch-manipulation cursor-pointer ${
                           isSuperadminSelf || isLastSuperadmin || u.role === "superadmin"
-                            ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                            ? "opacity-40 cursor-not-allowed border-[#E5E7EB] bg-slate-100 text-slate-400"
                             : "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100"
                         }`}
                       >
@@ -979,11 +979,11 @@ export function SuperadminPortal({
           {/* ================================================================= */}
           {/* TAMPILAN RESPONSIVE 2: TABEL DESKTOP (>= 768px) */}
           {/* ================================================================= */}
-          <div className="hidden md:block rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="hidden md:block rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                  <tr className="border-b border-[#E5E7EB] bg-slate-50 uppercase text-slate-500 font-bold">
                     <th className="py-3 px-3 w-10 text-center">
                       <input
                         type="checkbox"
@@ -1079,7 +1079,7 @@ export function SuperadminPortal({
                                 type="button"
                                 title="Kelola data profil, username, password, role, dan status akun"
                                 onClick={() => handleOpenManageModal(u)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-900 hover:bg-emerald-100 min-h-[36px] transition cursor-pointer"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-[#123C35] hover:bg-emerald-100 min-h-[36px] transition cursor-pointer"
                               >
                                 <UserCheck className="h-3.5 w-3.5 text-emerald-700" />
                                 <span>Kelola Akun</span>
@@ -1101,7 +1101,7 @@ export function SuperadminPortal({
                                 onClick={() => handleToggleActive(u)}
                                 className={`rounded-lg border px-2.5 py-1 text-xs font-semibold min-h-[36px] ${
                                   isSuperadminSelf || u.role === "superadmin"
-                                    ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                    ? "opacity-40 cursor-not-allowed border-[#E5E7EB] bg-slate-100 text-slate-400"
                                     : u.is_active
                                     ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
                                     : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -1126,7 +1126,7 @@ export function SuperadminPortal({
                                 onClick={() => setDeleteModalUser(u)}
                                 className={`rounded-lg border px-2.5 py-1 text-xs font-semibold min-h-[36px] ${
                                   isSuperadminSelf || isLastSuperadmin || u.role === "superadmin"
-                                    ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                    ? "opacity-40 cursor-not-allowed border-[#E5E7EB] bg-slate-100 text-slate-400"
                                     : "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100"
                                 }`}
                               >
@@ -1150,7 +1150,7 @@ export function SuperadminPortal({
       {/* ===================================================================== */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="my-8 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="my-8 w-full max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5 text-emerald-700" />
@@ -1323,7 +1323,7 @@ export function SuperadminPortal({
                 <button
                   type="submit"
                   disabled={createSubmitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-2.5 font-bold text-white shadow hover:bg-emerald-900 disabled:opacity-50 min-h-[44px] cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#123C35] px-5 py-2.5 font-bold text-white shadow hover:bg-[#1D6B59] disabled:opacity-50 min-h-[44px] cursor-pointer"
                 >
                   {createSubmitting ? (
                     <>
@@ -1345,7 +1345,7 @@ export function SuperadminPortal({
       {/* ===================================================================== */}
       {manageModalUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="my-8 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl space-y-4">
+          <div className="my-8 w-full max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-5 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <UserCheck className="h-5 w-5 text-emerald-700" />
@@ -1360,7 +1360,7 @@ export function SuperadminPortal({
               </button>
             </div>
 
-            <div className="rounded-xl bg-slate-50 p-3 text-xs border border-slate-200 flex items-center justify-between">
+            <div className="rounded-xl bg-slate-50 p-3 text-xs border border-[#E5E7EB] flex items-center justify-between">
               <div>
                 <p className="font-bold text-slate-900">{manageModalUser.nama_lengkap}</p>
                 <p className="text-slate-500 text-[11px] mt-0.5">
@@ -1416,7 +1416,7 @@ export function SuperadminPortal({
                     }}
                     className={`w-full rounded-xl border pl-7 pr-3 py-2 text-xs font-mono font-bold min-h-[44px] ${
                       manageModalUser.role === "superadmin"
-                        ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                        ? "bg-slate-100 border-[#E5E7EB] text-slate-500 cursor-not-allowed"
                         : "border-slate-300 text-slate-900 focus:border-emerald-600 focus:outline-none"
                     }`}
                   />
@@ -1434,7 +1434,7 @@ export function SuperadminPortal({
               </div>
 
               {/* Kata Sandi Baru (Opsional Sesuai Bagian A & E.2) */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 space-y-3">
+              <div className="rounded-xl border border-[#E5E7EB] bg-slate-50/50 p-3 space-y-3">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block font-bold text-slate-700">Kata Sandi Baru</label>
@@ -1559,7 +1559,7 @@ export function SuperadminPortal({
                 <button
                   type="submit"
                   disabled={manageSubmitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-2.5 font-bold text-white shadow hover:bg-emerald-900 disabled:opacity-50 min-h-[44px] cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#123C35] px-5 py-2.5 font-bold text-white shadow hover:bg-[#1D6B59] disabled:opacity-50 min-h-[44px] cursor-pointer"
                 >
                   {manageSubmitting ? (
                     <>
@@ -1589,7 +1589,7 @@ export function SuperadminPortal({
 
             <div className="text-xs text-slate-700 space-y-2.5 leading-relaxed">
               <p>Apakah Anda yakin ingin menghapus akun pengguna berikut?</p>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1">
+              <div className="rounded-xl border border-[#E5E7EB] bg-slate-50 p-3 space-y-1">
                 <div>
                   <strong className="text-slate-900">{deleteModalUser.nama_lengkap}</strong>
                 </div>
@@ -1658,7 +1658,7 @@ export function SuperadminPortal({
                 Anda akan memproses penghapusan massal untuk <strong>{selectedUserIds.length}</strong> akun pengguna berikut:
               </p>
 
-              <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2.5 divide-y divide-slate-200/60 text-xs">
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-[#E5E7EB] bg-slate-50 p-2.5 divide-y divide-slate-200/60 text-xs">
                 {users
                   .filter((u) => selectedUserIds.includes(u.id))
                   .map((u) => (
@@ -1726,7 +1726,7 @@ export function SuperadminPortal({
       {/* ===================================================================== */}
       {bulkDeleteResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-5 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -1742,13 +1742,13 @@ export function SuperadminPortal({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5">
+              <div className="rounded-xl bg-slate-50 border border-[#E5E7EB] p-2.5">
                 <div className="text-slate-500 font-semibold">Total</div>
                 <div className="text-lg font-black text-slate-900">{bulkDeleteResult.total}</div>
               </div>
               <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-2.5">
                 <div className="text-emerald-700 font-semibold">Dihapus</div>
-                <div className="text-lg font-black text-emerald-900">{bulkDeleteResult.deleted}</div>
+                <div className="text-lg font-black text-[#123C35]">{bulkDeleteResult.deleted}</div>
               </div>
               <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5">
                 <div className="text-amber-700 font-semibold">Dinonaktifkan</div>
@@ -1761,7 +1761,7 @@ export function SuperadminPortal({
             </div>
 
             {bulkDeleteResult.items && bulkDeleteResult.items.length > 0 && (
-              <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2.5 divide-y divide-slate-200/60 text-xs">
+              <div className="max-h-56 overflow-y-auto rounded-xl border border-[#E5E7EB] bg-slate-50 p-2.5 divide-y divide-slate-200/60 text-xs">
                 {bulkDeleteResult.items.map((item) => (
                   <div key={item.id} className="py-2 flex items-center justify-between gap-2">
                     <div className="truncate">
@@ -1788,7 +1788,7 @@ export function SuperadminPortal({
               <button
                 type="button"
                 onClick={() => setBulkDeleteResult(null)}
-                className="rounded-xl bg-emerald-800 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-900 min-h-[44px]"
+                className="rounded-xl bg-[#123C35] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#1D6B59] min-h-[44px]"
               >
                 Tutup Laporan
               </button>
@@ -1801,7 +1801,7 @@ export function SuperadminPortal({
       {/* TAB 2: PENGATURAN & INFORMASI REKENING PESANTREN */}
       {/* ===================================================================== */}
       {activeTab === "rekening" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-800">
@@ -1821,7 +1821,7 @@ export function SuperadminPortal({
                 type="button"
                 onClick={handleManualRefreshRekening}
                 disabled={isRekeningLoading}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E5E7EB] bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition disabled:opacity-50"
                 title="Muat ulang rekening langsung dari database tanpa me-refresh seluruh aplikasi"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isRekeningLoading ? "animate-spin text-emerald-700" : "text-slate-500"}`} />
@@ -1830,7 +1830,7 @@ export function SuperadminPortal({
               <button
                 type="button"
                 onClick={() => setIsAddingRekening(!isAddingRekening)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1D6B59] hover:bg-[#123C35] text-white font-bold text-xs shadow-sm transition"
               >
                 <Plus className="h-4 w-4" />
                 Tambah Rekening
@@ -1896,7 +1896,7 @@ export function SuperadminPortal({
           {isAddingRekening && (
             <form onSubmit={handleCreateRekeningSubmit} className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-4">
               <div className="border-b border-emerald-200/60 pb-2 flex items-center justify-between">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-[#123C35] flex items-center gap-1.5">
                   <Plus className="h-4 w-4" />
                   <span>Formulir Tambah Rekening Pesantren</span>
                 </h4>
@@ -1968,7 +1968,7 @@ export function SuperadminPortal({
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
+                  className="px-4 py-2 rounded-xl bg-[#1D6B59] hover:bg-[#123C35] text-white font-bold text-xs shadow-sm transition"
                 >
                   Simpan Rekening
                 </button>
@@ -2056,7 +2056,7 @@ export function SuperadminPortal({
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800 shadow-sm"
+                      className="px-4 py-2 rounded-xl bg-[#1D6B59] text-white text-xs font-bold hover:bg-[#123C35] shadow-sm"
                     >
                       Simpan Perubahan
                     </button>
@@ -2084,12 +2084,12 @@ export function SuperadminPortal({
 
             {rekeningList.length === 0 ? (
               isRekeningLoading ? (
-                <div className="text-center py-10 rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                <div className="text-center py-10 rounded-2xl border border-[#E5E7EB] bg-slate-50 text-slate-500 text-xs">
                   <RefreshCw className="h-5 w-5 animate-spin mx-auto text-emerald-700 mb-2" />
                   <p>Memuat data rekening pesantren dari database...</p>
                 </div>
               ) : (
-                <div className="text-center py-10 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                <div className="text-center py-10 rounded-2xl border border-dashed border-[#E5E7EB] bg-slate-50 text-slate-500 text-xs">
                   <p>Belum ada rekening yang terdaftar di database.</p>
                   <button
                     type="button"
@@ -2111,7 +2111,7 @@ export function SuperadminPortal({
                       className={`rounded-2xl border p-4 transition space-y-3 ${
                         isUtama
                           ? "border-emerald-300 bg-emerald-50/30 ring-1 ring-emerald-300 shadow-sm"
-                          : "border-slate-200 bg-white hover:border-slate-300"
+                          : "border-[#E5E7EB] bg-white hover:border-slate-300"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -2164,7 +2164,7 @@ export function SuperadminPortal({
                           <button
                             type="button"
                             onClick={() => handleStartEdit(r)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#E5E7EB] bg-white hover:bg-slate-50 text-slate-700 font-semibold transition"
                           >
                             <Edit2 className="h-3 w-3" />
                             Edit
@@ -2197,7 +2197,7 @@ export function SuperadminPortal({
                               type="button"
                               onClick={() => handleActivateRekening(r)}
                               disabled={isProcessing}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold transition shadow-xs disabled:opacity-50"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1D6B59] hover:bg-[#123C35] text-white font-bold transition shadow-xs disabled:opacity-50"
                               title="Jadikan rekening ini sebagai Rekening Utama aktif"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -2214,7 +2214,7 @@ export function SuperadminPortal({
           </div>
 
           {/* Riwayat Audit Pengawasan Perubahan Rekening Sesuai Bagian D PRD */}
-          <div className="mt-8 pt-6 border-t border-slate-200 space-y-3">
+          <div className="mt-8 pt-6 border-t border-[#E5E7EB] space-y-3">
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4 text-emerald-700" />
               <span>Riwayat Audit Pengawasan Rekening Resmi</span>
@@ -2240,10 +2240,10 @@ export function SuperadminPortal({
                   .map((log) => (
                     <div
                       key={log.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1"
+                      className="rounded-xl border border-[#E5E7EB] bg-slate-50 p-3 text-xs space-y-1"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-emerald-900">{log.aktivitas}</span>
+                        <span className="font-bold text-[#123C35]">{log.aktivitas}</span>
                         <span className="text-[11px] text-slate-400">
                           {formatWaktuLengkap(log.waktu)}
                         </span>
@@ -2264,7 +2264,7 @@ export function SuperadminPortal({
       {/* TAB 3: AUDIT LOG APPEND-ONLY (BAB 13 PRD) */}
       {/* ===================================================================== */}
       {activeTab === "audit_log" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 className="text-base font-bold text-slate-900">
@@ -2285,7 +2285,7 @@ export function SuperadminPortal({
             {auditLogs.map((log) => (
               <div
                 key={log.id}
-                className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs space-y-1.5"
+                className="rounded-xl border border-[#E5E7EB] bg-slate-50/70 p-3.5 text-xs space-y-1.5"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -2312,12 +2312,12 @@ export function SuperadminPortal({
                 {(log.data_sebelum || log.data_sesudah) && (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 pt-1">
                     {log.data_sebelum && (
-                      <pre className="overflow-x-auto rounded bg-white p-2 text-[11px] text-slate-600 border border-slate-200">
+                      <pre className="overflow-x-auto rounded bg-white p-2 text-[11px] text-slate-600 border border-[#E5E7EB]">
                         Sebelum: {JSON.stringify(log.data_sebelum)}
                       </pre>
                     )}
                     {log.data_sesudah && (
-                      <pre className="overflow-x-auto rounded bg-white p-2 text-[11px] text-emerald-900 border border-emerald-200">
+                      <pre className="overflow-x-auto rounded bg-white p-2 text-[11px] text-[#123C35] border border-emerald-200">
                         Sesudah: {JSON.stringify(log.data_sesudah)}
                       </pre>
                     )}

@@ -45,9 +45,9 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      {/* Backdrop */}
+      {/* Backdrop Modern */}
       <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-[#123C35]/50 backdrop-blur-xs transition-opacity duration-200"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -57,19 +57,19 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`relative w-full ${maxWidthStyles[maxWidth]} rounded-2xl bg-white shadow-2xl border border-slate-200/80 z-10 my-auto max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150`}
+        className={`relative w-full ${maxWidthStyles[maxWidth]} rounded-2xl bg-white shadow-2xl border border-[#E5E7EB] z-10 my-auto max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150`}
       >
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-100 p-4 sm:p-5 shrink-0 bg-white">
+        <div className="flex items-start justify-between border-b border-[#E5E7EB] p-4 sm:p-5 shrink-0 bg-[#F7F8F6]/60">
           <div>
             <h3
               id="modal-title"
-              className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight"
+              className="text-base sm:text-lg font-bold text-[#1F2937] tracking-tight"
             >
               {title}
             </h3>
             {description && (
-              <p className="mt-0.5 text-xs text-slate-500 leading-relaxed">
+              <p className="mt-0.5 text-xs text-[#6B7280] leading-relaxed">
                 {description}
               </p>
             )}
@@ -78,10 +78,10 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              className="rounded-xl p-1.5 text-[#6B7280] hover:bg-white hover:text-[#1F2937] border border-transparent hover:border-[#E5E7EB] transition-colors"
               aria-label="Tutup"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           )}
         </div>
@@ -92,4 +92,3 @@ export function Modal({
     </div>
   );
 }
-

@@ -1,8 +1,8 @@
 import React from "react";
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: "emerald" | "amber" | "rose" | "slate" | "blue" | "indigo";
-  size?: "sm" | "md";
+  variant?: "emerald" | "amber" | "rose" | "slate" | "blue" | "indigo" | "mint" | "deep";
+  size?: "xs" | "sm" | "md";
 }
 
 export function Badge({
@@ -13,16 +13,19 @@ export function Badge({
   ...props
 }: BadgeProps) {
   const variantStyles = {
-    emerald: "bg-emerald-50 text-emerald-800 border-emerald-200",
-    amber: "bg-amber-50 text-amber-900 border-amber-200",
-    rose: "bg-rose-50 text-rose-800 border-rose-200",
-    slate: "bg-slate-100 text-slate-700 border-slate-200",
-    blue: "bg-blue-50 text-blue-800 border-blue-200",
-    indigo: "bg-indigo-50 text-indigo-800 border-indigo-200",
+    deep: "bg-[#123C35] text-white border-[#123C35]",
+    mint: "bg-[#E8F2EC] text-[#123C35] border-[#1D6B59]/20 font-semibold",
+    emerald: "bg-emerald-50 text-emerald-800 border-emerald-200/80 font-semibold",
+    amber: "bg-amber-50 text-amber-800 border-amber-200/80 font-semibold",
+    rose: "bg-rose-50 text-rose-800 border-rose-200/80 font-semibold",
+    slate: "bg-slate-100 text-slate-700 border-slate-200 font-medium",
+    blue: "bg-sky-50 text-sky-800 border-sky-200/80 font-semibold",
+    indigo: "bg-indigo-50 text-indigo-800 border-indigo-200/80 font-semibold",
   };
 
   const sizeStyles = {
-    sm: "text-[10px] px-2 py-0.5 font-bold",
+    xs: "text-[10px] px-1.5 py-0.5 font-bold tracking-wide",
+    sm: "text-[11px] px-2 py-0.5 font-semibold",
     md: "text-xs px-2.5 py-1 font-semibold",
   };
 
@@ -35,4 +38,3 @@ export function Badge({
     </span>
   );
 }
-

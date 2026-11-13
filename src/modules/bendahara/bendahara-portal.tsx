@@ -267,9 +267,9 @@ export function BendaharaPortal({
   return (
     <div className="space-y-6">
       {/* Quick Indicators Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3 shadow-sm">
         <div className="flex items-center gap-2">
-          <span className="rounded-md bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-400/30">
+          <span className="rounded-md bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-[#1D6B59] border border-emerald-400/30">
             Kebendaharaan &amp; Keuangan
           </span>
           <span className="text-xs text-slate-500">
@@ -281,7 +281,7 @@ export function BendaharaPortal({
             type="button"
             onClick={() => refreshAntreanBendaharaOnly(true, "all")}
             disabled={isAntreanLoading}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 transition"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 transition"
             title="Segarkan antrean verifikasi pembayaran dan uang saku"
           >
             <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${isAntreanLoading ? "animate-spin text-emerald-600" : ""}`} />
@@ -306,7 +306,7 @@ export function BendaharaPortal({
         <div
           className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${
             feedback.ok
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              ? "border-emerald-200 bg-emerald-50 text-[#123C35]"
               : "border-rose-200 bg-rose-50 text-rose-900"
           }`}
         >
@@ -350,15 +350,15 @@ export function BendaharaPortal({
               <span className="text-[11px] text-blue-700">Menunggu verifikasi</span>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#1D6B59]">
                 Penyerahan Hari Ini
               </span>
-              <p className="mt-1 text-2xl font-extrabold text-emerald-950">
+              <p className="mt-1 text-2xl font-extrabold text-[#123C35]">
                 {mutasiUangSakuList.filter((m) => m.jenis_mutasi === "KELUAR").length}
               </p>
               <span className="text-[11px] text-emerald-700">Tercatat di ledger</span>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Rekening Resmi
               </span>
@@ -376,7 +376,7 @@ export function BendaharaPortal({
             <button
               type="button"
               onClick={() => setActiveTab("verifikasi_pembayaran")}
-              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-start gap-3.5 rounded-2xl border border-[#E5E7EB] bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-200 group-hover:bg-amber-700 group-hover:text-white transition shrink-0">
                 <CreditCard className="h-5 w-5" />
@@ -394,7 +394,7 @@ export function BendaharaPortal({
             <button
               type="button"
               onClick={() => setActiveTab("verifikasi_saku")}
-              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-start gap-3.5 rounded-2xl border border-[#E5E7EB] bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-800 border border-blue-200 group-hover:bg-blue-700 group-hover:text-white transition shrink-0">
                 <FileCheck2 className="h-5 w-5" />
@@ -412,13 +412,13 @@ export function BendaharaPortal({
             <button
               type="button"
               onClick={() => setActiveTab("penyerahan_saku")}
-              className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
+              className="flex items-start gap-3.5 rounded-2xl border border-[#E5E7EB] bg-white p-5 text-left shadow-sm hover:border-emerald-300 hover:shadow-md transition group"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 group-hover:bg-emerald-800 group-hover:text-white transition shrink-0">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-[#1D6B59] border border-emerald-200 group-hover:bg-[#123C35] group-hover:text-white transition shrink-0">
                 <Camera className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-900 transition">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-[#123C35] transition">
                   Catat Penyerahan Uang Saku (+Foto Wajib)
                 </h4>
                 <p className="text-xs text-slate-500 mt-1 line-clamp-2">
@@ -435,13 +435,13 @@ export function BendaharaPortal({
          ===================================================================== */}
       {activeTab === "verifikasi_pembayaran" && (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
             <h3 className="text-base font-bold text-slate-900">
               Daftar Pengajuan Pembayaran Menunggu Verifikasi ({pendingPembayaran.length})
             </h3>
 
             {pendingPembayaran.length === 0 ? (
-              <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
+              <div className="mt-4 rounded-xl border border-dashed border-[#E5E7EB] p-8 text-center text-sm text-slate-500">
                 Seluruh pengajuan pembayaran telah selesai diverifikasi.
               </div>
             ) : (
@@ -456,7 +456,7 @@ export function BendaharaPortal({
                         <span className="font-mono text-sm font-bold text-slate-900">
                           {trx.nomor_transaksi}
                         </span>
-                        <span className="ml-2 text-xs font-semibold text-emerald-800">
+                        <span className="ml-2 text-xs font-semibold text-[#1D6B59]">
                           Santri: {getSantriName(trx.santri_id)}
                         </span>
                       </div>
@@ -480,7 +480,7 @@ export function BendaharaPortal({
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs bg-white p-3 rounded-lg border border-slate-200">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs bg-white p-3 rounded-lg border border-[#E5E7EB]">
                       <div>
                         <span className="text-slate-500">Tanggal Transfer:</span>{" "}
                         <strong>{formatTanggal(trx.tanggal_transfer)}</strong>
@@ -499,7 +499,7 @@ export function BendaharaPortal({
                       </div>
                     </div>
 
-                    <div className="rounded-lg bg-white p-3 border border-slate-200 text-xs space-y-1">
+                    <div className="rounded-lg bg-white p-3 border border-[#E5E7EB] text-xs space-y-1">
                       <p className="font-bold text-slate-700">Rincian Alokasi Pembayaran:</p>
                       {trx.alokasi.map((alk) => (
                         <div key={alk.id} className="flex justify-between">
@@ -534,7 +534,7 @@ export function BendaharaPortal({
                             setFeedback({ ok: res.ok, text: res.message });
                             setIsVerifying(null);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D6B59] px-4 py-2 text-xs font-bold text-white hover:bg-[#123C35] disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           <CheckCircle2 className="h-4 w-4" />
                           {isVerifying === trx.id + "_SETUJUI" ? "Memproses..." : "Setujui Atomik"}
@@ -567,7 +567,7 @@ export function BendaharaPortal({
           </div>
 
           {/* Seluruh Riwayat Transaksi Pembayaran */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
             <h3 className="text-base font-bold text-slate-900">
               Riwayat Seluruh Transaksi Pembayaran Tagihan
             </h3>
@@ -579,7 +579,7 @@ export function BendaharaPortal({
                 return (
                   <div
                     key={t.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-2.5"
+                    className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm space-y-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -604,9 +604,9 @@ export function BendaharaPortal({
                       <div>
                         <strong>Tanggal:</strong> {formatTanggal(t.tanggal_transfer)}
                       </div>
-                      <div className="pt-1 flex items-center justify-between border-t border-slate-200">
+                      <div className="pt-1 flex items-center justify-between border-t border-[#E5E7EB]">
                         <span className="font-semibold text-slate-700">Total Nominal:</span>
-                        <span className="font-extrabold text-sm text-emerald-800">
+                        <span className="font-extrabold text-sm text-[#1D6B59]">
                           {formatRupiah(t.total_nominal)}
                         </span>
                       </div>
@@ -638,7 +638,7 @@ export function BendaharaPortal({
             <div className="mt-3 hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
-                  <tr className="border-b border-slate-200 uppercase text-slate-500">
+                  <tr className="border-b border-[#E5E7EB] uppercase text-slate-500">
                     <th className="py-2.5 pr-3">No. Transaksi</th>
                     <th className="py-2.5 px-3">Santri</th>
                     <th className="py-2.5 px-3">Pengirim & Tanggal</th>
@@ -702,7 +702,7 @@ export function BendaharaPortal({
           TAB 2: VERIFIKASI TOP-UP UANG SAKU (BAB 6.2 PRD)
          ===================================================================== */}
       {activeTab === "verifikasi_saku" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
           <div>
             <h3 className="text-base font-bold text-slate-900">
               Verifikasi Pengajuan Pengisian (Top-Up) Uang Saku ({pendingTopupSaku.length})
@@ -710,7 +710,7 @@ export function BendaharaPortal({
           </div>
 
           {pendingTopupSaku.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-[#E5E7EB] p-8 text-center text-sm text-slate-500">
               Tidak ada antrean pengajuan uang saku yang menunggu verifikasi.
             </div>
           ) : (
@@ -725,7 +725,7 @@ export function BendaharaPortal({
                       <span className="font-mono text-sm font-bold text-slate-900">
                         {p.nomor_pengajuan}
                       </span>
-                      <span className="ml-2 text-xs font-semibold text-emerald-800">
+                      <span className="ml-2 text-xs font-semibold text-[#1D6B59]">
                         Santri: {getSantriName(p.santri_id)}
                       </span>
                     </div>
@@ -749,7 +749,7 @@ export function BendaharaPortal({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-xs bg-white p-3 rounded-lg border border-slate-200">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-xs bg-white p-3 rounded-lg border border-[#E5E7EB]">
                     <div>
                       <span className="text-slate-500">Nominal Top-Up:</span>{" "}
                       <strong className="text-emerald-700 text-sm">
@@ -793,7 +793,7 @@ export function BendaharaPortal({
                           setFeedback({ ok: res.ok, text: res.message });
                           setIsVerifying(null);
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D6B59] px-4 py-2 text-xs font-bold text-white hover:bg-[#123C35] disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         {isVerifying === p.id + "_SETUJUI" ? "Memproses..." : "Setujui & Tambah Saldo"}
@@ -827,7 +827,7 @@ export function BendaharaPortal({
          ===================================================================== */}
       {activeTab === "penyerahan_saku" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <Camera className="h-5 w-5 text-emerald-700" />
               <div>
@@ -859,14 +859,14 @@ export function BendaharaPortal({
 
               <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 flex items-center justify-between">
                 <div>
-                  <span className="text-xs text-emerald-800">
+                  <span className="text-xs text-[#1D6B59]">
                     Saldo Uang Saku {selectedSantri?.nama_lengkap || "-"}:
                   </span>
-                  <p className="text-lg font-extrabold text-emerald-950">
+                  <p className="text-lg font-extrabold text-[#123C35]">
                     {formatRupiah(saldoSelectedSantri.saldo_saat_ini)}
                   </p>
                 </div>
-                <div className="text-right text-xs text-emerald-800">
+                <div className="text-right text-xs text-[#1D6B59]">
                   <div>Saldo Sesudah Penarikan:</div>
                   <strong className="text-sm">
                     {formatRupiah(
@@ -920,12 +920,12 @@ export function BendaharaPortal({
                     Kosongkan (Uji Validasi Wajib Foto)
                   </button>
                 </div>
-                <label className="mt-1 flex cursor-pointer items-center justify-between rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50/50 p-3 text-xs text-emerald-950">
+                <label className="mt-1 flex cursor-pointer items-center justify-between rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50/50 p-3 text-xs text-[#123C35]">
                   <div className="flex items-center gap-2 truncate">
                     <Camera className="h-4 w-4 text-emerald-700 shrink-0" />
                     <span className="truncate font-semibold">{fotoPenyerahanFilename}</span>
                   </div>
-                  <span className="rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white shrink-0">
+                  <span className="rounded-lg bg-[#1D6B59] px-2.5 py-1 text-[11px] font-bold text-white shrink-0">
                     Ambil / Pilih Foto
                   </span>
                   <input
@@ -951,14 +951,14 @@ export function BendaharaPortal({
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-bold text-white shadow hover:bg-emerald-800 transition"
+                className="w-full rounded-xl bg-[#1D6B59] py-2.5 text-sm font-bold text-white shadow hover:bg-[#123C35] transition"
               >
                 Sahkan Penyerahan Uang Saku & Potong Saldo
               </button>
             </form>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
             <h3 className="text-base font-bold text-slate-900">
               Pratinjau Dokumentasi Foto Penyerahan
             </h3>
@@ -967,7 +967,7 @@ export function BendaharaPortal({
               santri bersangkutan.
             </p>
             {fotoPenyerahanUrl ? (
-              <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-3">
+              <div className="mt-4 overflow-hidden rounded-xl border border-[#E5E7EB] bg-slate-100 p-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={fotoPenyerahanUrl}
@@ -998,17 +998,17 @@ export function BendaharaPortal({
         activeTab === "saldo_santri") && (
         <div className="w-full space-y-6">
           {/* Subtab Selector */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
             <div>
               <h3 className="text-base font-extrabold text-slate-900">Keuangan &amp; Saldo Santri</h3>
             </div>
-            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 flex-wrap">
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-[#E5E7EB] flex-wrap">
               <button
                 type="button"
                 onClick={() => setKeuanganSubTab("ringkasan")}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition min-h-[38px] ${
                   keuanganSubTab === "ringkasan"
-                    ? "bg-white text-emerald-900 shadow-sm"
+                    ? "bg-white text-[#123C35] shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -1020,7 +1020,7 @@ export function BendaharaPortal({
                 onClick={() => setKeuanganSubTab("ledger")}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition min-h-[38px] ${
                   keuanganSubTab === "ledger"
-                    ? "bg-white text-emerald-900 shadow-sm"
+                    ? "bg-white text-[#123C35] shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -1032,7 +1032,7 @@ export function BendaharaPortal({
                 onClick={() => setKeuanganSubTab("jurnal")}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition min-h-[38px] ${
                   keuanganSubTab === "jurnal"
-                    ? "bg-white text-emerald-900 shadow-sm"
+                    ? "bg-white text-[#123C35] shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -1044,7 +1044,7 @@ export function BendaharaPortal({
 
           {/* SUBTAB 1: RINGKASAN SALDO SANTRI */}
           {keuanganSubTab === "ringkasan" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
                   <h4 className="text-base font-bold text-slate-900">
@@ -1055,10 +1055,10 @@ export function BendaharaPortal({
                   </p>
                 </div>
                 <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2 text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#1D6B59] block">
                     Total Dana Mengendap
                   </span>
-                  <span className="text-base font-black text-emerald-950">
+                  <span className="text-base font-black text-[#123C35]">
                     {formatRupiah(
                       santriList.reduce((acc, s) => acc + getSaldoSantri(s.id).saldo_saat_ini, 0)
                     )}
@@ -1069,7 +1069,7 @@ export function BendaharaPortal({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                    <tr className="border-b border-[#E5E7EB] bg-slate-50 uppercase text-slate-500 font-bold">
                       <th className="py-3 px-4">Santri &amp; NIS</th>
                       <th className="py-3 px-3 text-right">Total Masuk</th>
                       <th className="py-3 px-3 text-right">Total Keluar</th>
@@ -1110,7 +1110,7 @@ export function BendaharaPortal({
 
           {/* SUBTAB 2: RIWAYAT MUTASI */}
           {keuanganSubTab === "ledger" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <h4 className="text-base font-bold text-slate-900">
                   Riwayat Mutasi Uang Saku
@@ -1121,7 +1121,7 @@ export function BendaharaPortal({
                 {mutasiUangSakuList.map((m) => (
                   <div
                     key={m.id}
-                    className="flex flex-col justify-between gap-2 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center text-xs hover:border-slate-300 transition"
+                    className="flex flex-col justify-between gap-2 rounded-xl border border-[#E5E7EB] p-4 sm:flex-row sm:items-center text-xs hover:border-slate-300 transition"
                   >
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1131,7 +1131,7 @@ export function BendaharaPortal({
                         <span
                           className={`rounded px-2 py-0.5 font-bold text-[10px] ${
                             m.jenis_mutasi === "MASUK"
-                              ? "bg-emerald-100 text-emerald-800"
+                              ? "bg-emerald-100 text-[#1D6B59]"
                               : m.jenis_mutasi === "KELUAR"
                               ? "bg-rose-100 text-rose-800"
                               : "bg-purple-100 text-purple-800"
@@ -1139,7 +1139,7 @@ export function BendaharaPortal({
                         >
                           {m.jenis_mutasi}
                         </span>
-                        <span className="font-semibold text-emerald-900">
+                        <span className="font-semibold text-[#123C35]">
                           {getSantriName(m.santri_id)}
                         </span>
                       </div>
@@ -1274,7 +1274,7 @@ export function BendaharaPortal({
           pembayaran, tetapi tidak dapat mengubahnya.
          ===================================================================== */}
       {activeTab === "rekening_info" && (
-        <div className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+        <div className="max-w-2xl rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-5">
           <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-800 border border-blue-200">
@@ -1288,7 +1288,7 @@ export function BendaharaPortal({
                 Gunakan informasi rekening resmi tunggal ini untuk mencocokkan mutasi bank saat verifikasi pembayaran transfer wali santri.
               </p>
             </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 border border-slate-200 shrink-0">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 border border-[#E5E7EB] shrink-0">
               Tampilan Baca Saja
             </span>
           </div>

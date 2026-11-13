@@ -321,7 +321,7 @@ export default function SipetaHomePage() {
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <Link
                   href="/login"
-                  className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 font-medium text-white hover:bg-emerald-800 transition"
+                  className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 font-medium text-white hover:bg-[#123C35] transition"
                 >
                   <Users className="h-3.5 w-3.5" />
                   <span>Wali Santri</span>
@@ -438,7 +438,7 @@ export default function SipetaHomePage() {
             <div className="flex items-center gap-2">
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-900 transition"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#123C35] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#1D6B59] transition"
               >
                 <LogIn className="h-4 w-4" />
                 <span>Masuk Portal</span>
@@ -450,7 +450,7 @@ export default function SipetaHomePage() {
         {/* Hero & Konten Utama Publik */}
         <main className="w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 space-y-6">
           {/* Welcome Card Banner */}
-          <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-emerald-900 to-emerald-950 p-6 sm:p-8 text-white shadow-lg">
+          <div className="rounded-2xl border border-[#1D6B59]/30 bg-gradient-to-br from-[#123C35] to-[#0E2E28] p-6 sm:p-8 text-white shadow-lg">
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
               Selamat Datang di Portal Terpadu SIPETA
             </h2>
@@ -500,7 +500,7 @@ export default function SipetaHomePage() {
                   >
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-800 text-white shadow-sm group-hover:scale-105 transition shrink-0">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#123C35] text-white shadow-sm group-hover:scale-105 transition shrink-0">
                           <Icon className="h-5 w-5" />
                         </div>
                         <h4 className="text-sm font-extrabold text-slate-900 group-hover:text-emerald-950 transition">
@@ -680,7 +680,7 @@ export default function SipetaHomePage() {
 
       {/* Mobile Drawer Panel */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-emerald-950 text-white p-5 flex flex-col justify-between shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-[#123C35] text-white p-5 flex flex-col justify-between shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
           mobileNavOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -719,7 +719,7 @@ export default function SipetaHomePage() {
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-white truncate">{currentUser.nama_lengkap}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="rounded bg-emerald-800 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-200">
+                  <span className="rounded bg-[#123C35] px-1.5 py-0.5 text-[10px] font-semibold text-emerald-200">
                     {getRoleLabel(currentUser.role)}
                   </span>
                 </div>
@@ -782,7 +782,7 @@ export default function SipetaHomePage() {
                   setActiveTab("dashboard");
                   setMobileNavOpen(false);
                 }}
-                className="w-full rounded-lg border border-amber-300/40 bg-emerald-950 px-2.5 py-2 text-xs font-semibold text-white focus:outline-none"
+                className="w-full rounded-lg border border-amber-300/40 bg-[#123C35] px-2.5 py-2 text-xs font-semibold text-white focus:outline-none"
               >
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -799,7 +799,7 @@ export default function SipetaHomePage() {
           MODERN DESKTOP PERMANENT & COLLAPSIBLE SIDEBAR
          ====================================================================== */}
       <aside
-        className={`hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 z-40 bg-emerald-950 text-white border-r border-emerald-900/60 shadow-xl justify-between p-4 transition-all duration-300 ease-in-out ${
+        className={`hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 z-40 bg-[#123C35] text-white border-r border-[#1D6B59]/30 shadow-xl justify-between p-4 transition-all duration-300 ease-in-out ${
           sidebarCollapsed ? "lg:w-20" : "lg:w-72"
         }`}
       >
@@ -818,7 +818,7 @@ export default function SipetaHomePage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <h1 className="text-lg font-extrabold tracking-tight text-white">SIPETA</h1>
-                    <span className="rounded bg-emerald-800 px-1.5 py-0.2 text-[9px] font-bold text-emerald-200">
+                    <span className="rounded bg-[#123C35] px-1.5 py-0.2 text-[9px] font-bold text-emerald-200">
                       v1.0
                     </span>
                   </div>
@@ -848,7 +848,7 @@ export default function SipetaHomePage() {
                     {currentUser.nama_lengkap}
                   </p>
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="rounded bg-emerald-800 px-1.5 py-0.5 text-[9px] font-bold text-emerald-200 border border-emerald-700 truncate">
+                    <span className="rounded bg-[#123C35] px-1.5 py-0.5 text-[9px] font-bold text-emerald-200 border border-emerald-700 truncate">
                       {getRoleLabel(currentUser.role)}
                     </span>
                   </div>
@@ -918,7 +918,7 @@ export default function SipetaHomePage() {
                   switchActiveUser(e.target.value);
                   setActiveTab("dashboard");
                 }}
-                className="w-full rounded-lg border border-amber-300/40 bg-emerald-950 px-2 py-1.5 text-xs font-semibold text-white focus:outline-none"
+                className="w-full rounded-lg border border-amber-300/40 bg-[#123C35] px-2 py-1.5 text-xs font-semibold text-white focus:outline-none"
               >
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -1008,7 +1008,7 @@ export default function SipetaHomePage() {
                 className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-1 pr-3 hover:bg-slate-100 transition"
                 title="Buka Profil Saya"
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-800 text-white font-bold text-xs">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#123C35] text-white font-bold text-xs">
                   {(currentUser.nama_lengkap || currentUser.username || "U").charAt(0).toUpperCase()}
                 </div>
                 <div className="text-left text-xs hidden sm:block">

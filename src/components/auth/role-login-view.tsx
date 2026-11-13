@@ -83,12 +83,12 @@ export function RoleLoginView({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      {/* Header Bersih & Profesional */}
-      <header className="border-b border-slate-200 bg-white/95 backdrop-blur shadow-xs">
+    <div className="min-h-screen flex flex-col bg-[#F7F8F6] text-[#1F2937]">
+      {/* Header Bersih & Modern Minimalis */}
+      <header className="border-b border-[#E5E7EB] bg-white/90 backdrop-blur-md sticky top-0 z-20">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-0.5 shadow-xs border border-emerald-100 group-hover:border-emerald-300 transition">
+            <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-white p-0.5 shadow-xs border border-[#1D6B59]/20 group-hover:border-[#1D6B59]/50 transition-colors">
               <img
                 src="/images/logo-abu-manshur.png"
                 alt="Logo Abu Manshur"
@@ -97,14 +97,14 @@ export function RoleLoginView({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-base font-extrabold tracking-tight text-emerald-950">
+                <span className="text-base font-bold tracking-tight text-[#123C35]">
                   SIPETA
                 </span>
-                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900">
+                <span className="rounded bg-[#E8F2EC] px-1.5 py-0.5 text-[10px] font-semibold text-[#123C35] border border-[#1D6B59]/20">
                   v1.0
                 </span>
               </div>
-              <p className="text-[11px] font-medium text-slate-500">
+              <p className="text-[11px] font-medium text-[#6B7280]">
                 Pondok Pesantren Modern Abu Manshur • Cirebon
               </p>
             </div>
@@ -112,7 +112,7 @@ export function RoleLoginView({
 
           <Link
             href="/"
-            className="text-xs font-bold text-emerald-800 hover:text-emerald-950 transition flex items-center gap-1"
+            className="text-xs font-semibold text-[#123C35] hover:text-[#1D6B59] transition-colors flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-[#E8F2EC]/60"
           >
             <span>Halaman Utama</span>
             <ArrowRight className="h-3.5 w-3.5" />
@@ -123,22 +123,22 @@ export function RoleLoginView({
       {/* Konten Utama Form Login */}
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
         <div className="w-full max-w-md space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-md">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 sm:p-8 shadow-card">
             {/* Header Portal Role */}
-            <div className="text-center pb-5 border-b border-slate-100">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white shadow-md border-2 border-emerald-100 mb-3">
-                <Lock className="h-6 w-6" />
+            <div className="text-center pb-5 border-b border-[#E5E7EB]">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#123C35] text-white shadow-soft border border-[#1D6B59]/30 mb-3.5">
+                <Lock className="h-6 w-6 text-emerald-200" />
               </div>
               {roleBadge && (
-                <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+                <span className="inline-block rounded-full bg-[#E8F2EC] px-3 py-1 text-[11px] font-bold text-[#123C35] border border-[#1D6B59]/20">
                   {roleBadge}
                 </span>
               )}
-              <h2 className="mt-2 text-xl font-extrabold text-slate-900 tracking-tight">
+              <h2 className="mt-2.5 text-xl font-bold text-[#1F2937] tracking-tight">
                 {title}
               </h2>
               {subtitle && (
-                <p className="mt-1 text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+                <p className="mt-1 text-xs text-[#6B7280] leading-relaxed max-w-xs mx-auto">
                   {subtitle}
                 </p>
               )}
@@ -150,7 +150,7 @@ export function RoleLoginView({
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-600" />
                 <div className="leading-relaxed">
                   <p className="font-bold">Akses Tidak Diizinkan</p>
-                  <p className="mt-0.5">{errorMessage}</p>
+                  <p className="mt-0.5 text-rose-700">{errorMessage}</p>
                 </div>
               </div>
             )}
@@ -160,17 +160,17 @@ export function RoleLoginView({
               <div>
                 <label
                   htmlFor="input-identifier"
-                  className="block text-xs font-bold text-slate-700 mb-1.5"
+                  className="block text-xs font-semibold text-[#1F2937] mb-1.5"
                 >
                   {identifierLabel} <span className="text-rose-600">*</span>
                 </label>
                 <div className="relative">
                   {isNis ? (
-                    <Users className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Users className="absolute left-3.5 top-3 h-4 w-4 text-[#6B7280]" />
                   ) : expectedRole === "superadmin" ? (
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Mail className="absolute left-3.5 top-3 h-4 w-4 text-[#6B7280]" />
                   ) : (
-                    <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <User className="absolute left-3.5 top-3 h-4 w-4 text-[#6B7280]" />
                   )}
                   <input
                     id="input-identifier"
@@ -182,11 +182,11 @@ export function RoleLoginView({
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder={identifierPlaceholder}
-                    className="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none min-h-[44px]"
+                    className="w-full rounded-xl border border-[#E5E7EB] bg-white pl-10 pr-3 py-2.5 text-xs font-medium text-[#1F2937] placeholder:text-[#6B7280]/60 hover:border-slate-300 focus:border-[#1D6B59] focus:ring-2 focus:ring-[#1D6B59]/15 focus:outline-none min-h-[42px] transition-all"
                   />
                 </div>
                 {identifierHelp && (
-                  <p className="mt-1 text-[11px] text-slate-500 leading-normal">
+                  <p className="mt-1 text-[11px] text-[#6B7280] leading-normal">
                     {identifierHelp}
                   </p>
                 )}
@@ -195,12 +195,12 @@ export function RoleLoginView({
               <div>
                 <label
                   htmlFor="input-password"
-                  className="block text-xs font-bold text-slate-700 mb-1.5"
+                  className="block text-xs font-semibold text-[#1F2937] mb-1.5"
                 >
                   Kata Sandi <span className="text-rose-600">*</span>
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Lock className="absolute left-3.5 top-3 h-4 w-4 text-[#6B7280]" />
                   <input
                     id="input-password"
                     type={showPassword ? "text" : "password"}
@@ -208,57 +208,56 @@ export function RoleLoginView({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-xl border border-slate-300 pl-9 pr-10 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none min-h-[44px]"
+                    className="w-full rounded-xl border border-[#E5E7EB] bg-white pl-10 pr-10 py-2.5 text-xs font-medium text-[#1F2937] placeholder:text-[#6B7280]/60 hover:border-slate-300 focus:border-[#1D6B59] focus:ring-2 focus:ring-[#1D6B59]/15 focus:outline-none min-h-[42px] transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3.5 top-3 text-[#6B7280] hover:text-[#1F2937] transition-colors"
+                    aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                <p className="mt-1 text-[11px] text-[#6B7280]">
+                  Gunakan kata sandi resmi yang telah diberikan oleh pihak pesantren.
+                </p>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-xl bg-emerald-800 py-3 px-4 text-xs font-bold text-white shadow-sm hover:bg-emerald-900 transition flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px] cursor-pointer"
-              >
-                {loading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Memverifikasi Akun...</span>
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="h-4 w-4" />
-                    <span>Masuk ke {roleBadge || title}</span>
-                  </>
-                )}
-              </button>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123C35] px-4 py-2.5 text-xs font-bold text-white shadow-soft hover:bg-[#1D6B59] active:bg-[#0E2E28] focus:outline-none focus:ring-2 focus:ring-[#1D6B59]/30 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] transition-all cursor-pointer"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Memverifikasi Akun...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="h-4 w-4" />
+                      <span>Masuk ke Portal</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
+          </div>
 
-            <div className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-slate-500 text-center">
-              <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0" />
-              <span>Sesi terenkripsi &amp; terlindungi hak akses role resmi</span>
+          {/* Footer Card Informasi Keamanan */}
+          <div className="rounded-xl border border-[#E5E7EB] bg-[#F7F8F6]/80 p-4 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#123C35]">
+              <ShieldCheck className="h-4 w-4 text-[#1D6B59]" />
+              <span>Sistem Informasi Pelayanan Terpadu Terverifikasi</span>
             </div>
+            <p className="mt-1 text-[11px] text-[#6B7280]">
+              {profilPesantren?.nama_resmi || "Pondok Pesantren Modern Abu Manshur"} • Seluruh hak cipta dilindungi.
+            </p>
           </div>
         </div>
       </main>
-
-      {/* Footer Bersih & Dinamis Berdasarkan Profil Pesantren */}
-      <footer className="border-t border-slate-200 bg-white py-4 text-xs text-slate-500 text-center">
-        <div className="mx-auto max-w-7xl px-4">
-          <p className="font-semibold text-slate-700">
-            SIPETA — {profilPesantren?.nama_resmi || "Pondok Pesantren Modern Abu Manshur"}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            {profilPesantren?.alamat || "Jl. Nyi Ageng Serang, Sindangmekar, Dukupuntang / Plered, Cirebon, Jawa Barat"} • Tahun Pelajaran {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }
-

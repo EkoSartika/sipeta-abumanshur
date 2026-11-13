@@ -1412,7 +1412,7 @@ export function TuPortal({
         <div
           className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${
             feedback.ok
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              ? "border-emerald-200 bg-emerald-50 text-[#123C35]"
               : "border-rose-200 bg-rose-50 text-rose-900"
           }`}
         >
@@ -1440,24 +1440,24 @@ export function TuPortal({
       {activeTab === "dashboard" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="block text-xs font-semibold text-slate-500">Total Santri Terdaftar</span>
               <span className="text-2xl font-black text-slate-900">{santriList.length}</span>
               <span className="block text-[11px] text-emerald-600 font-bold mt-1">
                 {santriList.filter((s) => s.status === "AKTIF").length} Santri Aktif
               </span>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="block text-xs font-semibold text-slate-500">Kelas Pendidikan</span>
               <span className="text-2xl font-black text-blue-900">{kelasList.length}</span>
               <span className="block text-[11px] text-slate-500 font-medium mt-1">Ruang Kelas Aktif</span>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="block text-xs font-semibold text-slate-500">Kamar Asrama</span>
               <span className="text-2xl font-black text-indigo-900">{kamarList.length}</span>
               <span className="block text-[11px] text-slate-500 font-medium mt-1">Asrama Putra &amp; Putri</span>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <span className="block text-xs font-semibold text-slate-500">Riwayat Penempatan</span>
               <span className="text-2xl font-black text-amber-900">{riwayatPenempatan.length}</span>
               <span className="block text-[11px] text-amber-700 font-bold mt-1">Mutasi Tercatat</span>
@@ -1466,7 +1466,7 @@ export function TuPortal({
 
           {/* Quick Actions & Navigation Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
                   <UserPlus className="h-5 w-5" />
@@ -1485,7 +1485,7 @@ export function TuPortal({
               </button>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
                   <Building2 className="h-5 w-5" />
@@ -1507,7 +1507,7 @@ export function TuPortal({
               </button>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                   <Users className="h-5 w-5" />
@@ -1520,14 +1520,14 @@ export function TuPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("santri_wali")}
-                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 transition min-h-[40px] cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#1D6B59] px-4 py-2 text-xs font-bold text-white hover:bg-[#123C35] transition min-h-[40px] cursor-pointer"
               >
                 <span>Kelola Data Santri</span>
               </button>
             </div>
 
             {/* Shortcut Manajemen Pembiayaan Santri */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
                   <Receipt className="h-5 w-5" />
@@ -1547,7 +1547,7 @@ export function TuPortal({
             </div>
 
             {/* Shortcut Manajemen Pelanggaran Santri */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-700">
                   <ShieldAlert className="h-5 w-5" />
@@ -1567,7 +1567,7 @@ export function TuPortal({
             </div>
 
             {/* Shortcut Rekapitulasi & Laporan */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
                   <BarChart3 className="h-5 w-5" />
@@ -1587,7 +1587,7 @@ export function TuPortal({
             </div>
 
             {/* Shortcut Profil Pesantren */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
                   <Building2 className="h-5 w-5" />
@@ -1615,7 +1615,7 @@ export function TuPortal({
       {activeTab === "tambah_santri" && (
         <div className="space-y-5">
           {/* Internal Subtabs */}
-          <div className="flex border-b border-slate-200 bg-white rounded-t-2xl px-4 pt-2">
+          <div className="flex border-b border-[#E5E7EB] bg-white rounded-t-2xl px-4 pt-2">
             <button
               type="button"
               onClick={() => setTambahSantriSubTab("registrasi")}
@@ -1643,7 +1643,7 @@ export function TuPortal({
           </div>
 
           {tambahSantriSubTab === "registrasi" ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">
@@ -1791,7 +1791,7 @@ export function TuPortal({
                     </h4>
 
                     {/* A. Data Ayah */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+                    <div className="rounded-xl border border-[#E5E7EB] bg-slate-50/60 p-3.5 space-y-3">
                       <span className="block text-xs font-extrabold text-slate-900">
                         A. Data Ayah
                       </span>
@@ -1849,7 +1849,7 @@ export function TuPortal({
                     </div>
 
                     {/* B. Data Ibu */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+                    <div className="rounded-xl border border-[#E5E7EB] bg-slate-50/60 p-3.5 space-y-3">
                       <span className="block text-xs font-extrabold text-slate-900">
                         B. Data Ibu
                       </span>
@@ -1907,7 +1907,7 @@ export function TuPortal({
                     </div>
 
                     {/* C. Data Wali (Opsional) */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+                    <div className="rounded-xl border border-[#E5E7EB] bg-slate-50/60 p-3.5 space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <span className="block text-xs font-extrabold text-slate-900">
                           C. Data Wali (Opsional)
@@ -2071,7 +2071,7 @@ export function TuPortal({
             </div>
           ) : (
             /* Import Excel View */
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">
@@ -2182,7 +2182,7 @@ export function TuPortal({
          ===================================================================== */}
       {activeTab === "santri_wali" && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-sm">
             <div className="flex flex-wrap items-center gap-2 flex-1">
               <div className="relative min-w-[200px] flex-1">
                 <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
@@ -2224,7 +2224,7 @@ export function TuPortal({
               <button
                 type="button"
                 onClick={() => exportSantriToExcel(filteredSantri, kelasList, kamarList, waliList)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 min-h-[40px] cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#E5E7EB] bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 min-h-[40px] cursor-pointer"
               >
                 <Download className="h-3.5 w-3.5" />
                 <span>Ekspor Excel</span>
@@ -2236,10 +2236,10 @@ export function TuPortal({
           {selectedSantriIds.size > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl shadow-sm animate-in fade-in">
               <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-xs font-bold text-white">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1D6B59] text-xs font-bold text-white">
                   {selectedSantriIds.size}
                 </span>
-                <span className="text-xs font-bold text-emerald-900">
+                <span className="text-xs font-bold text-[#123C35]">
                   {selectedSantriIds.size} santri dipilih
                 </span>
               </div>
@@ -2264,11 +2264,11 @@ export function TuPortal({
           )}
 
           {/* Tabel Santri */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                  <tr className="border-b border-[#E5E7EB] bg-slate-50 uppercase text-slate-500 font-bold">
                     <th className="py-3 px-3 w-10 text-center">
                       <input
                         type="checkbox"
@@ -2355,7 +2355,7 @@ export function TuPortal({
                               <button
                                 type="button"
                                 onClick={() => setDetailSantri(s)}
-                                className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                                className="rounded-lg border border-[#E5E7EB] px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
                                 title="Lihat Detail Santri"
                               >
                                 Detail
@@ -2395,7 +2395,7 @@ export function TuPortal({
       {activeTab === "kelas_kamar" && (
         <div className="space-y-5">
           {/* Subtabs Kelas/Kamar */}
-          <div className="flex border-b border-slate-200 bg-white rounded-t-2xl px-4 pt-2">
+          <div className="flex border-b border-[#E5E7EB] bg-white rounded-t-2xl px-4 pt-2">
             <button
               type="button"
               onClick={() => setKelasKamarSubTab("kelas")}
@@ -2448,7 +2448,7 @@ export function TuPortal({
 
           {/* Subtab Pindah Kelas/Kamar */}
           {kelasKamarSubTab === "pindah" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-6">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">
                   Formulir Pemindahan Kelas &amp; Kamar Santri
@@ -2484,7 +2484,7 @@ export function TuPortal({
                 </div>
 
                 {moveSantriId && (
-                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-xs space-y-2">
+                  <div className="rounded-xl bg-slate-50 border border-[#E5E7EB] p-4 text-xs space-y-2">
                     <span className="font-bold text-slate-700">Penempatan Saat Ini:</span>
                     {(() => {
                       const s = santriList.find((x) => x.id === moveSantriId);
@@ -2573,7 +2573,7 @@ export function TuPortal({
 
           {/* Subtab Riwayat Perpindahan */}
           {kelasKamarSubTab === "riwayat" && (
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">
@@ -2584,7 +2584,7 @@ export function TuPortal({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                    <tr className="border-b border-[#E5E7EB] bg-slate-50 uppercase text-slate-500 font-bold">
                       <th className="py-3 px-4">Tanggal Efektif</th>
                       <th className="py-3 px-4">Santri</th>
                       <th className="py-3 px-4">Perpindahan Kelas</th>
@@ -2636,7 +2636,7 @@ export function TuPortal({
 
           {/* Subtab Master Kelas */}
           {kelasKamarSubTab === "kelas" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">Daftar Master Kelas ({kelasList.length})</h3>
@@ -2688,7 +2688,7 @@ export function TuPortal({
                   {kelasList.map((k) => {
                     const studentCount = santriList.filter((s) => s.kelas_id === k.id && s.status === "AKTIF").length;
                     return (
-                      <div key={k.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2.5 flex flex-col justify-between">
+                      <div key={k.id} className="rounded-xl border border-[#E5E7EB] bg-slate-50/50 p-4 space-y-2.5 flex flex-col justify-between">
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-xs font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded">
@@ -2703,7 +2703,7 @@ export function TuPortal({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 justify-end">
+                        <div className="flex items-center gap-2 pt-2 border-t border-[#E5E7EB]/60 justify-end">
                           <button
                             type="button"
                             onClick={() => {
@@ -2739,7 +2739,7 @@ export function TuPortal({
 
           {/* Subtab Master Kamar */}
           {kelasKamarSubTab === "kamar" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">Daftar Master Kamar Asrama ({kamarList.length})</h3>
@@ -2793,7 +2793,7 @@ export function TuPortal({
                   {kamarList.map((km) => {
                     const occupants = santriList.filter((s) => s.kamar_id === km.id && s.status === "AKTIF").length;
                     return (
-                      <div key={km.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2.5 flex flex-col justify-between">
+                      <div key={km.id} className="rounded-xl border border-[#E5E7EB] bg-slate-50/50 p-4 space-y-2.5 flex flex-col justify-between">
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded">
@@ -2826,7 +2826,7 @@ export function TuPortal({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 justify-end">
+                        <div className="flex items-center gap-2 pt-2 border-t border-[#E5E7EB]/60 justify-end">
                           <button
                             type="button"
                             onClick={() => {
@@ -2870,7 +2870,7 @@ export function TuPortal({
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Form Pengajuan Jenis Pembiayaan Baru */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <Receipt className="h-5 w-5 text-amber-700" />
@@ -3050,7 +3050,7 @@ export function TuPortal({
             </div>
 
             {/* Tabel Daftar Seluruh Pembiayaan */}
-            <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="lg:col-span-2 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">
@@ -3062,9 +3062,9 @@ export function TuPortal({
                 </span>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-[#E5E7EB]">
                     <tr>
                       <th className="px-3.5 py-2.5">Nama &amp; Kode</th>
                       <th className="px-3 py-2.5">Nominal</th>
@@ -3181,7 +3181,7 @@ export function TuPortal({
       {activeTab === "pelanggaran" && (
         <div className="space-y-6">
           {/* Subtab Catatan Pelanggaran vs Master Kategori */}
-          <div className="flex border-b border-slate-200 bg-white rounded-t-2xl px-4 pt-2">
+          <div className="flex border-b border-[#E5E7EB] bg-white rounded-t-2xl px-4 pt-2">
             <button
               type="button"
               onClick={() => setPelanggaranSubTab("catatan")}
@@ -3212,7 +3212,7 @@ export function TuPortal({
           {pelanggaranSubTab === "catatan" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Form Catat Pelanggaran Baru */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <h3 className="font-extrabold text-base text-slate-900">
                     Catat Pelanggaran Santri
@@ -3318,7 +3318,7 @@ export function TuPortal({
               </div>
 
               {/* Tabel Riwayat Pelanggaran */}
-              <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="lg:col-span-2 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                   <div>
                     <h3 className="font-extrabold text-base text-slate-900">
@@ -3364,9 +3364,9 @@ export function TuPortal({
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                    <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-[#E5E7EB]">
                       <tr>
                         <th className="px-3.5 py-2.5">Santri</th>
                         <th className="px-3 py-2.5">Tanggal</th>
@@ -3456,7 +3456,7 @@ export function TuPortal({
 
           {/* SUBTAB B: MASTER KATEGORI PELANGGARAN */}
           {pelanggaranSubTab === "master" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">
@@ -3496,9 +3496,9 @@ export function TuPortal({
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-[#E5E7EB]">
                     <tr>
                       <th className="px-3.5 py-2.5 w-8">
                         <input
@@ -3613,7 +3613,7 @@ export function TuPortal({
       {activeTab === "pengumuman" && (
         <div className="space-y-6">
           {/* Sub-tab Switcher: Pengumuman vs Dokumen */}
-          <div className="flex border-b border-slate-200 bg-white rounded-2xl p-1.5 gap-2 shadow-sm">
+          <div className="flex border-b border-[#E5E7EB] bg-white rounded-2xl p-1.5 gap-2 shadow-sm">
             <button
               type="button"
               onClick={() => setPengumumanSubTab("pengumuman")}
@@ -3643,7 +3643,7 @@ export function TuPortal({
           {pengumumanSubTab === "pengumuman" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Form Tambah Pengumuman */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <Megaphone className="h-5 w-5 text-blue-700" />
@@ -3792,7 +3792,7 @@ export function TuPortal({
             </div>
 
             {/* List Pengumuman */}
-            <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="lg:col-span-2 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">
@@ -3809,7 +3809,7 @@ export function TuPortal({
                   return (
                     <div
                       key={p.id}
-                      className="rounded-xl border border-slate-200 p-4 space-y-2 hover:border-slate-300 transition"
+                      className="rounded-xl border border-[#E5E7EB] p-4 space-y-2 hover:border-slate-300 transition"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -3882,7 +3882,7 @@ export function TuPortal({
           {pengumumanSubTab === "dokumen" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Form Tambah Dokumen */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-indigo-700" />
@@ -3994,7 +3994,7 @@ export function TuPortal({
               </div>
 
               {/* Daftar Dokumen yang Tersedia */}
-              <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <div className="lg:col-span-2 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-indigo-700" />
@@ -4016,7 +4016,7 @@ export function TuPortal({
                     {dokumenList.map((doc) => (
                       <div
                         key={doc.id}
-                        className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 bg-slate-50/50 hover:bg-white transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        className="p-4 rounded-xl border border-[#E5E7EB] hover:border-indigo-300 bg-slate-50/50 hover:bg-white transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-start gap-3">
                           <div className="p-2.5 rounded-xl bg-indigo-100 text-indigo-700 flex-shrink-0 mt-0.5">
@@ -4087,7 +4087,7 @@ export function TuPortal({
       {activeTab === "rekapitulasi" && (
         <div className="space-y-6">
           {/* Subtabs Rekapitulasi */}
-          <div className="flex border-b border-slate-200 bg-white rounded-t-2xl px-4 pt-2">
+          <div className="flex border-b border-[#E5E7EB] bg-white rounded-t-2xl px-4 pt-2">
             <button
               type="button"
               onClick={() => setRekapSubTab("pembiayaan")}
@@ -4140,7 +4140,7 @@ export function TuPortal({
 
           {/* 1. REKAP PEMBIAYAAN */}
           {rekapSubTab === "pembiayaan" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">
@@ -4194,9 +4194,9 @@ export function TuPortal({
               </div>
 
               {/* Table */}
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-[#E5E7EB]">
                     <tr>
                       <th className="px-3.5 py-2.5">Santri</th>
                       <th className="px-3 py-2.5">Kelas</th>
@@ -4271,7 +4271,7 @@ export function TuPortal({
 
           {/* 2. REKAP MENGAJI */}
           {rekapSubTab === "mengaji" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">
@@ -4324,9 +4324,9 @@ export function TuPortal({
                 </select>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-[#E5E7EB]">
                     <tr>
                       <th className="px-3.5 py-2.5">Santri</th>
                       <th className="px-3 py-2.5">Kelas</th>
@@ -4396,7 +4396,7 @@ export function TuPortal({
 
           {/* 3. REKAP PELANGGARAN */}
           {rekapSubTab === "pelanggaran" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">
@@ -4449,9 +4449,9 @@ export function TuPortal({
                 </select>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-[#E5E7EB]">
                     <tr>
                       <th className="px-3.5 py-2.5">Santri</th>
                       <th className="px-3 py-2.5">Kelas</th>
@@ -4520,7 +4520,7 @@ export function TuPortal({
 
           {/* 4. RIWAYAT LENGKAP PER SANTRI */}
           {rekapSubTab === "santri_lengkap" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-6">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">
@@ -4557,7 +4557,7 @@ export function TuPortal({
                 return (
                   <div className="space-y-5 text-xs">
                     {/* Header Profil Singkat */}
-                    <div className="rounded-xl bg-slate-50 p-4 border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-xl bg-slate-50 p-4 border border-[#E5E7EB] grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
                         <span className="text-slate-400 block">Nama Lengkap:</span>
                         <strong className="text-slate-900 text-sm">{s.nama_lengkap}</strong>
@@ -4578,7 +4578,7 @@ export function TuPortal({
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Riwayat Tagihan SPP */}
-                      <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+                      <div className="rounded-xl border border-[#E5E7EB] p-4 space-y-2">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                           <strong className="text-slate-900">Tagihan &amp; SPP ({sTagihan.length})</strong>
                           <Receipt className="h-4 w-4 text-emerald-700" />
@@ -4601,7 +4601,7 @@ export function TuPortal({
                       </div>
 
                       {/* Riwayat Mengaji */}
-                      <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+                      <div className="rounded-xl border border-[#E5E7EB] p-4 space-y-2">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                           <strong className="text-slate-900">Evaluasi Mengaji ({sMengaji.length})</strong>
                           <BookOpen className="h-4 w-4 text-blue-700" />
@@ -4624,7 +4624,7 @@ export function TuPortal({
                       </div>
 
                       {/* Riwayat Pelanggaran */}
-                      <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+                      <div className="rounded-xl border border-[#E5E7EB] p-4 space-y-2">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                           <strong className="text-slate-900">Catatan Pelanggaran ({sPelanggaran.length})</strong>
                           <ShieldAlert className="h-4 w-4 text-rose-700" />
@@ -4660,7 +4660,7 @@ export function TuPortal({
       {activeTab === "profil_pesantren" && (
         <div className="space-y-6">
           {/* Header Card Profil */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
@@ -4668,7 +4668,7 @@ export function TuPortal({
                 </h3>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200">
+                <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-[#E5E7EB]">
                   Tahun Aktif: <strong className="text-blue-900">{profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} ({profilPesantren?.semester_aktif || "Ganjil"})</strong>
                 </span>
               </div>
@@ -4726,7 +4726,7 @@ export function TuPortal({
                     <label className="font-bold text-slate-700 block mb-1">
                       Semester Aktif <span className="text-slate-400 font-normal">(Dikelola via Master Data)</span>
                     </label>
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-100/80 px-3 py-2.5 text-xs font-bold text-slate-700 min-h-[42px]">
+                    <div className="flex items-center justify-between rounded-xl border border-[#E5E7EB] bg-slate-100/80 px-3 py-2.5 text-xs font-bold text-slate-700 min-h-[42px]">
                       <span>Semester {profilPesantren?.semester_aktif || "Ganjil"}</span>
                       <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] text-slate-600 font-semibold">
                         Sistem Terpusat
@@ -4740,8 +4740,8 @@ export function TuPortal({
               </div>
 
               {/* Bagian 2: Identitas Resmi Pesantren */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <div className="rounded-xl border border-[#E5E7EB] bg-slate-50/50 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#E5E7EB] pb-2">
                   <Building2 className="h-4 w-4 text-emerald-800" />
                   <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
                     2. Identitas Lembaga Pesantren
@@ -4813,8 +4813,8 @@ export function TuPortal({
               </div>
 
               {/* Bagian 3: Alamat Pesantren */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <div className="rounded-xl border border-[#E5E7EB] bg-slate-50/50 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#E5E7EB] pb-2">
                   <MapPin className="h-4 w-4 text-rose-700" />
                   <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
                     3. Alamat Lengkap Pesantren
@@ -4890,8 +4890,8 @@ export function TuPortal({
               </div>
 
               {/* Bagian 4: Kontak & Media Komunikasi */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <div className="rounded-xl border border-[#E5E7EB] bg-slate-50/50 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#E5E7EB] pb-2">
                   <Phone className="h-4 w-4 text-teal-700" />
                   <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
                     4. Kontak Sekretariat &amp; Komunikasi
@@ -4932,8 +4932,8 @@ export function TuPortal({
               </div>
 
               {/* Bagian 5: Informasi Umum */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <div className="rounded-xl border border-[#E5E7EB] bg-slate-50/50 p-4 space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#E5E7EB] pb-2">
                   <FileText className="h-4 w-4 text-indigo-700" />
                   <h4 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
                     5. Informasi Umum &amp; Komitmen Lembaga
@@ -4954,7 +4954,7 @@ export function TuPortal({
               </div>
 
               {/* Tombol Aksi Simpan */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 pt-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[#E5E7EB] pt-4">
                 <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 text-blue-700 shrink-0" />
                   <span>Perubahan profil akan tersimpan permanen dan tersinkronisasi di seluruh portal.</span>
@@ -5007,7 +5007,7 @@ export function TuPortal({
                   </div>
                 </div>
 
-                <div className="space-y-3 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <div className="space-y-3 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-[#E5E7EB]">
                   <p>
                     Anda akan memperbarui informasi profil pesantren dengan rincian:
                   </p>
@@ -5348,15 +5348,15 @@ export function TuPortal({
                   {formatTanggal(detailPelanggaranModal.tanggal_kejadian)} • {detailPelanggaranModal.waktu_kejadian} WIB
                 </span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+              <div className="bg-slate-50 p-3 rounded-xl border border-[#E5E7EB] space-y-1">
                 <span className="text-slate-400 block font-semibold">Uraian Kejadian:</span>
                 <p className="text-slate-700 leading-relaxed">{detailPelanggaranModal.deskripsi}</p>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+              <div className="bg-slate-50 p-3 rounded-xl border border-[#E5E7EB] space-y-1">
                 <span className="text-slate-400 block font-semibold">Tindak Lanjut:</span>
                 <p className="text-slate-700 leading-relaxed">{detailPelanggaranModal.tindak_lanjut}</p>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+              <div className="bg-slate-50 p-3 rounded-xl border border-[#E5E7EB] space-y-1">
                 <span className="text-slate-400 block font-semibold">Catatan Pembinaan:</span>
                 <p className="text-slate-700 leading-relaxed">{detailPelanggaranModal.catatan_pembinaan}</p>
               </div>
@@ -6108,7 +6108,7 @@ export function TuPortal({
               const w = waliList.find((x) => x.santri_id === detailSantri.id);
               return (
                 <div className="space-y-4 text-xs">
-                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 grid grid-cols-2 gap-2.5">
+                  <div className="rounded-xl bg-slate-50 border border-[#E5E7EB] p-3.5 grid grid-cols-2 gap-2.5">
                     <div>
                       <span className="text-slate-400 block">Nama Santri:</span>
                       <strong className="text-slate-900">{detailSantri.nama_lengkap}</strong>
@@ -6135,7 +6135,7 @@ export function TuPortal({
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 p-3.5 space-y-2.5">
+                  <div className="rounded-xl border border-[#E5E7EB] p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                       <span className="font-extrabold text-slate-900">
                         Identitas Orang Tua &amp; Wali
@@ -6228,7 +6228,7 @@ export function TuPortal({
 
             <form onSubmit={handleSaveEditSantri} className="space-y-4 text-xs">
               {/* Bagian 1: Identitas Santri */}
-              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+              <div className="rounded-xl border border-[#E5E7EB] p-4 space-y-3">
                 <h4 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
                   1. Identitas Santri
                 </h4>
@@ -6308,7 +6308,7 @@ export function TuPortal({
               </div>
 
               {/* Bagian 2: Penempatan & Status */}
-              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+              <div className="rounded-xl border border-[#E5E7EB] p-4 space-y-3">
                 <h4 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
                   2. Penempatan &amp; Status Akademik
                 </h4>
@@ -6361,7 +6361,7 @@ export function TuPortal({
               </div>
 
               {/* Bagian 3: Identitas Keluarga & Akun Wali */}
-              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+              <div className="rounded-xl border border-[#E5E7EB] p-4 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-2 gap-2">
                   <h4 className="font-bold text-slate-900 text-sm">
                     3. Identitas Orang Tua / Wali
@@ -6381,7 +6381,7 @@ export function TuPortal({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-slate-200">
+                  <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-[#E5E7EB]">
                     <span className="font-bold text-slate-800 block">Data Ayah</span>
                     <div>
                       <label className="block text-[11px] text-slate-500 font-medium">Nama Ayah</label>
@@ -6412,7 +6412,7 @@ export function TuPortal({
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-slate-200">
+                  <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-[#E5E7EB]">
                     <span className="font-bold text-slate-800 block">Data Ibu</span>
                     <div>
                       <label className="block text-[11px] text-slate-500 font-medium">Nama Ibu</label>
@@ -6444,7 +6444,7 @@ export function TuPortal({
                   </div>
 
                   {editPenanggungJawab === "Wali" && (
-                    <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-slate-200 sm:col-span-2">
+                    <div className="rounded-xl bg-slate-50 p-3 space-y-2 border border-[#E5E7EB] sm:col-span-2">
                       <span className="font-bold text-slate-800 block">Data Wali Khusus</span>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
@@ -6486,14 +6486,14 @@ export function TuPortal({
                   type="button"
                   onClick={() => setEditSantriModal(null)}
                   disabled={editSantriLoading}
-                  className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
+                  className="rounded-xl border border-[#E5E7EB] bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={editSantriLoading}
-                  className="rounded-xl bg-emerald-700 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-800 shadow cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  className="rounded-xl bg-[#1D6B59] px-5 py-2 text-xs font-bold text-white hover:bg-[#123C35] shadow cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {editSantriLoading ? (
                     <>
@@ -6531,7 +6531,7 @@ export function TuPortal({
               </div>
             </div>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 text-xs space-y-1.5">
+            <div className="rounded-xl bg-slate-50 border border-[#E5E7EB] p-3.5 text-xs space-y-1.5">
               <div className="flex justify-between">
                 <span className="text-slate-500">Nama Santri:</span>
                 <strong className="text-slate-900">{deleteSantriConfirm.nama_lengkap}</strong>
@@ -6564,7 +6564,7 @@ export function TuPortal({
                 type="button"
                 onClick={() => setDeleteSantriConfirm(null)}
                 disabled={deleteSantriLoading}
-                className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
+                className="rounded-xl border border-[#E5E7EB] bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
               >
                 Batal
               </button>
@@ -6611,7 +6611,7 @@ export function TuPortal({
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+            <div className="rounded-xl border border-[#E5E7EB] p-3 space-y-2">
               <span className="text-xs font-bold text-slate-700 block">
                 Daftar Santri yang Dipilih ({selectedSantriIds.size}):
               </span>
@@ -6645,7 +6645,7 @@ export function TuPortal({
                 type="button"
                 onClick={() => setBulkDeleteModalOpen(false)}
                 disabled={bulkDeleteLoading}
-                className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
+                className="rounded-xl border border-[#E5E7EB] bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 cursor-pointer disabled:opacity-50"
               >
                 Batal
               </button>

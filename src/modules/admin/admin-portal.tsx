@@ -441,7 +441,7 @@ export function AdminPortal({
           {/* 4 Kuadran Metrik Pengawasan */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Kuadran 1: Santri & Asrama */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                   Kependudukan Santri
@@ -469,7 +469,7 @@ export function AdminPortal({
             </div>
 
             {/* Kuadran 2: Keuangan & Pembayaran */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                   Keuangan &amp; SPP
@@ -499,7 +499,7 @@ export function AdminPortal({
             </div>
 
             {/* Kuadran 3: Kepesantrenan & Tahfidz */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                   Tahfidz &amp; Ibadah
@@ -527,7 +527,7 @@ export function AdminPortal({
             </div>
 
             {/* Kuadran 4: Administrasi & Audit Staf */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                   Pengawasan Operasional
@@ -556,7 +556,7 @@ export function AdminPortal({
           </div>
 
           {/* Navigasi Cepat Pengasuh */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
             <h3 className="font-extrabold text-sm text-slate-900">
               Pusat Pemantauan Lintas Bagian Pesantren
             </h3>
@@ -567,7 +567,7 @@ export function AdminPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("santri_asrama")}
-                className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
+                className="flex items-center gap-2.5 rounded-xl border border-[#E5E7EB] p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
               >
                 <Users className="h-4 w-4 text-emerald-700 shrink-0" />
                 <div>
@@ -579,7 +579,7 @@ export function AdminPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("keuangan")}
-                className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
+                className="flex items-center gap-2.5 rounded-xl border border-[#E5E7EB] p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
               >
                 <CreditCard className="h-4 w-4 text-blue-700 shrink-0" />
                 <div>
@@ -591,7 +591,7 @@ export function AdminPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("laporan_tahfidz")}
-                className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
+                className="flex items-center gap-2.5 rounded-xl border border-[#E5E7EB] p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
               >
                 <Sparkles className="h-4 w-4 text-amber-700 shrink-0" />
                 <div>
@@ -603,7 +603,7 @@ export function AdminPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("laporan_kedisiplinan")}
-                className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
+                className="flex items-center gap-2.5 rounded-xl border border-[#E5E7EB] p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
               >
                 <ShieldAlert className="h-4 w-4 text-rose-700 shrink-0" />
                 <div>
@@ -615,7 +615,7 @@ export function AdminPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("audit_log")}
-                className="flex items-center gap-2.5 rounded-xl border border-slate-200 p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
+                className="flex items-center gap-2.5 rounded-xl border border-[#E5E7EB] p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
               >
                 <FileText className="h-4 w-4 text-indigo-700 shrink-0" />
                 <div>
@@ -633,7 +633,7 @@ export function AdminPortal({
          ===================================================================== */}
       {activeTab === "santri_asrama" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-sm">
             <div className="flex flex-wrap items-center gap-2 flex-1">
               <div className="relative min-w-[200px] flex-1">
                 <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
@@ -672,11 +672,11 @@ export function AdminPortal({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                  <tr className="border-b border-[#E5E7EB] bg-slate-50 uppercase text-slate-500 font-bold">
                     <th className="py-3 px-4">NIS</th>
                     <th className="py-3 px-4">Nama Santri</th>
                     <th className="py-3 px-4">Kelas</th>
@@ -727,7 +727,7 @@ export function AdminPortal({
             <div
               className={`rounded-2xl p-4 text-xs font-semibold flex items-center justify-between border ${
                 approvalFeedback.ok
-                  ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                  ? "bg-emerald-50 text-[#123C35] border-emerald-200"
                   : "bg-rose-50 text-rose-900 border-rose-200"
               }`}
             >
@@ -743,7 +743,7 @@ export function AdminPortal({
           )}
 
           {/* ALUR PERSETUJUAN PEMBIAYAAN SANTRI (DARI TU) */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -764,7 +764,7 @@ export function AdminPortal({
                   onClick={() => setPembiayaanApprovalTab("pending")}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
                     pembiayaanApprovalTab === "pending"
-                      ? "bg-white text-emerald-950 shadow-sm"
+                      ? "bg-white text-[#123C35] shadow-sm"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -780,7 +780,7 @@ export function AdminPortal({
                   onClick={() => setPembiayaanApprovalTab("approved")}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
                     pembiayaanApprovalTab === "approved"
-                      ? "bg-white text-emerald-950 shadow-sm"
+                      ? "bg-white text-[#123C35] shadow-sm"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -791,7 +791,7 @@ export function AdminPortal({
                   onClick={() => setPembiayaanApprovalTab("rejected")}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
                     pembiayaanApprovalTab === "rejected"
-                      ? "bg-white text-emerald-950 shadow-sm"
+                      ? "bg-white text-[#123C35] shadow-sm"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -883,7 +883,7 @@ export function AdminPortal({
                                 setApprovingId(null);
                               }
                             }}
-                            className="rounded-xl bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="rounded-xl bg-[#1D6B59] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#123C35] transition shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {approvingId === fee.id ? "Memproses..." : "Setujui & Terbitkan Tagihan"}
                           </button>
@@ -897,9 +897,9 @@ export function AdminPortal({
 
             {/* TAB APPROVED */}
             {pembiayaanApprovalTab === "approved" && (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-[#E5E7EB]">
                     <tr>
                       <th className="px-3.5 py-2.5">Nama Pembiayaan</th>
                       <th className="px-3 py-2.5">Nominal</th>
@@ -950,9 +950,9 @@ export function AdminPortal({
 
             {/* TAB REJECTED */}
             {pembiayaanApprovalTab === "rejected" && (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-[#E5E7EB]">
                     <tr>
                       <th className="px-3.5 py-2.5">Nama Pembiayaan</th>
                       <th className="px-3 py-2.5">Nominal</th>
@@ -1057,7 +1057,7 @@ export function AdminPortal({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Tagihan Santri */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <h3 className="font-extrabold text-sm text-slate-900">Ringkasan Tagihan SPP Santri</h3>
               <div className="space-y-2 max-h-96 overflow-y-auto divide-y divide-slate-100">
                 {tagihanList.slice(0, 15).map((t) => {
@@ -1084,7 +1084,7 @@ export function AdminPortal({
             </div>
 
             {/* Transaksi Pembayaran Terbaru */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-3">
               <h3 className="font-extrabold text-sm text-slate-900">Riwayat Verifikasi Transaksi Bendahara</h3>
               <div className="space-y-2 max-h-96 overflow-y-auto divide-y divide-slate-100">
                 {transaksiPembayaranList.slice(0, 15).map((tx) => {
@@ -1125,7 +1125,7 @@ export function AdminPortal({
             <div
               className={`rounded-2xl p-4 text-xs font-semibold flex items-center justify-between border ${
                 rekeningFeedback.ok
-                  ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                  ? "bg-emerald-50 text-[#123C35] border-emerald-200"
                   : "bg-rose-50 text-rose-900 border-rose-200"
               }`}
             >
@@ -1141,7 +1141,7 @@ export function AdminPortal({
           )}
 
           {/* Header Card Rekening */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-emerald-100 text-emerald-800 rounded-2xl">
@@ -1161,7 +1161,7 @@ export function AdminPortal({
                   type="button"
                   onClick={handleManualRefreshRekening}
                   disabled={isRekeningLoading}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E5E7EB] bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition disabled:opacity-50"
                   title="Muat ulang rekening langsung dari database tanpa me-refresh seluruh aplikasi"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${isRekeningLoading ? "animate-spin text-emerald-700" : "text-slate-500"}`} />
@@ -1170,7 +1170,7 @@ export function AdminPortal({
                 <button
                   type="button"
                   onClick={() => setIsAddingRekening(!isAddingRekening)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1D6B59] hover:bg-[#123C35] text-white font-bold text-xs shadow-sm transition"
                 >
                   <Plus className="h-4 w-4" />
                   Tambah Rekening
@@ -1216,7 +1216,7 @@ export function AdminPortal({
             {isAddingRekening && (
               <form onSubmit={handleCreateRekeningSubmit} className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-4">
                 <div className="border-b border-emerald-200/60 pb-2 flex items-center justify-between">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-[#123C35] flex items-center gap-1.5">
                     <Plus className="h-4 w-4" />
                     <span>Formulir Tambah Rekening Pesantren</span>
                   </h4>
@@ -1288,7 +1288,7 @@ export function AdminPortal({
                 <div className="flex justify-end pt-2">
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
+                    className="px-4 py-2 rounded-xl bg-[#1D6B59] hover:bg-[#123C35] text-white font-bold text-xs shadow-sm transition"
                   >
                     Simpan Rekening
                   </button>
@@ -1376,7 +1376,7 @@ export function AdminPortal({
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800 shadow-sm"
+                        className="px-4 py-2 rounded-xl bg-[#1D6B59] text-white text-xs font-bold hover:bg-[#123C35] shadow-sm"
                       >
                         Simpan Perubahan
                       </button>
@@ -1404,12 +1404,12 @@ export function AdminPortal({
 
               {rekeningList.length === 0 ? (
                 isRekeningLoading ? (
-                  <div className="text-center py-10 rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                  <div className="text-center py-10 rounded-2xl border border-[#E5E7EB] bg-slate-50 text-slate-500 text-xs">
                     <RefreshCw className="h-5 w-5 animate-spin mx-auto text-emerald-700 mb-2" />
                     <p>Memuat data rekening pesantren dari database...</p>
                   </div>
                 ) : (
-                  <div className="text-center py-10 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                  <div className="text-center py-10 rounded-2xl border border-dashed border-[#E5E7EB] bg-slate-50 text-slate-500 text-xs">
                     <p>Belum ada rekening yang terdaftar di database.</p>
                     <button
                       type="button"
@@ -1431,7 +1431,7 @@ export function AdminPortal({
                         className={`rounded-2xl border p-4 transition space-y-3 ${
                           isUtama
                             ? "border-emerald-300 bg-emerald-50/30 ring-1 ring-emerald-300 shadow-sm"
-                            : "border-slate-200 bg-white hover:border-slate-300"
+                            : "border-[#E5E7EB] bg-white hover:border-slate-300"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -1484,7 +1484,7 @@ export function AdminPortal({
                             <button
                               type="button"
                               onClick={() => handleStartEdit(r)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#E5E7EB] bg-white hover:bg-slate-50 text-slate-700 font-semibold transition"
                             >
                               <Edit2 className="h-3 w-3" />
                               Edit
@@ -1517,7 +1517,7 @@ export function AdminPortal({
                                 type="button"
                                 onClick={() => handleActivateRekening(r)}
                                 disabled={isProcessing}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold transition shadow-xs disabled:opacity-50"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1D6B59] hover:bg-[#123C35] text-white font-bold transition shadow-xs disabled:opacity-50"
                                 title="Jadikan rekening ini sebagai Rekening Utama aktif"
                               >
                                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -1534,7 +1534,7 @@ export function AdminPortal({
             </div>
 
             {/* Riwayat Audit Pengawasan Perubahan Rekening */}
-            <div className="mt-8 pt-6 border-t border-slate-200 space-y-3">
+            <div className="mt-8 pt-6 border-t border-[#E5E7EB] space-y-3">
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="h-4 w-4 text-emerald-700" />
                 <span>Riwayat Audit Pengawasan Rekening Resmi</span>
@@ -1548,10 +1548,10 @@ export function AdminPortal({
                   {rekeningAuditLogs.map((log) => (
                     <div
                       key={log.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1"
+                      className="rounded-xl border border-[#E5E7EB] bg-slate-50 p-3 text-xs space-y-1"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-emerald-900">{log.aktivitas}</span>
+                        <span className="font-bold text-[#123C35]">{log.aktivitas}</span>
                         <span className="text-[11px] text-slate-400">
                           {formatWaktuLengkap(log.waktu)}
                         </span>
@@ -1575,14 +1575,14 @@ export function AdminPortal({
       {(activeTab === "laporan_tahfidz" || activeTab === "kepesantrenan") && (
         <div className="space-y-6">
           {/* Header Card Laporan Tahfidz */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
                   Rekapitulasi &amp; Riwayat Setoran Tahfidz Al-Qur&apos;an
                 </h3>
               </div>
-              <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200 self-start sm:self-auto">
+              <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-[#E5E7EB] self-start sm:self-auto">
                 Total Setoran: <strong className="text-amber-900">{tahfidzList.length}</strong>
               </span>
             </div>
@@ -1600,7 +1600,7 @@ export function AdminPortal({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
                   Kualitas Lancar
                 </span>
-                <p className="text-2xl font-extrabold text-emerald-950 mt-1">
+                <p className="text-2xl font-extrabold text-[#123C35] mt-1">
                   {tahfidzList.filter((th) => th.kualitas_hafalan === "Lancar").length}
                 </p>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">Hafalan mutqin &amp; lancar</span>
@@ -1686,9 +1686,9 @@ export function AdminPortal({
             </div>
 
             {/* Tabel Laporan Tahfidz */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 font-bold text-slate-700 border-b border-slate-200">
+                <thead className="bg-slate-50 font-bold text-slate-700 border-b border-[#E5E7EB]">
                   <tr>
                     <th className="px-4 py-3">Tanggal</th>
                     <th className="px-4 py-3">Nama Santri &amp; NIS</th>
@@ -1766,14 +1766,14 @@ export function AdminPortal({
       {activeTab === "laporan_kedisiplinan" && (
         <div className="space-y-6">
           {/* Header Card Laporan Kedisiplinan */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
                   Rekapitulasi Pelanggaran &amp; Riwayat Pembinaan Santri
                 </h3>
               </div>
-              <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200 self-start sm:self-auto">
+              <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 border border-[#E5E7EB] self-start sm:self-auto">
                 Total Catatan: <strong className="text-rose-900">{kedisiplinanList.length}</strong>
               </span>
             </div>
@@ -1800,7 +1800,7 @@ export function AdminPortal({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
                   Pembinaan Selesai
                 </span>
-                <p className="text-2xl font-extrabold text-emerald-950 mt-1">
+                <p className="text-2xl font-extrabold text-[#123C35] mt-1">
                   {kedisiplinanList.filter((k) => k.status_tindak_lanjut === "SELESAI").length}
                 </p>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">Kasus terselesaikan</span>
@@ -1874,9 +1874,9 @@ export function AdminPortal({
             </div>
 
             {/* Tabel Laporan Kedisiplinan */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 font-bold text-slate-700 border-b border-slate-200">
+                <thead className="bg-slate-50 font-bold text-slate-700 border-b border-[#E5E7EB]">
                   <tr>
                     <th className="px-4 py-3">Tanggal</th>
                     <th className="px-4 py-3">Nama Santri &amp; NIS</th>
@@ -1960,15 +1960,15 @@ export function AdminPortal({
           TAB 4: PENGUMUMAN & AGENDA PONDOK
          ===================================================================== */}
       {activeTab === "pengumuman" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-4">
           <div>
             <h3 className="font-extrabold text-base text-slate-900">Pengumuman &amp; Agenda Pondok Pesantren</h3>
           </div>
           <div className="space-y-3">
             {pengumumanList.map((p) => (
-              <div key={p.id} className="rounded-xl border border-slate-200 p-4 space-y-1">
+              <div key={p.id} className="rounded-xl border border-[#E5E7EB] p-4 space-y-1">
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="font-bold text-emerald-900 uppercase">Kategori: {p.kategori}</span>
+                  <span className="font-bold text-[#123C35] uppercase">Kategori: {p.kategori}</span>
                   <span>{formatTanggal(p.tanggal_publikasi)}</span>
                 </div>
                 <h4 className="font-extrabold text-sm text-slate-900">{p.judul}</h4>
@@ -1984,7 +1984,7 @@ export function AdminPortal({
          ===================================================================== */}
       {activeTab === "audit_log" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-sm">
             <div className="flex flex-wrap items-center gap-2 flex-1">
               <div className="relative min-w-[220px] flex-1">
                 <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
@@ -2011,11 +2011,11 @@ export function AdminPortal({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[700px]">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500 font-bold">
+                  <tr className="border-b border-[#E5E7EB] bg-slate-50 uppercase text-slate-500 font-bold">
                     <th className="py-3 px-4">Waktu</th>
                     <th className="py-3 px-4">Role &amp; Petugas</th>
                     <th className="py-3 px-4">Aktivitas</th>

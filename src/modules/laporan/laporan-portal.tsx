@@ -72,7 +72,7 @@ export function LaporanPortal() {
   return (
     <div className="space-y-6">
       {/* Header & Filter Laporan (Bab 14 PRD) */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3.5">
             <img
@@ -111,7 +111,7 @@ export function LaporanPortal() {
                 onClick={() => setJenisLaporan("pembayaran")}
                 className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
                   jenisLaporan === "pembayaran"
-                    ? "bg-emerald-800 text-white"
+                    ? "bg-[#123C35] text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
@@ -123,7 +123,7 @@ export function LaporanPortal() {
                 onClick={() => setJenisLaporan("uang_saku")}
                 className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
                   jenisLaporan === "uang_saku"
-                    ? "bg-emerald-800 text-white"
+                    ? "bg-[#123C35] text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
@@ -137,7 +137,7 @@ export function LaporanPortal() {
             onClick={() => setJenisLaporan("kepesantrenan")}
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
               jenisLaporan === "kepesantrenan"
-                ? "bg-emerald-800 text-white"
+                ? "bg-[#123C35] text-white"
                 : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
@@ -147,7 +147,7 @@ export function LaporanPortal() {
         </div>
 
         {/* Baris Filter Kelas, Kamar, Santri, Status */}
-        <div className="mt-4 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-3.5 sm:grid-cols-4 text-xs border border-slate-200/80">
+        <div className="mt-4 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-3.5 sm:grid-cols-4 text-xs border border-[#E5E7EB]/80">
           <div>
             <label className="font-semibold text-slate-600 flex items-center gap-1">
               <Filter className="h-3 w-3" /> Filter Kelas
@@ -217,7 +217,7 @@ export function LaporanPortal() {
       {jenisLaporan === "pembayaran" && canSeeFinance && (
         <div className="space-y-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
               <span className="text-xs text-slate-500">Total Tagihan Diterbitkan</span>
               <p className="mt-1 text-lg font-extrabold text-slate-900">
                 {formatRupiah(totalTagihanNominal)}
@@ -225,7 +225,7 @@ export function LaporanPortal() {
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
               <span className="text-xs text-emerald-800">Total Pembayaran Diterima</span>
-              <p className="mt-1 text-lg font-extrabold text-emerald-900">
+              <p className="mt-1 text-lg font-extrabold text-[#123C35]">
                 {formatRupiah(totalTerbayarNominal)}
               </p>
             </div>
@@ -243,13 +243,13 @@ export function LaporanPortal() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm overflow-x-auto">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm overflow-x-auto">
             <h3 className="text-base font-bold text-slate-900 mb-3">
               Rincian Tagihan & Status Kewajiban ({filteredTagihan.length} Baris)
             </h3>
             <table className="w-full text-left border-collapse text-xs min-w-[700px]">
               <thead>
-                <tr className="border-b border-slate-200 uppercase text-slate-500">
+                <tr className="border-b border-[#E5E7EB] uppercase text-slate-500">
                   <th className="py-2 pr-3">No. Tagihan</th>
                   <th className="py-2 px-3">Santri & Kelas</th>
                   <th className="py-2 px-3">Nama Tagihan & Periode</th>
@@ -300,13 +300,13 @@ export function LaporanPortal() {
 
       {/* 14.2 LAPORAN UANG SAKU */}
       {jenisLaporan === "uang_saku" && canSeeFinance && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm overflow-x-auto">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm overflow-x-auto">
           <h3 className="text-base font-bold text-slate-900 mb-3">
             Rekapitulasi Uang Saku per Santri & Kelas
           </h3>
           <table className="w-full text-left border-collapse text-xs min-w-[700px]">
             <thead>
-              <tr className="border-b border-slate-200 uppercase text-slate-500">
+              <tr className="border-b border-[#E5E7EB] uppercase text-slate-500">
                 <th className="py-2 pr-3">NIS & Nama Santri</th>
                 <th className="py-2 px-3">Kelas & Kamar</th>
                 <th className="py-2 px-3 text-right">Total Uang Masuk</th>
@@ -350,13 +350,13 @@ export function LaporanPortal() {
 
       {/* 14.3 LAPORAN KEPESANTRENAN */}
       {jenisLaporan === "kepesantrenan" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm overflow-x-auto">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm overflow-x-auto">
           <h3 className="text-base font-bold text-slate-900 mb-3">
             Rekapitulasi Perkembangan Mengaji, Tahfidz, Prestasi, & Kedisiplinan Santri
           </h3>
           <table className="w-full text-left border-collapse text-xs min-w-[700px]">
             <thead>
-              <tr className="border-b border-slate-200 uppercase text-slate-500">
+              <tr className="border-b border-[#E5E7EB] uppercase text-slate-500">
                 <th className="py-2 pr-3">Santri</th>
                 <th className="py-2 px-3">Mengaji Terakhir</th>
                 <th className="py-2 px-3">Total Setoran Tahfidz</th>

@@ -585,7 +585,7 @@ export function WaliPortal({
         <div
           className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${
             feedback.ok
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              ? "border-emerald-200 bg-emerald-50 text-[#123C35]"
               : "border-rose-200 bg-rose-50 text-rose-900"
           }`}
         >
@@ -631,7 +631,7 @@ export function WaliPortal({
 
           {/* Ringkasan 4 Pilar Utama */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-500">Tagihan Belum Lunas</span>
                 <Receipt className="h-5 w-5 text-rose-600" />
@@ -651,7 +651,7 @@ export function WaliPortal({
               </button>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-500">Saldo Uang Saku</span>
                 <Wallet className="h-5 w-5 text-emerald-600" />
@@ -672,7 +672,7 @@ export function WaliPortal({
               </button>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-500">Perkembangan Mengaji</span>
                 <BookOpen className="h-5 w-5 text-blue-600" />
@@ -695,7 +695,7 @@ export function WaliPortal({
               </button>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-500">Setoran Tahfidz Terakhir</span>
                 <Award className="h-5 w-5 text-amber-600" />
@@ -724,7 +724,7 @@ export function WaliPortal({
           {/* Grid Ringkasan Mutasi Uang Saku & Perkembangan Santri */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Riwayat Uang Masuk & Keluar Terbaru */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
@@ -806,7 +806,7 @@ export function WaliPortal({
             </div>
 
             {/* Ringkasan Prestasi & Kedisiplinan */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <h3 className="text-base font-bold text-slate-900">
                   Prestasi & Catatan Pembinaan Kedisiplinan
@@ -829,8 +829,8 @@ export function WaliPortal({
                       className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3"
                     >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-emerald-900">{p.peringkat}</span>
-                        <span className="rounded bg-emerald-200/70 px-2 py-0.5 text-[10px] font-bold text-emerald-900">
+                        <span className="font-bold text-[#123C35]">{p.peringkat}</span>
+                        <span className="rounded bg-emerald-200/70 px-2 py-0.5 text-[10px] font-bold text-[#123C35]">
                           Tingkat {p.tingkat_prestasi}
                         </span>
                       </div>
@@ -855,7 +855,7 @@ export function WaliPortal({
                   myKedisiplinan.map((d) => (
                     <div
                       key={d.id}
-                      className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3"
+                      className="mt-2 rounded-xl border border-[#E5E7EB] bg-slate-50 p-3"
                     >
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-semibold text-slate-900">{d.nama_kategori}</span>
@@ -880,7 +880,7 @@ export function WaliPortal({
          ===================================================================== */}
       {activeTab === "profil_santri" && (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 pb-6 border-b border-slate-100">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white text-2xl font-extrabold shadow-md border-2 border-emerald-100 shrink-0">
                 {(santri?.nama_lengkap || "S").charAt(0).toUpperCase()}
@@ -888,7 +888,7 @@ export function WaliPortal({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-xl font-extrabold text-slate-900">{santri.nama_lengkap}</h3>
-                  <span className="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-900">
+                  <span className="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-[#123C35]">
                     Santri Aktif
                   </span>
                 </div>
@@ -983,7 +983,7 @@ export function WaliPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("pembayaran")}
-                className="rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-900 transition flex items-center gap-1.5"
+                className="rounded-xl bg-[#123C35] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1D6B59] transition flex items-center gap-1.5"
               >
                 <CreditCard className="h-4 w-4" />
                 <span>Lihat Tagihan &amp; Pembayaran</span>
@@ -999,7 +999,7 @@ export function WaliPortal({
               <button
                 type="button"
                 onClick={() => setActiveTab("kepesantrenan")}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
+                className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
               >
                 <BookOpen className="h-4 w-4" />
                 <span>Perkembangan Mengaji &amp; Tahfidz</span>
@@ -1016,7 +1016,7 @@ export function WaliPortal({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Kolom Kiri (2/3): Daftar Tagihan & Pemilihan Cicilan */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
               <div className="border-b border-slate-100 pb-4">
                 <h3 className="text-lg font-bold text-slate-900">
                   Daftar Kewajiban & Tagihan Santri
@@ -1042,7 +1042,7 @@ export function WaliPortal({
                       className={`rounded-xl border p-4 transition ${
                         inCart
                           ? "border-emerald-500 bg-emerald-50/40"
-                          : "border-slate-200 bg-white"
+                          : "border-[#E5E7EB] bg-white"
                       }`}
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1113,7 +1113,7 @@ export function WaliPortal({
                                 <button
                                   type="button"
                                   onClick={() => handleAddBillToCart(tgh.id, tgh.sisa_tagihan)}
-                                  className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
+                                  className="rounded-lg bg-[#1D6B59] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#123C35]"
                                 >
                                   Perbarui Nominal
                                 </button>
@@ -1130,7 +1130,7 @@ export function WaliPortal({
                               <button
                                 type="button"
                                 onClick={() => handleAddBillToCart(tgh.id, tgh.sisa_tagihan)}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D6B59] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#123C35]"
                               >
                                 <Plus className="h-4 w-4" />
                                 Masukkan ke Keranjang
@@ -1146,7 +1146,7 @@ export function WaliPortal({
             </div>
 
             {/* Riwayat Pengajuan & Alokasi Pembayaran */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
               <h3 className="text-base font-bold text-slate-900">
                 Riwayat Transaksi & Status Verifikasi Pembayaran
               </h3>
@@ -1161,7 +1161,7 @@ export function WaliPortal({
                   return (
                     <div
                       key={trx.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
+                      className="rounded-xl border border-[#E5E7EB] bg-slate-50/70 p-4"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
@@ -1180,7 +1180,7 @@ export function WaliPortal({
                         </span>
                       </div>
 
-                      <div className="mt-2 space-y-1 border-t border-slate-200/80 pt-2 text-xs text-slate-700">
+                      <div className="mt-2 space-y-1 border-t border-[#E5E7EB]/80 pt-2 text-xs text-slate-700">
                         <p className="font-semibold text-slate-600">Rincian Alokasi Tagihan:</p>
                         {trx.alokasi.map((alk) => (
                           <div key={alk.id} className="flex justify-between">
@@ -1190,7 +1190,7 @@ export function WaliPortal({
                             </span>
                           </div>
                         ))}
-                        <div className="flex justify-between border-t border-slate-200 pt-1.5 text-sm font-bold text-slate-900">
+                        <div className="flex justify-between border-t border-[#E5E7EB] pt-1.5 text-sm font-bold text-slate-900">
                           <span>Total Nominal Transfer</span>
                           <span className="text-emerald-700">
                             {formatRupiah(trx.total_nominal)}
@@ -1199,12 +1199,12 @@ export function WaliPortal({
                       </div>
 
                       {trx.catatan_verifikasi && (
-                        <p className="mt-2 rounded-lg bg-white px-3 py-1.5 text-xs text-slate-600 border border-slate-200">
+                        <p className="mt-2 rounded-lg bg-white px-3 py-1.5 text-xs text-slate-600 border border-[#E5E7EB]">
                           <strong>Catatan Bendahara:</strong> {trx.catatan_verifikasi}
                         </p>
                       )}
 
-                      <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2">
+                      <div className="mt-3 flex items-center justify-between border-t border-[#E5E7EB]/60 pt-2">
                         {trx.bukti_transfer_url ? (
                           <button
                             type="button"
@@ -1235,7 +1235,7 @@ export function WaliPortal({
                               setSelectedTrxForUpload(trx);
                               setUploadTrxModalOpen(true);
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-800"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D6B59] px-3 py-1 text-xs font-bold text-white hover:bg-[#123C35]"
                           >
                             <Upload className="h-3.5 w-3.5" />
                             Unggah Bukti Sekarang
@@ -1277,13 +1277,13 @@ export function WaliPortal({
                     <span>Rekening Resmi Pesantren — Informasi Rekening Tujuan Transfer</span>
                   </div>
                   {rekeningList.map((rek) => (
-                    <div key={rek.id} className="rounded-xl bg-emerald-950 p-3.5 text-white">
+                    <div key={rek.id} className="rounded-xl bg-[#123C35] p-3.5 text-white">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-bold text-emerald-200">
                           {rek.nama_bank} {rek.kode_bank ? `(Kode: ${rek.kode_bank})` : ""}
                         </p>
                         {rek.is_active && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-700 text-white">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#1D6B59] text-white">
                             Aktif
                           </span>
                         )}
@@ -1306,7 +1306,7 @@ export function WaliPortal({
                 </div>
               ) : (
                 <form onSubmit={handleCheckoutSubmit} className="mt-4 space-y-3">
-                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="divide-y divide-slate-100 rounded-xl border border-[#E5E7EB] bg-slate-50 p-3">
                     {keranjang.map((item) => {
                       const t = myTagihan.find((x) => x.id === item.tagihan_id);
                       return (
@@ -1372,9 +1372,9 @@ export function WaliPortal({
                     <label className="block text-xs font-semibold text-slate-700">
                       Unggah Bukti Transfer (Maks 5MB)
                     </label>
-                    <label className="mt-1 flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-emerald-400 bg-emerald-50/50 px-3 py-2 text-xs text-emerald-900 hover:bg-emerald-50">
+                    <label className="mt-1 flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-emerald-400 bg-emerald-50/50 px-3 py-2 text-xs text-[#123C35] hover:bg-emerald-50">
                       <span className="truncate font-medium">{buktiBayarFilename}</span>
-                      <span className="inline-flex items-center gap-1 rounded bg-emerald-700 px-2 py-1 text-[11px] font-semibold text-white">
+                      <span className="inline-flex items-center gap-1 rounded bg-[#1D6B59] px-2 py-1 text-[11px] font-semibold text-white">
                         <Upload className="h-3 w-3" />
                         Pilih File
                       </span>
@@ -1390,7 +1390,7 @@ export function WaliPortal({
                   <button
                     type="submit"
                     disabled={isSubmittingPayment || !rekeningResmi || !rekeningResmi.is_active}
-                    className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white shadow hover:bg-emerald-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full rounded-xl bg-[#1D6B59] py-2.5 text-xs sm:text-sm font-bold text-white shadow hover:bg-[#123C35] transition disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {!rekeningResmi || !rekeningResmi.is_active
                       ? "Rekening Resmi Belum Aktif"
@@ -1415,20 +1415,20 @@ export function WaliPortal({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <span className="text-xs font-semibold text-emerald-800">Saldo Saat Ini</span>
-                <p className="mt-1 text-2xl font-extrabold text-emerald-950">
+                <p className="mt-1 text-2xl font-extrabold text-[#123C35]">
                   {formatRupiah(saldoSaku.saldo_saat_ini)}
                 </p>
                 <span className="text-[11px] text-emerald-700">
                   Sesuai perhitungan Ledger Immutable
                 </span>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
                 <span className="text-xs font-medium text-slate-500">Total Uang Masuk</span>
                 <p className="mt-1 text-xl font-bold text-emerald-700">
                   +{formatRupiah(saldoSaku.total_masuk)}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
                 <span className="text-xs font-medium text-slate-500">Total Uang Keluar</span>
                 <p className="mt-1 text-xl font-bold text-rose-700">
                   -{formatRupiah(saldoSaku.total_keluar)}
@@ -1437,7 +1437,7 @@ export function WaliPortal({
             </div>
 
             {/* Tabel Riwayat Transaksi Ledger Uang Saku + Bukti Foto Penyerahan */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
               <h3 className="text-base font-bold text-slate-900">
                 Riwayat Mutasi Uang Masuk & Keluar (Ledger Santri)
               </h3>
@@ -1451,7 +1451,7 @@ export function WaliPortal({
                 {myMutasiSaku.map((m) => (
                   <div
                     key={m.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-2.5"
+                    className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm space-y-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -1482,7 +1482,7 @@ export function WaliPortal({
                       <div>
                         <strong>Petugas:</strong> {m.petugas_nama}
                       </div>
-                      <div className="pt-1 flex items-center justify-between border-t border-slate-200">
+                      <div className="pt-1 flex items-center justify-between border-t border-[#E5E7EB]">
                         <span className="font-semibold text-slate-600">Nominal:</span>
                         <span
                           className={`font-extrabold text-sm ${
@@ -1520,7 +1520,7 @@ export function WaliPortal({
                               bucket: "foto-penyerahan-saku",
                             })
                           }
-                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 py-2.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100 min-h-[44px] touch-manipulation cursor-pointer"
+                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 py-2.5 text-xs font-bold text-[#123C35] hover:bg-emerald-100 min-h-[44px] touch-manipulation cursor-pointer"
                         >
                           <Camera className="h-4 w-4" />
                           <span>Lihat Foto Dokumentasi</span>
@@ -1539,7 +1539,7 @@ export function WaliPortal({
               <div className="mt-4 hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs sm:text-sm min-w-[650px]">
                   <thead>
-                    <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                    <tr className="border-b border-[#E5E7EB] text-xs uppercase text-slate-500">
                       <th className="py-2.5 pr-3">No. Transaksi & Waktu</th>
                       <th className="py-2.5 px-3">Jenis & Keterangan</th>
                       <th className="py-2.5 px-3 text-right">Nominal</th>
@@ -1605,7 +1605,7 @@ export function WaliPortal({
                               bucket: "foto-penyerahan-saku",
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
+                              className="inline-flex items-center gap-1 rounded-lg bg-[#1D6B59] px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#123C35]"
                             >
                               <Camera className="h-3.5 w-3.5" />
                               Lihat Foto
@@ -1622,7 +1622,7 @@ export function WaliPortal({
             </div>
 
             {/* Status Pengajuan Top-Up Uang Saku */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
               <h3 className="text-base font-bold text-slate-900">
                 Status Pengajuan Pengisian (Top-Up) Uang Saku
               </h3>
@@ -1632,7 +1632,7 @@ export function WaliPortal({
                   return (
                     <div
                       key={p.id}
-                      className="flex flex-col justify-between gap-2 rounded-xl border border-slate-200 p-3.5 sm:flex-row sm:items-center"
+                      className="flex flex-col justify-between gap-2 rounded-xl border border-[#E5E7EB] p-3.5 sm:flex-row sm:items-center"
                     >
                       <div>
                         <div className="flex items-center gap-2">
@@ -1683,7 +1683,7 @@ export function WaliPortal({
 
           {/* Form Pengajuan Top-Up Uang Saku */}
           <div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
               <h3 className="text-base font-bold text-slate-900">
                 Ajukan Transfer Uang Saku Baru
               </h3>
@@ -1709,7 +1709,7 @@ export function WaliPortal({
                     <span>Rekening Tujuan Transfer:</span>
                   </p>
                   {rekeningList.map((rek) => (
-                    <div key={rek.id} className="rounded-xl bg-emerald-950 p-3 text-white text-xs">
+                    <div key={rek.id} className="rounded-xl bg-[#123C35] p-3 text-white text-xs">
                       <p className="text-emerald-300 font-semibold">{rek.nama_bank}</p>
                       <p className="font-mono text-base font-bold text-amber-300">
                         {rek.nomor_rekening}
@@ -1785,9 +1785,9 @@ export function WaliPortal({
                   <label className="block text-xs font-semibold text-slate-700">
                     Bukti Transfer Uang Saku
                   </label>
-                  <label className="mt-1 flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-emerald-400 bg-emerald-50/50 px-3 py-2 text-xs text-emerald-900">
+                  <label className="mt-1 flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-emerald-400 bg-emerald-50/50 px-3 py-2 text-xs text-[#123C35]">
                     <span className="truncate font-medium">{buktiTopupFilename}</span>
-                    <span className="rounded bg-emerald-700 px-2 py-1 text-[11px] font-semibold text-white">
+                    <span className="rounded bg-[#1D6B59] px-2 py-1 text-[11px] font-semibold text-white">
                       Pilih File
                     </span>
                     <input
@@ -1802,7 +1802,7 @@ export function WaliPortal({
                 <button
                   type="submit"
                   disabled={isSubmittingTopup || rekeningList.length === 0}
-                  className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full rounded-xl bg-[#1D6B59] py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-[#123C35] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {rekeningList.length === 0
                     ? "Rekening Resmi Belum Aktif"
@@ -1826,12 +1826,12 @@ export function WaliPortal({
         activeTab === "kedisiplinan") && (
         <div className="space-y-5">
           {effectiveSubTab === "mengaji" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <h3 className="text-base font-bold text-slate-900">
                 Riwayat Evaluasi & Perkembangan Mengaji
               </h3>
               {myMengaji.map((m) => (
-                <div key={m.id} className="rounded-xl border border-slate-200 p-4 space-y-2">
+                <div key={m.id} className="rounded-xl border border-[#E5E7EB] p-4 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800">
                       {m.metode_pembelajaran} • {m.tingkat_jilid}
@@ -1867,7 +1867,7 @@ export function WaliPortal({
           )}
 
           {effectiveSubTab === "tahfidz" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
@@ -1883,7 +1883,7 @@ export function WaliPortal({
               </div>
 
               {myTahfidz.map((t) => (
-                <div key={t.id} className="rounded-xl border border-slate-200 p-4 space-y-2">
+                <div key={t.id} className="rounded-xl border border-[#E5E7EB] p-4 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span
@@ -1917,12 +1917,12 @@ export function WaliPortal({
           )}
 
           {effectiveSubTab === "prestasi" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <h3 className="text-base font-bold text-slate-900">Dokumentasi Prestasi Santri</h3>
               {myPrestasi.map((p) => (
                 <div key={p.id} className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="rounded-full bg-emerald-700 px-3 py-0.5 text-xs font-bold text-white">
+                    <span className="rounded-full bg-[#1D6B59] px-3 py-0.5 text-xs font-bold text-white">
                       {p.peringkat} • Tingkat {p.tingkat_prestasi}
                     </span>
                     <span className="text-xs text-slate-500">
@@ -1938,7 +1938,7 @@ export function WaliPortal({
           )}
 
           {effectiveSubTab === "kedisiplinan" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
                   Catatan Kedisiplinan & Riwayat Tindak Lanjut Pembinaan
@@ -1949,7 +1949,7 @@ export function WaliPortal({
                 </p>
               </div>
               {myKedisiplinan.map((d) => (
-                <div key={d.id} className="rounded-xl border border-slate-200 p-4 space-y-3">
+                <div key={d.id} className="rounded-xl border border-[#E5E7EB] p-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
@@ -1984,7 +1984,7 @@ export function WaliPortal({
                       {d.riwayat_perubahan.map((rw) => (
                         <div
                           key={rw.id}
-                          className="mt-1.5 rounded border border-slate-200 bg-white p-2.5 text-[11px] text-slate-600"
+                          className="mt-1.5 rounded border border-[#E5E7EB] bg-white p-2.5 text-[11px] text-slate-600"
                         >
                           <div>
                             <strong>{formatWaktuLengkap(rw.created_at)}</strong> — Status diubah
@@ -2008,7 +2008,7 @@ export function WaliPortal({
           TAB 5: NOTIFIKASI
          ===================================================================== */}
       {activeTab === "notifikasi" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="text-base font-bold text-slate-900">
               Notifikasi Akun Orang Tua ({unreadNotifCount} Belum Dibaca)
@@ -2035,12 +2035,12 @@ export function WaliPortal({
                   onClick={() => markNotifikasiRead(n.id)}
                   className={`cursor-pointer rounded-xl border p-3.5 transition ${
                     n.is_read
-                      ? "border-slate-200 bg-white"
+                      ? "border-[#E5E7EB] bg-white"
                       : "border-emerald-300 bg-emerald-50/60"
                   }`}
                 >
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-emerald-900">{n.judul}</span>
+                    <span className="font-bold text-[#123C35]">{n.judul}</span>
                     <span className="text-[11px] text-slate-400">
                       {formatWaktuLengkap(n.created_at)}
                     </span>
@@ -2057,7 +2057,7 @@ export function WaliPortal({
           TAB 6: PENGUMUMAN PESANTREN (INFORMASI RESMI RESMI TERPISAH)
          ===================================================================== */}
       {activeTab === "pengumuman" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <div className="flex items-center gap-2">
@@ -2079,7 +2079,7 @@ export function WaliPortal({
 
           <div className="space-y-4">
             {myPengumuman.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center">
+              <div className="rounded-xl border border-dashed border-[#E5E7EB] p-8 text-center">
                 <Megaphone className="mx-auto h-8 w-8 text-slate-300 mb-2" />
                 <p className="text-sm font-semibold text-slate-700">Belum ada pengumuman aktif</p>
                 <p className="text-xs text-slate-400 mt-1">
@@ -2093,7 +2093,7 @@ export function WaliPortal({
                   className={`rounded-2xl border p-5 transition space-y-3 ${
                     p.is_penting
                       ? "border-amber-300 bg-amber-50/50"
-                      : "border-slate-200 bg-white"
+                      : "border-[#E5E7EB] bg-white"
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -2102,7 +2102,7 @@ export function WaliPortal({
                         className={`rounded-md px-2.5 py-0.5 font-bold uppercase text-[10px] ${
                           p.is_penting
                             ? "bg-amber-200 text-amber-950"
-                            : "bg-emerald-100 text-emerald-900"
+                            : "bg-emerald-100 text-[#123C35]"
                         }`}
                       >
                         {p.kategori}
@@ -2144,7 +2144,7 @@ export function WaliPortal({
           TAB 7: DOKUMEN & UNDUHAN (PERPUSTAKAAN DOKUMEN MANDIRI)
          ===================================================================== */}
       {activeTab === "dokumen" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <div className="flex items-center gap-2">
@@ -2170,7 +2170,7 @@ export function WaliPortal({
               .map((dok) => (
                 <div
                   key={dok.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-blue-300 hover:shadow-sm transition flex flex-col justify-between space-y-4"
+                  className="rounded-2xl border border-[#E5E7EB] bg-white p-5 hover:border-blue-300 hover:shadow-sm transition flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
@@ -2273,9 +2273,9 @@ export function WaliPortal({
                 <label className="font-semibold text-slate-700">
                   File Bukti Transfer (Maks 5MB)
                 </label>
-                <label className="mt-1 flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-emerald-400 bg-emerald-50/50 px-3 py-2 text-emerald-900 hover:bg-emerald-50">
+                <label className="mt-1 flex cursor-pointer items-center justify-between rounded-lg border border-dashed border-emerald-400 bg-emerald-50/50 px-3 py-2 text-[#123C35] hover:bg-emerald-50">
                   <span className="truncate font-medium">{uploadFilename}</span>
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-700 px-2 py-1 text-[11px] font-semibold text-white">
+                  <span className="inline-flex items-center gap-1 rounded bg-[#1D6B59] px-2 py-1 text-[11px] font-semibold text-white">
                     <Upload className="h-3 w-3" />
                     Pilih File
                   </span>
@@ -2328,13 +2328,13 @@ export function WaliPortal({
                     setUploadTrxModalOpen(false);
                     setSelectedTrxForUpload(null);
                   }}
-                  className="rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+                  className="rounded-xl border border-[#E5E7EB] px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-emerald-700 px-5 py-2 font-bold text-white hover:bg-emerald-800"
+                  className="rounded-xl bg-[#1D6B59] px-5 py-2 font-bold text-white hover:bg-[#123C35]"
                 >
                   Kirim Bukti Transfer
                 </button>

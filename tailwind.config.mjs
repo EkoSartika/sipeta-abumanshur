@@ -9,6 +9,17 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Sistem Warna Baru: SIPETA Modern Minimalist Islamic Institution
+        brand: {
+          deep: "#123C35",     // Deep Green - Identitas Utama
+          emerald: "#1D6B59",  // Emerald - Aksen & Interaksi
+          mint: "#E8F2EC",     // Soft Mint - Latar Aksen Lembut
+          canvas: "#F7F8F6",   // Off White - Latar Halaman Bersih
+          surface: "#FFFFFF",  // White - Kartu dan Panel
+          dark: "#1F2937",     // Dark Text - Teks Utama
+          muted: "#6B7280",    // Secondary Text - Teks Sekunder
+          border: "#E5E7EB",   // Border - Garis Pembatas Halus
+        },
         pesantren: {
           50: "#f0fdf6",
           100: "#dcfce9",
@@ -30,8 +41,23 @@ export default {
           700: "#b45309",
         },
       },
+      fontFamily: {
+        sans: [
+          "var(--font-inter)",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "'Segoe UI'",
+          "Roboto",
+          "sans-serif",
+        ],
+      },
+      boxShadow: {
+        soft: "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)",
+        card: "0 2px 6px -1px rgba(18, 60, 53, 0.06), 0 1px 4px -2px rgba(18, 60, 53, 0.04)",
+        dropdown: "0 10px 15px -3px rgba(18, 60, 53, 0.08), 0 4px 6px -4px rgba(18, 60, 53, 0.04)",
+      },
     },
   },
   plugins: [],
 };
-

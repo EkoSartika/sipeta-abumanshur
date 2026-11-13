@@ -3,15 +3,62 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --brand-deep: #123C35;
+    --brand-emerald: #1D6B59;
+    --brand-mint: #E8F2EC;
+    --brand-canvas: #F7F8F6;
+    --brand-surface: #FFFFFF;
+    --brand-dark: #1F2937;
+    --brand-muted: #6B7280;
+    --brand-border: #E5E7EB;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    background-color: #F7F8F6;
+    color: #1F2937;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Kustomisasi scrollbar modern & tipis */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+  }
+}
+
+@layer utilities {
+  /* Hilangkan scrollbar untuk tabs/pills horizontal */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
 @media print {
   header,
+  aside,
+  nav,
   .no-print {
     display: none !important;
   }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
 }
-
