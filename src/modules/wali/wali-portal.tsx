@@ -11,6 +11,7 @@ import {
   ClipboardList,
   CreditCard,
   Download,
+  Edit3,
   FileCheck2,
   FileSpreadsheet,
   FileText,
@@ -21,14 +22,18 @@ import {
   Megaphone,
   Plus,
   Receipt,
+  Save,
   Search,
   ShieldAlert,
   ShoppingCart,
   Sparkles,
   Trash2,
   Upload,
+  User,
   UserCheck,
+  Users,
   Wallet,
+  X,
 } from "lucide-react";
 import { useSipeta } from "@/lib/store/sipeta-context";
 import { compressImageClientSide } from "@/lib/utils/image-compression";
@@ -103,6 +108,7 @@ export function WaliPortal({
     submitTopupUangSaku,
     markNotifikasiRead,
     markAllNotifikasiRead,
+    updateSantriProfileByWali,
   } = useSipeta();
 
   const [internalTab, setInternalTab] = useState<WaliTab>("dashboard");
@@ -247,6 +253,157 @@ export function WaliPortal({
     waliRecord?.penanggung_jawab || waliRecord?.hubungan || "Wali";
   const teleponPenanggungJawab =
     waliRecord?.no_telepon || currentUser?.no_telepon || "-";
+
+  // State mode edit formulir identitas santri & data keluarga
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
+
+  // Field edit santri
+  const [editNamaSantri, setEditNamaSantri] = useState(santri.nama_lengkap);
+  const [editTempatLahir, setEditTempatLahir] = useState(santri.tempat_lahir || "");
+  const [editTanggalLahir, setEditTanggalLahir] = useState(santri.tanggal_lahir || "");
+  const [editJenisKelamin, setEditJenisKelamin] = useState<"L" | "P">(santri.jenis_kelamin || "L");
+  const [editAlamat, setEditAlamat] = useState(santri.alamat || "");
+
+  // Field orang tua / wali
+  const [editNamaAyah, setEditNamaAyah] = useState(waliRecord?.nama_ayah || "");
+  const [editNoHpAyah, setEditNoHpAyah] = useState(waliRecord?.no_hp_ayah || "");
+  const [editPekerjaanAyah, setEditPekerjaanAyah] = useState(waliRecord?.pekerjaan_ayah || "");
+
+  const [editNamaIbu, setEditNamaIbu] = useState(waliRecord?.nama_ibu || "");
+  const [editNoHpIbu, setEditNoHpIbu] = useState(waliRecord?.no_hp_ibu || "");
+  const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(waliRecord?.pekerjaan_ibu || "");
+
+  const [editNamaWali, setEditNamaWali] = useState(waliRecord?.nama_wali || "");
+  const [editHubunganWali, setEditHubunganWali] = useState(waliRecord?.hubungan_wali_detail || "Paman");
+  const [editNoHpWali, setEditNoHpWali] = useState(waliRecord?.no_hp_wali || "");
+  const [editPekerjaanWali, setEditPekerjaanWali] = useState("");
+
+  const [editPenanggungJawab, setEditPenanggungJawab] = useState<"Ayah" | "Ibu" | "Wali">(
+    (waliRecord?.penanggung_jawab as "Ayah" | "Ibu" | "Wali") ||
+      (peranPenanggungJawab as "Ayah" | "Ibu" | "Wali") ||
+      "Ayah"
+  );
+
+  const resetEditForm = () => {
+    setEditNamaSantri(santri.nama_lengkap);
+    setEditTempatLahir(santri.tempat_lahir || "");
+    setEditTanggalLahir(santri.tanggal_lahir || "");
+    setEditJenisKelamin(santri.jenis_kelamin || "L");
+    setEditAlamat(santri.alamat || "");
+
+    setEditNamaAyah(waliRecord?.nama_ayah || (peranPenanggungJawab === "Ayah" ? namaPenanggungJawab : ""));
+    setEditNoHpAyah(waliRecord?.no_hp_ayah || (peranPenanggungJawab === "Ayah" ? teleponPenanggungJawab : ""));
+    setEditPekerjaanAyah(waliRecord?.pekerjaan_ayah || "");
+
+    setEditNamaIbu(waliRecord?.nama_ibu || (peranPenanggungJawab === "Ibu" ? namaPenanggungJawab : ""));
+    setEditNoHpIbu(waliRecord?.no_hp_ibu || (peranPenanggungJawab === "Ibu" ? teleponPenanggungJawab : ""));
+    setEditPekerjaanIbu(waliRecord?.pekerjaan_ibu || "");
+
+    setEditNamaWali(waliRecord?.nama_wali || (peranPenanggungJawab === "Wali" ? namaPenanggungJawab : ""));
+    setEditHubunganWali(waliRecord?.hubungan_wali_detail || "Wali");
+    setEditNoHpWali(waliRecord?.no_hp_wali || (peranPenanggungJawab === "Wali" ? teleponPenanggungJawab : ""));
+    setEditPekerjaanWali("");
+
+    setEditPenanggungJawab(
+      (waliRecord?.penanggung_jawab as "Ayah" | "Ibu" | "Wali") ||
+        (peranPenanggungJawab as "Ayah" | "Ibu" | "Wali") ||
+        "Ayah"
+    );
+    setEditFormErrors({});
+    setIsEditingProfile(false);
+  };
+
+  const handleSaveStudentProfile = async () => {
+    const errs: Record<string, string> = {};
+    if (!editNamaSantri.trim() || editNamaSantri.trim().length < 3) {
+      errs.nama_santri = "Nama lengkap santri minimal 3 karakter.";
+    }
+    if (!editTempatLahir.trim()) {
+      errs.tempat_lahir = "Tempat lahir wajib diisi.";
+    }
+    if (!editTanggalLahir.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(editTanggalLahir)) {
+      errs.tanggal_lahir = "Format tanggal lahir harus YYYY-MM-DD.";
+    }
+    if (!editAlamat.trim() || editAlamat.trim().length < 5) {
+      errs.alamat = "Alamat asal santri minimal 5 karakter.";
+    }
+
+    // Validasi penanggung jawab terpilih
+    if (editPenanggungJawab === "Ayah") {
+      if (!editNamaAyah.trim() || editNamaAyah.trim().length < 3) {
+        errs.nama_ayah = "Nama Ayah wajib diisi minimal 3 karakter sebagai penanggung jawab utama.";
+      }
+      if (!editNoHpAyah.trim() || editNoHpAyah.trim().length < 6) {
+        errs.no_hp_ayah = "Nomor kontak Ayah wajib diisi minimal 6 digit.";
+      }
+    } else if (editPenanggungJawab === "Ibu") {
+      if (!editNamaIbu.trim() || editNamaIbu.trim().length < 3) {
+        errs.nama_ibu = "Nama Ibu wajib diisi minimal 3 karakter sebagai penanggung jawab utama.";
+      }
+      if (!editNoHpIbu.trim() || editNoHpIbu.trim().length < 6) {
+        errs.no_hp_ibu = "Nomor kontak Ibu wajib diisi minimal 6 digit.";
+      }
+    } else if (editPenanggungJawab === "Wali") {
+      if (!editNamaWali.trim() || editNamaWali.trim().length < 3) {
+        errs.nama_wali = "Nama Wali wajib diisi minimal 3 karakter sebagai penanggung jawab utama.";
+      }
+      if (!editNoHpWali.trim() || editNoHpWali.trim().length < 6) {
+        errs.no_hp_wali = "Nomor kontak Wali wajib diisi minimal 6 digit.";
+      }
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setEditFormErrors(errs);
+      return;
+    }
+
+    setEditFormErrors({});
+    setIsSavingProfile(true);
+
+    try {
+      const res = await updateSantriProfileByWali(santri.id, {
+        nama_lengkap: editNamaSantri.trim(),
+        tempat_lahir: editTempatLahir.trim(),
+        tanggal_lahir: editTanggalLahir.trim(),
+        jenis_kelamin: editJenisKelamin,
+        alamat: editAlamat.trim(),
+        penanggung_jawab: editPenanggungJawab,
+        identitas_keluarga: {
+          penanggung_jawab: editPenanggungJawab,
+          ayah: {
+            nama_lengkap: editNamaAyah.trim(),
+            no_telepon: editNoHpAyah.trim(),
+            pekerjaan: editPekerjaanAyah.trim(),
+          },
+          ibu: {
+            nama_lengkap: editNamaIbu.trim(),
+            no_telepon: editNoHpIbu.trim(),
+            pekerjaan: editPekerjaanIbu.trim(),
+          },
+          wali: editNamaWali.trim()
+            ? {
+                nama_lengkap: editNamaWali.trim(),
+                hubungan: editHubunganWali.trim() || "Wali",
+                no_telepon: editNoHpWali.trim(),
+              }
+            : null,
+        },
+      });
+
+      if (res.ok) {
+        setFeedback({ ok: true, text: res.message || "Data profil santri dan penanggung jawab berhasil diperbarui." });
+        setIsEditingProfile(false);
+      } else {
+        setFeedback({ ok: false, text: res.message || "Gagal memperbarui data profil santri." });
+      }
+    } catch (err: any) {
+      setFeedback({ ok: false, text: err?.message || "Terjadi kesalahan saat menyimpan perubahan." });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Filter seluruh data eksklusif untuk santri yang terhubung (Isolasi Data Lintas Santri)
   const myTagihan = useMemo(
@@ -876,135 +1033,532 @@ export function WaliPortal({
       )}
 
       {/* =====================================================================
-          TAB: PROFIL LENGKAP SANTRI
+          TAB: PROFIL LENGKAP SANTRI & FORMULIR PEMBARUAN IDENTITAS (PORTAL WALI)
          ===================================================================== */}
       {activeTab === "profil_santri" && (
         <div className="space-y-6">
           <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 pb-6 border-b border-slate-100">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white text-2xl font-extrabold shadow-md border-2 border-emerald-100 shrink-0">
-                {(santri?.nama_lengkap || "S").charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-xl font-extrabold text-slate-900">{santri.nama_lengkap}</h3>
-                  <span className="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-[#123C35]">
-                    Santri Aktif
-                  </span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 pb-6 border-b border-slate-100">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 text-white text-2xl font-extrabold shadow-md border-2 border-emerald-100 shrink-0">
+                  {(santri?.nama_lengkap || "S").charAt(0).toUpperCase()}
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  NIS: <span className="font-mono font-bold text-slate-800">{santri.nis}</span> • Tahun Masuk:{" "}
-                  <span className="font-mono font-bold text-slate-800">{santri.tahun_masuk}</span>
-                </p>
-                <p className="mt-1 text-xs text-slate-600">
-                  Kelas: <strong>{kelas?.nama_kelas ?? "-"}</strong> • Kamar:{" "}
-                  <strong>{kamar?.nama_kamar ?? "-"}</strong> ({kamar?.gedung_asrama ?? "Asrama Pesantren"})
-                </p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-extrabold text-slate-900">{santri.nama_lengkap}</h3>
+                    <span className="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-[#123C35]">
+                      Santri Aktif
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    NIS: <span className="font-mono font-bold text-slate-800">{santri.nis}</span> • Tahun Masuk:{" "}
+                    <span className="font-mono font-bold text-slate-800">{santri.tahun_masuk}</span>
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Kelas: <strong>{kelas?.nama_kelas ?? "-"}</strong> • Kamar:{" "}
+                    <strong>{kamar?.nama_kamar ?? "-"}</strong> ({kamar?.gedung_asrama ?? "Asrama Pesantren"})
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {!isEditingProfile ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetEditForm();
+                      setIsEditingProfile(true);
+                    }}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#123C35] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1D6B59] transition"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    <span>Ubah Identitas Santri &amp; Keluarga</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={resetEditForm}
+                      disabled={isSavingProfile}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      <span>Batal</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveStudentProfile}
+                      disabled={isSavingProfile}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#123C35] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#1D6B59] disabled:opacity-50"
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                      <span>{isSavingProfile ? "Menyimpan..." : "Simpan Perubahan"}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-              <div className="space-y-3">
-                <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100">
-                  Data Diri Santri
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-slate-500 text-[11px]">Nama Lengkap:</span>
-                    <p className="font-bold text-slate-800">{santri.nama_lengkap}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[11px]">Jenis Kelamin:</span>
-                    <p className="font-bold text-slate-800">
-                      {santri.jenis_kelamin === "L" ? "Laki-laki (Putra)" : "Perempuan (Putri)"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[11px]">Tempat, Tanggal Lahir:</span>
-                    <p className="font-bold text-slate-800">
-                      {santri.tempat_lahir ?? "-"}, {formatTanggal(santri.tanggal_lahir)}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[11px]">Tahun Masuk:</span>
-                    <p className="font-bold text-slate-800">{santri.tahun_masuk ?? "-"}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100">
-                  Informasi Keluarga &amp; Penanggung Jawab Akun
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-slate-500 text-[11px]">Penanggung Jawab Akun ({peranPenanggungJawab}):</span>
-                    <p className="font-bold text-slate-800">{namaPenanggungJawab}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[11px]">No. Telepon / WhatsApp:</span>
-                    <p className="font-bold text-slate-800">{teleponPenanggungJawab}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[11px]">Data Ayah:</span>
-                    <p className="font-bold text-slate-800">
-                      {waliRecord?.nama_ayah || (peranPenanggungJawab === "Ayah" ? namaPenanggungJawab : "-")}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      HP: {waliRecord?.no_hp_ayah || (peranPenanggungJawab === "Ayah" ? teleponPenanggungJawab : "-")} • Pekerjaan: {waliRecord?.pekerjaan_ayah || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[11px]">Data Ibu:</span>
-                    <p className="font-bold text-slate-800">
-                      {waliRecord?.nama_ibu || (peranPenanggungJawab === "Ibu" ? namaPenanggungJawab : "-")}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      HP: {waliRecord?.no_hp_ibu || (peranPenanggungJawab === "Ibu" ? teleponPenanggungJawab : "-")} • Pekerjaan: {waliRecord?.pekerjaan_ibu || "-"}
-                    </p>
-                  </div>
-                  {(waliRecord?.nama_wali || peranPenanggungJawab === "Wali") && (
-                    <div className="col-span-2">
-                      <span className="text-slate-500 text-[11px]">Data Wali:</span>
+            {/* JIKA SEDANG MODE TAMPIL (READ-ONLY) */}
+            {!isEditingProfile ? (
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                <div className="space-y-3">
+                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100">
+                    Data Diri Santri
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Nama Lengkap:</span>
+                      <p className="font-bold text-slate-800">{santri.nama_lengkap}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Jenis Kelamin:</span>
                       <p className="font-bold text-slate-800">
-                        {waliRecord?.nama_wali || namaPenanggungJawab} ({waliRecord?.hubungan_wali_detail || "Wali"}) • HP: {waliRecord?.no_hp_wali || teleponPenanggungJawab}
+                        {santri.jenis_kelamin === "L" ? "Laki-laki (Putra)" : "Perempuan (Putri)"}
                       </p>
                     </div>
-                  )}
-                  <div className="col-span-2">
-                    <span className="text-slate-500 text-[11px]">Alamat Terdaftar:</span>
-                    <p className="font-bold text-slate-800">{santri.alamat ?? "-"}</p>
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Tempat, Tanggal Lahir:</span>
+                      <p className="font-bold text-slate-800">
+                        {santri.tempat_lahir ?? "-"}, {formatTanggal(santri.tanggal_lahir)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Tahun Masuk:</span>
+                      <p className="font-bold text-slate-800">{santri.tahun_masuk ?? "-"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-slate-500 text-[11px]">Alamat Asal Santri:</span>
+                      <p className="font-bold text-slate-800">{santri.alamat ?? "-"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100">
+                    Informasi Keluarga &amp; Penanggung Jawab Akun
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="col-span-2 bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100 flex items-center justify-between">
+                      <div>
+                        <span className="text-emerald-800 text-[10px] uppercase font-bold tracking-wider">
+                          Penanggung Jawab Utama Terdaftar:
+                        </span>
+                        <p className="font-bold text-slate-900 text-xs">
+                          {namaPenanggungJawab} ({peranPenanggungJawab})
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-emerald-800">
+                        {teleponPenanggungJawab}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Data Ayah:</span>
+                      <p className="font-bold text-slate-800">
+                        {waliRecord?.nama_ayah || (peranPenanggungJawab === "Ayah" ? namaPenanggungJawab : "-")}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        HP: {waliRecord?.no_hp_ayah || (peranPenanggungJawab === "Ayah" ? teleponPenanggungJawab : "-")} • Pekerjaan: {waliRecord?.pekerjaan_ayah || "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Data Ibu:</span>
+                      <p className="font-bold text-slate-800">
+                        {waliRecord?.nama_ibu || (peranPenanggungJawab === "Ibu" ? namaPenanggungJawab : "-")}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        HP: {waliRecord?.no_hp_ibu || (peranPenanggungJawab === "Ibu" ? teleponPenanggungJawab : "-")} • Pekerjaan: {waliRecord?.pekerjaan_ibu || "-"}
+                      </p>
+                    </div>
+                    {(waliRecord?.nama_wali || peranPenanggungJawab === "Wali") && (
+                      <div className="col-span-2">
+                        <span className="text-slate-500 text-[11px]">Data Wali:</span>
+                        <p className="font-bold text-slate-800">
+                          {waliRecord?.nama_wali || namaPenanggungJawab} ({waliRecord?.hubungan_wali_detail || "Wali"}) • HP: {waliRecord?.no_hp_wali || teleponPenanggungJawab}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* FORMULIR PEMBARUAN IDENTITAS SANTRI & KELUARGA */
+              <div className="mt-6 space-y-6 text-xs">
+                {/* Bagian 1: Identitas Santri */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
+                    <User className="h-4 w-4 text-emerald-800" />
+                    <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
+                      Bagian 1: Identitas Santri
+                    </h4>
+                  </div>
 
-            <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setActiveTab("pembayaran")}
-                className="rounded-xl bg-[#123C35] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1D6B59] transition flex items-center gap-1.5"
-              >
-                <CreditCard className="h-4 w-4" />
-                <span>Lihat Tagihan &amp; Pembayaran</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("uang_saku")}
-                className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-slate-900 transition flex items-center gap-1.5"
-              >
-                <Wallet className="h-4 w-4" />
-                <span>Kelola Uang Saku</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("kepesantrenan")}
-                className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
-              >
-                <BookOpen className="h-4 w-4" />
-                <span>Perkembangan Mengaji &amp; Tahfidz</span>
-              </button>
-            </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Nama Lengkap Santri <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editNamaSantri}
+                        onChange={(e) => setEditNamaSantri(e.target.value)}
+                        placeholder="Nama lengkap santri sesuai akta/ijazah"
+                        className={`w-full rounded-lg border px-3 py-2 text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                          editFormErrors.nama_santri ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                        }`}
+                      />
+                      {editFormErrors.nama_santri && (
+                        <p className="text-[11px] text-rose-600 mt-1">{editFormErrors.nama_santri}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Jenis Kelamin <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={editJenisKelamin}
+                        onChange={(e) => setEditJenisKelamin(e.target.value as "L" | "P")}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                      >
+                        <option value="L">Laki-laki (Putra)</option>
+                        <option value="P">Perempuan (Putri)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Tempat Lahir <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editTempatLahir}
+                        onChange={(e) => setEditTempatLahir(e.target.value)}
+                        placeholder="Kota / Kabupaten tempat lahir"
+                        className={`w-full rounded-lg border px-3 py-2 text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                          editFormErrors.tempat_lahir ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                        }`}
+                      />
+                      {editFormErrors.tempat_lahir && (
+                        <p className="text-[11px] text-rose-600 mt-1">{editFormErrors.tempat_lahir}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Tanggal Lahir <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={editTanggalLahir}
+                        onChange={(e) => setEditTanggalLahir(e.target.value)}
+                        className={`w-full rounded-lg border px-3 py-2 text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                          editFormErrors.tanggal_lahir ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                        }`}
+                      />
+                      {editFormErrors.tanggal_lahir && (
+                        <p className="text-[11px] text-rose-600 mt-1">{editFormErrors.tanggal_lahir}</p>
+                      )}
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Alamat Asal Santri <span className="text-rose-500">*</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={editAlamat}
+                        onChange={(e) => setEditAlamat(e.target.value)}
+                        placeholder="Alamat lengkap tempat tinggal santri (Jalan, RT/RW, Desa/Kelurahan, Kecamatan, Kota/Kabupaten)"
+                        className={`w-full rounded-lg border px-3 py-2 text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                          editFormErrors.alamat ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                        }`}
+                      />
+                      {editFormErrors.alamat && (
+                        <p className="text-[11px] text-rose-600 mt-1">{editFormErrors.alamat}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Field Terkunci (Read-Only) */}
+                  <div className="mt-4 pt-3 border-t border-slate-200">
+                    <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mb-2 font-medium">
+                      <Info className="h-3.5 w-3.5 text-amber-600" />
+                      <span>Data Akademik &amp; Penempatan Asrama (Terkunci - Hanya dapat diubah oleh Tata Usaha Pesantren):</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-slate-100 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Nomor Induk Santri (NIS)</span>
+                        <span className="font-mono font-bold text-slate-800 text-xs">{santri.nis}</span>
+                      </div>
+                      <div className="bg-slate-100 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Kelas Saat Ini</span>
+                        <span className="font-bold text-slate-800 text-xs">{kelas?.nama_kelas || "-"}</span>
+                      </div>
+                      <div className="bg-slate-100 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Kamar Asrama</span>
+                        <span className="font-bold text-slate-800 text-xs">{kamar?.nama_kamar || "-"} ({kamar?.gedung_asrama || "Asrama"})</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bagian 2: Identitas Orang Tua / Wali */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
+                    <Users className="h-4 w-4 text-emerald-800" />
+                    <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
+                      Bagian 2: Data Orang Tua / Wali &amp; Penanggung Jawab Utama
+                    </h4>
+                  </div>
+
+                  {/* Penentuan Penanggung Jawab Utama */}
+                  <div className="mb-5 bg-emerald-50/80 p-3.5 rounded-xl border border-emerald-200">
+                    <label className="block font-bold text-[#123C35] mb-1.5 text-xs">
+                      Pilih Pihak Penanggung Jawab Utama Akun <span className="text-rose-500">*</span>
+                    </label>
+                    <p className="text-[11px] text-slate-600 mb-3">
+                      Nama dan nomor telepon pihak penanggung jawab utama akan disinkronkan ke profil akun login serta seluruh laporan resmi pesantren.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {(["Ayah", "Ibu", "Wali"] as const).map((roleOption) => (
+                        <label
+                          key={roleOption}
+                          className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition ${
+                            editPenanggungJawab === roleOption
+                              ? "bg-white border-[#123C35] shadow-sm ring-2 ring-[#123C35]/10"
+                              : "bg-slate-50/80 border-slate-200 hover:bg-white"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="penanggung_jawab_radio"
+                            value={roleOption}
+                            checked={editPenanggungJawab === roleOption}
+                            onChange={() => setEditPenanggungJawab(roleOption)}
+                            className="text-emerald-800 focus:ring-emerald-700"
+                          />
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 block text-xs">{roleOption}</span>
+                            <span className="text-[10px] text-slate-500 block truncate">
+                              {roleOption === "Ayah"
+                                ? editNamaAyah || "Nama Ayah"
+                                : roleOption === "Ibu"
+                                ? editNamaIbu || "Nama Ibu"
+                                : editNamaWali || "Nama Wali"}
+                            </span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* Data Ayah */}
+                    <div className={`p-3.5 rounded-xl border bg-white space-y-3 ${editPenanggungJawab === "Ayah" ? "border-emerald-700 ring-1 ring-emerald-700/20" : "border-slate-200"}`}>
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                        <span className="font-bold text-slate-900 text-xs">Data Ayah Kandung</span>
+                        {editPenanggungJawab === "Ayah" && (
+                          <span className="text-[10px] bg-emerald-100 text-[#123C35] px-2 py-0.5 rounded-full font-bold">Penanggung Jawab</span>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Nama Lengkap Ayah {editPenanggungJawab === "Ayah" && <span className="text-rose-500">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={editNamaAyah}
+                          onChange={(e) => setEditNamaAyah(e.target.value)}
+                          placeholder="Nama lengkap ayah"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                            editFormErrors.nama_ayah ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                          }`}
+                        />
+                        {editFormErrors.nama_ayah && <p className="text-[10px] text-rose-600 mt-0.5">{editFormErrors.nama_ayah}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Nomor HP / WhatsApp {editPenanggungJawab === "Ayah" && <span className="text-rose-500">*</span>}
+                        </label>
+                        <input
+                          type="tel"
+                          value={editNoHpAyah}
+                          onChange={(e) => setEditNoHpAyah(e.target.value)}
+                          placeholder="081234567890"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                            editFormErrors.no_hp_ayah ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                          }`}
+                        />
+                        {editFormErrors.no_hp_ayah && <p className="text-[10px] text-rose-600 mt-0.5">{editFormErrors.no_hp_ayah}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Pekerjaan Ayah</label>
+                        <input
+                          type="text"
+                          value={editPekerjaanAyah}
+                          onChange={(e) => setEditPekerjaanAyah(e.target.value)}
+                          placeholder="PNS / Wiraswasta / Karyawan"
+                          className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Data Ibu */}
+                    <div className={`p-3.5 rounded-xl border bg-white space-y-3 ${editPenanggungJawab === "Ibu" ? "border-emerald-700 ring-1 ring-emerald-700/20" : "border-slate-200"}`}>
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                        <span className="font-bold text-slate-900 text-xs">Data Ibu Kandung</span>
+                        {editPenanggungJawab === "Ibu" && (
+                          <span className="text-[10px] bg-emerald-100 text-[#123C35] px-2 py-0.5 rounded-full font-bold">Penanggung Jawab</span>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Nama Lengkap Ibu {editPenanggungJawab === "Ibu" && <span className="text-rose-500">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={editNamaIbu}
+                          onChange={(e) => setEditNamaIbu(e.target.value)}
+                          placeholder="Nama lengkap ibu"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                            editFormErrors.nama_ibu ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                          }`}
+                        />
+                        {editFormErrors.nama_ibu && <p className="text-[10px] text-rose-600 mt-0.5">{editFormErrors.nama_ibu}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Nomor HP / WhatsApp {editPenanggungJawab === "Ibu" && <span className="text-rose-500">*</span>}
+                        </label>
+                        <input
+                          type="tel"
+                          value={editNoHpIbu}
+                          onChange={(e) => setEditNoHpIbu(e.target.value)}
+                          placeholder="081234567890"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                            editFormErrors.no_hp_ibu ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                          }`}
+                        />
+                        {editFormErrors.no_hp_ibu && <p className="text-[10px] text-rose-600 mt-0.5">{editFormErrors.no_hp_ibu}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Pekerjaan Ibu</label>
+                        <input
+                          type="text"
+                          value={editPekerjaanIbu}
+                          onChange={(e) => setEditPekerjaanIbu(e.target.value)}
+                          placeholder="Ibu Rumah Tangga / Guru / Pedagang"
+                          className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Data Wali (Opsional) */}
+                    <div className={`p-3.5 rounded-xl border bg-white space-y-3 ${editPenanggungJawab === "Wali" ? "border-emerald-700 ring-1 ring-emerald-700/20" : "border-slate-200"}`}>
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                        <span className="font-bold text-slate-900 text-xs">Data Wali Santri (Opsional)</span>
+                        {editPenanggungJawab === "Wali" && (
+                          <span className="text-[10px] bg-emerald-100 text-[#123C35] px-2 py-0.5 rounded-full font-bold">Penanggung Jawab</span>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Nama Wali {editPenanggungJawab === "Wali" && <span className="text-rose-500">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={editNamaWali}
+                          onChange={(e) => setEditNamaWali(e.target.value)}
+                          placeholder="Nama lengkap wali (jika ada)"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                            editFormErrors.nama_wali ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                          }`}
+                        />
+                        {editFormErrors.nama_wali && <p className="text-[10px] text-rose-600 mt-0.5">{editFormErrors.nama_wali}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Hubungan Kekerabatan</label>
+                        <input
+                          type="text"
+                          value={editHubunganWali}
+                          onChange={(e) => setEditHubunganWali(e.target.value)}
+                          placeholder="Contoh: Paman, Bibi, Kakek"
+                          className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Nomor HP / WhatsApp Wali {editPenanggungJawab === "Wali" && <span className="text-rose-500">*</span>}
+                        </label>
+                        <input
+                          type="tel"
+                          value={editNoHpWali}
+                          onChange={(e) => setEditNoHpWali(e.target.value)}
+                          placeholder="081234567890"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 ${
+                            editFormErrors.no_hp_wali ? "border-rose-400 bg-rose-50/30" : "border-slate-300"
+                          }`}
+                        />
+                        {editFormErrors.no_hp_wali && <p className="text-[10px] text-rose-600 mt-0.5">{editFormErrors.no_hp_wali}</p>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tombol Aksi Form */}
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={resetEditForm}
+                    disabled={isSavingProfile}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveStudentProfile}
+                    disabled={isSavingProfile}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#123C35] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1D6B59] transition disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{isSavingProfile ? "Menyimpan Perubahan..." : "Simpan Perubahan Identitas"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tombol Pintasan Cepat ke Tab Lain */}
+            {!isEditingProfile && (
+              <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("pembayaran")}
+                  className="rounded-xl bg-[#123C35] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1D6B59] transition flex items-center gap-1.5"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span>Lihat Tagihan &amp; Pembayaran</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("uang_saku")}
+                  className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-slate-900 transition flex items-center gap-1.5"
+                >
+                  <Wallet className="h-4 w-4" />
+                  <span>Kelola Uang Saku</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("kepesantrenan")}
+                  className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>Perkembangan Mengaji &amp; Tahfidz</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

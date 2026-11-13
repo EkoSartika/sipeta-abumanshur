@@ -163,12 +163,49 @@ export async function PATCH(request: NextRequest) {
       .eq("id", callerUser.id)
       .maybeSingle();
 
-    if (
-      !callerProfile ||
-      !callerProfile.is_active ||
-      (callerProfile.role !== "superadmin" && callerProfile.role !== "admin" && callerProfile.role !== "tu")
-    ) {
+    if (!callerProfile || !callerProfile.is_active) {
+      return NextResponse.json({ ok: false, message: "Akses ditolak: Akun Anda tidak aktif atau tidak ditemukan." }, { status: 403 });
+    }
+
+    // 1. Verifikasi role pemanggil:
+    // - superadmin, admin, tu: dapat mengedit seluruh santri dan data penempatan
+    // - wali: HANYA dapat mengedit santri miliknya sendiri dan DILARANG mengubah nis/kelas/kamar/status
+    const isStaff = callerProfile.role === "superadmin" || callerProfile.role === "admin" || callerProfile.role === "tu";
+    const isWali = callerProfile.role === "wali";
+
+    if (!isStaff && !isWali) {
       return NextResponse.json({ ok: false, message: "Akses ditolak: Tidak memiliki wewenang mengedit data santri." }, { status: 403 });
+    }
+
+    if (isWali) {
+      // Pastikan wali hanya mengedit santri miliknya sendiri
+      const { data: waliLink } = await adminClient
+        .from("wali_santri")
+        .select("id, santri_id, user_id")
+        .eq("user_id", callerUser.id)
+        .eq("santri_id", id)
+        .maybeSingle();
+
+      if (!waliLink) {
+        return NextResponse.json(
+          { ok: false, message: "Akses ditolak: Anda hanya berwenang memperbarui data santri yang terhubung dengan akun Anda." },
+          { status: 403 }
+        );
+      }
+
+      // Cegah wali mengubah field terkunci / hak staf
+      if (
+        payload.nis !== undefined ||
+        payload.kelas_id !== undefined ||
+        payload.kamar_id !== undefined ||
+        payload.status !== undefined ||
+        payload.tahun_masuk !== undefined
+      ) {
+        return NextResponse.json(
+          { ok: false, message: "NIS, Kelas, Kamar Asrama, dan Status Santri hanya dapat diubah oleh pihak Tata Usaha / Admin Pesantren." },
+          { status: 403 }
+        );
+      }
     }
 
     // 1. Ambil data santri saat ini untuk validasi dan perbandingan riwayat
@@ -242,29 +279,50 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 3. Update identitas keluarga & wali jika disertakan
-    if (payload.identitas_keluarga || payload.wali) {
+    if (payload.identitas_keluarga || payload.wali || payload.penanggung_jawab) {
       const { data: waliRecord } = await adminClient
         .from("wali_santri")
-        .select("id, user_id, alamat")
+        .select("id, user_id, alamat, nama_lengkap, no_telepon, hubungan")
         .eq("santri_id", id)
         .maybeSingle();
 
-      const namaWali = payload.wali?.nama_lengkap || payload.identitas_keluarga?.ayah?.nama_lengkap || "Wali Santri";
-      const noHpWali = payload.wali?.no_telepon || payload.identitas_keluarga?.ayah?.no_telepon || "-";
-      const hubunganWali = payload.penanggung_jawab || payload.wali?.hubungan || "Ayah";
+      const identitasKeluarga: IdentitasKeluargaSantri | undefined = payload.identitas_keluarga;
+      const penanggungJawab = payload.penanggung_jawab || payload.wali?.hubungan || identitasKeluarga?.penanggung_jawab || "Ayah";
 
-      let packedAlamat = payload.alamat || "-";
-      if (payload.identitas_keluarga) {
-        packedAlamat = packWaliAlamatWithFamilyMetadata(payload.alamat || "-", payload.identitas_keluarga);
+      let namaPenanggungJawab = payload.wali?.nama_lengkap;
+      let noHpPenanggungJawab = payload.wali?.no_telepon;
+
+      if (!namaPenanggungJawab && identitasKeluarga) {
+        if (penanggungJawab === "Ayah") {
+          namaPenanggungJawab = identitasKeluarga.ayah?.nama_lengkap;
+          noHpPenanggungJawab = identitasKeluarga.ayah?.no_telepon;
+        } else if (penanggungJawab === "Ibu") {
+          namaPenanggungJawab = identitasKeluarga.ibu?.nama_lengkap;
+          noHpPenanggungJawab = identitasKeluarga.ibu?.no_telepon;
+        } else if (penanggungJawab === "Wali") {
+          namaPenanggungJawab = identitasKeluarga.wali?.nama_lengkap;
+          noHpPenanggungJawab = identitasKeluarga.wali?.no_telepon;
+        }
+      }
+
+      if (!namaPenanggungJawab) namaPenanggungJawab = waliRecord?.nama_lengkap || "Wali Santri";
+      if (!noHpPenanggungJawab) noHpPenanggungJawab = waliRecord?.no_telepon || "-";
+
+      let packedAlamat = payload.alamat || (currentSantri as any).alamat || "-";
+      if (identitasKeluarga) {
+        packedAlamat = packWaliAlamatWithFamilyMetadata(packedAlamat, {
+          ...identitasKeluarga,
+          penanggung_jawab: penanggungJawab,
+        });
       }
 
       if (waliRecord) {
         await adminClient
           .from("wali_santri")
           .update({
-            nama_lengkap: namaWali,
-            no_telepon: noHpWali,
-            hubungan: hubunganWali,
+            nama_lengkap: namaPenanggungJawab,
+            no_telepon: noHpPenanggungJawab,
+            hubungan: penanggungJawab,
             alamat: packedAlamat,
           })
           .eq("id", waliRecord.id);
@@ -273,8 +331,8 @@ export async function PATCH(request: NextRequest) {
           await adminClient
             .from("profiles")
             .update({
-              nama_lengkap: namaWali,
-              no_telepon: noHpWali,
+              nama_lengkap: namaPenanggungJawab,
+              no_telepon: noHpPenanggungJawab,
             })
             .eq("id", waliRecord.user_id);
         }

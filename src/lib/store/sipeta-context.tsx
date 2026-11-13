@@ -17,6 +17,7 @@ import type {
   AuditLogItem,
   CatatanKedisiplinan,
   DokumenUnduhan,
+  IdentitasKeluargaSantri,
   ImportBatchReport,
   ImportSantriRow,
   JenisPembayaran,
@@ -83,6 +84,9 @@ import {
   penyerahanUangSakuSchema,
   validateNominalCicilan,
 } from "@/lib/validations/schemas";
+import {
+  packWaliAlamatWithFamilyMetadata,
+} from "@/lib/utils/family-metadata";
 import {
   checkSupabaseHealth,
   type DatabaseHealthStatus,
@@ -265,6 +269,18 @@ interface SipetaContextValue {
     report?: ImportBatchReport;
   }>;
   deleteSantriBatch: (santriIds: string[]) => Promise<ActionResponse>;
+  updateSantriProfileByWali: (
+    santriId: string,
+    payload: {
+      nama_lengkap: string;
+      tempat_lahir: string;
+      tanggal_lahir: string;
+      jenis_kelamin: "L" | "P";
+      alamat: string;
+      penanggung_jawab: "Ayah" | "Ibu" | "Wali";
+      identitas_keluarga: IdentitasKeluargaSantri;
+    }
+  ) => Promise<ActionResponse>;
   moveSantriPlacement: (payload: {
     santri_id: string;
     kelas_baru_id: string;
@@ -3358,6 +3374,182 @@ export function SipetaProvider({
     return { ok: true, message };
   };
 
+  const updateSantriProfileByWali: SipetaContextValue["updateSantriProfileByWali"] = async (
+    santriId,
+    payload
+  ) => {
+    if (!currentUser) {
+      return { ok: false, message: "Anda harus login terlebih dahulu." };
+    }
+
+    if (currentUser.role === "wali") {
+      const isAllowed = currentUser.santri_id === santriId || waliList.some((w) => w.user_id === currentUser.id && w.santri_id === santriId);
+      if (!isAllowed) {
+        return { ok: false, message: "Akses ditolak: Anda hanya berwenang memperbarui data santri binaan akun Anda." };
+      }
+    } else if (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu") {
+      return { ok: false, message: "Akses ditolak: Peran Anda tidak memiliki izin memperbarui profil santri." };
+    }
+
+    const currentSantri = santriList.find((s) => s.id === santriId);
+    if (!currentSantri) {
+      return { ok: false, message: "Data santri tidak ditemukan." };
+    }
+
+    const namaPenanggungJawab =
+      payload.penanggung_jawab === "Ayah"
+        ? payload.identitas_keluarga.ayah?.nama_lengkap || "Ayah Santri"
+        : payload.penanggung_jawab === "Ibu"
+        ? payload.identitas_keluarga.ibu?.nama_lengkap || "Ibu Santri"
+        : payload.identitas_keluarga.wali?.nama_lengkap || "Wali Santri";
+
+    const teleponPenanggungJawab =
+      payload.penanggung_jawab === "Ayah"
+        ? payload.identitas_keluarga.ayah?.no_telepon || "-"
+        : payload.penanggung_jawab === "Ibu"
+        ? payload.identitas_keluarga.ibu?.no_telepon || "-"
+        : payload.identitas_keluarga.wali?.no_telepon || "-";
+
+    const packedAlamat = packWaliAlamatWithFamilyMetadata(payload.alamat.trim(), {
+      ...payload.identitas_keluarga,
+      penanggung_jawab: payload.penanggung_jawab,
+    });
+
+    if (isSupabaseConfigured() || authMode === "supabase") {
+      try {
+        const res = await fetch("/api/admin-santri", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: santriId,
+            payload: {
+              nama_lengkap: payload.nama_lengkap.trim(),
+              tempat_lahir: payload.tempat_lahir.trim(),
+              tanggal_lahir: payload.tanggal_lahir,
+              jenis_kelamin: payload.jenis_kelamin,
+              alamat: payload.alamat.trim(),
+              penanggung_jawab: payload.penanggung_jawab,
+              identitas_keluarga: payload.identitas_keluarga,
+              wali: {
+                nama_lengkap: namaPenanggungJawab,
+                hubungan: payload.penanggung_jawab,
+                no_telepon: teleponPenanggungJawab,
+              },
+            },
+          }),
+        });
+
+        const data = await res.json();
+        if (!data.ok) {
+          return { ok: false, message: data.message || "Gagal memperbarui profil santri di server." };
+        }
+
+        // Sinkronisasi lokal langsung agar UI reaktif tanpa menunggu roundtrip penuh
+        setSantriList((prev) =>
+          prev.map((s) =>
+            s.id === santriId
+              ? {
+                  ...s,
+                  nama_lengkap: payload.nama_lengkap.trim(),
+                  tempat_lahir: payload.tempat_lahir.trim(),
+                  tanggal_lahir: payload.tanggal_lahir,
+                  jenis_kelamin: payload.jenis_kelamin,
+                  alamat: payload.alamat.trim(),
+                }
+              : s
+          )
+        );
+
+        setWaliList((prev) =>
+          prev.map((w) =>
+            w.santri_id === santriId
+              ? {
+                  ...w,
+                  nama_lengkap: namaPenanggungJawab,
+                  hubungan: payload.penanggung_jawab,
+                  no_telepon: teleponPenanggungJawab,
+                  alamat: payload.alamat.trim(),
+                  penanggung_jawab: payload.penanggung_jawab,
+                  nama_ayah: payload.identitas_keluarga.ayah?.nama_lengkap,
+                  no_hp_ayah: payload.identitas_keluarga.ayah?.no_telepon,
+                  pekerjaan_ayah: payload.identitas_keluarga.ayah?.pekerjaan,
+                  nama_ibu: payload.identitas_keluarga.ibu?.nama_lengkap,
+                  no_hp_ibu: payload.identitas_keluarga.ibu?.no_telepon,
+                  pekerjaan_ibu: payload.identitas_keluarga.ibu?.pekerjaan,
+                  nama_wali: payload.identitas_keluarga.wali?.nama_lengkap,
+                  hubungan_wali_detail: payload.identitas_keluarga.wali?.hubungan,
+                  no_hp_wali: payload.identitas_keluarga.wali?.no_telepon,
+                }
+              : w
+          )
+        );
+
+        void refreshFromSupabase().catch(() => {});
+        return { ok: true, message: "Data profil santri dan penanggung jawab berhasil disimpan." };
+      } catch (err: any) {
+        return { ok: false, message: err?.message || "Terjadi kesalahan jaringan." };
+      }
+    }
+
+    // Mode Demo / Local Storage
+    setSantriList((prev) =>
+      prev.map((s) =>
+        s.id === santriId
+          ? {
+              ...s,
+              nama_lengkap: payload.nama_lengkap.trim(),
+              tempat_lahir: payload.tempat_lahir.trim(),
+              tanggal_lahir: payload.tanggal_lahir,
+              jenis_kelamin: payload.jenis_kelamin,
+              alamat: payload.alamat.trim(),
+            }
+          : s
+      )
+    );
+
+    setWaliList((prev) =>
+      prev.map((w) =>
+        w.santri_id === santriId
+          ? {
+              ...w,
+              nama_lengkap: namaPenanggungJawab,
+              hubungan: payload.penanggung_jawab,
+              no_telepon: teleponPenanggungJawab,
+              alamat: payload.alamat.trim(),
+              penanggung_jawab: payload.penanggung_jawab,
+              nama_ayah: payload.identitas_keluarga.ayah?.nama_lengkap,
+              no_hp_ayah: payload.identitas_keluarga.ayah?.no_telepon,
+              pekerjaan_ayah: payload.identitas_keluarga.ayah?.pekerjaan,
+              nama_ibu: payload.identitas_keluarga.ibu?.nama_lengkap,
+              no_hp_ibu: payload.identitas_keluarga.ibu?.no_telepon,
+              pekerjaan_ibu: payload.identitas_keluarga.ibu?.pekerjaan,
+              nama_wali: payload.identitas_keluarga.wali?.nama_lengkap,
+              hubungan_wali_detail: payload.identitas_keluarga.wali?.hubungan,
+              no_hp_wali: payload.identitas_keluarga.wali?.no_telepon,
+            }
+          : w
+      )
+    );
+
+    appendAuditLog(
+      "UPDATE_SANTRI_BY_WALI",
+      "santri",
+      santriId,
+      {
+        nama_lengkap: payload.nama_lengkap,
+        alamat: payload.alamat,
+        penanggung_jawab: payload.penanggung_jawab,
+      },
+      undefined,
+      {
+        nama_lengkap: currentSantri.nama_lengkap,
+        alamat: currentSantri.alamat,
+      }
+    );
+
+    return { ok: true, message: "Data profil santri dan penanggung jawab berhasil disimpan (Mode Demo)." };
+  };
+
   const moveSantriPlacement: SipetaContextValue["moveSantriPlacement"] = (payload) => {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin" && currentUser.role !== "tu")) {
       return { ok: false, message: "Tidak memiliki akses memindahkan kelas/kamar santri." };
@@ -5879,6 +6071,7 @@ export function SipetaProvider({
         createSantriWithWali,
         importSantriBatch,
         deleteSantriBatch,
+        updateSantriProfileByWali,
         moveSantriPlacement,
         updateStatusSantri,
         createKelas,
