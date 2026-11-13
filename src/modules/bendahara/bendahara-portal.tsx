@@ -97,16 +97,6 @@ export function BendaharaPortal({
   }, [refreshAntreanBendaharaOnly]);
 
   useEffect(() => {
-    // Refresh ringan setiap 20 detik jika tab aktif di layar
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        refreshAntreanBendaharaOnly();
-      }
-    }, 20_000);
-    return () => clearInterval(interval);
-  }, [refreshAntreanBendaharaOnly]);
-
-  useEffect(() => {
     if (!isSupabaseConfigured()) return;
     const client = createSupabaseBrowserClient();
     const channel = client
@@ -148,8 +138,24 @@ export function BendaharaPortal({
       activeTab === "verifikasi_pembayaran" ||
       activeTab === "verifikasi_saku"
     ) {
-      refreshAntreanBendaharaOnly();
+      refreshAntreanBendaharaOnly(false, "antrean_only");
     }
+  }, [activeTab, refreshAntreanBendaharaOnly]);
+
+  useEffect(() => {
+    // Polling cerdas adaptif: 4 detik pada tab antrean aktif, 20 detik pada tab laporan/lainnya
+    const isQueueTab =
+      activeTab === "dashboard" ||
+      activeTab === "verifikasi_pembayaran" ||
+      activeTab === "verifikasi_saku";
+    const delay = isQueueTab ? 4_000 : 20_000;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshAntreanBendaharaOnly(false, "antrean_only");
+      }
+    }, delay);
+    return () => clearInterval(interval);
   }, [activeTab, refreshAntreanBendaharaOnly]);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [catatanMap, setCatatanMap] = useState<Record<string, string>>({});
@@ -273,7 +279,7 @@ export function BendaharaPortal({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => refreshAntreanBendaharaOnly(true)}
+            onClick={() => refreshAntreanBendaharaOnly(true, "all")}
             disabled={isAntreanLoading}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 transition"
             title="Segarkan antrean verifikasi pembayaran dan uang saku"

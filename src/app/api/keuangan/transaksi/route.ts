@@ -221,6 +221,8 @@ export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const santriIdParam = url.searchParams.get("santri_id");
+    const modeParam = url.searchParams.get("mode");
+    const isAntreanOnly = modeParam === "antrean_only" || url.searchParams.get("status") === "MENUNGGU_VERIFIKASI";
 
     let santriFilter: string | null = santriIdParam;
     let waliSantriIds: string[] = [];
@@ -261,6 +263,10 @@ export async function GET(request: NextRequest) {
       .select("*, santri:santri_id(id, nis, nama_lengkap), alokasi:alokasi_pembayaran(*, tagihan:tagihan_id(id, judul_tagihan, sisa_tagihan, nominal_tagihan))")
       .order("created_at", { ascending: false });
 
+    if (isAntreanOnly) {
+      trxQuery = trxQuery.eq("status", "MENUNGGU_VERIFIKASI");
+    }
+
     if (profile.role === "wali") {
       if (santriFilter) {
         trxQuery = trxQuery.eq("santri_id", santriFilter);
@@ -276,6 +282,10 @@ export async function GET(request: NextRequest) {
       .from("pengajuan_uang_saku")
       .select("*, santri:santri_id(id, nis, nama_lengkap), wali:wali_user_id(id, nama_lengkap, email)")
       .order("created_at", { ascending: false });
+
+    if (isAntreanOnly) {
+      topupQuery = topupQuery.eq("status", "MENUNGGU_VERIFIKASI");
+    }
 
     if (profile.role === "wali") {
       if (santriFilter) {
@@ -651,23 +661,35 @@ export async function POST(request: NextRequest) {
       });
 
       if (rpcErr) {
+        const cleanMsg = sanitizeRpcError(rpcErr.message);
+        const isConflict =
+          cleanMsg.toLowerCase().includes("sudah diproses") ||
+          cleanMsg.toLowerCase().includes("conflict") ||
+          rpcErr.message.toLowerCase().includes("sudah diproses");
         return NextResponse.json(
-          { ok: false, message: sanitizeRpcError(rpcErr.message) },
-          { status: 400 }
+          { ok: false, message: cleanMsg },
+          { status: isConflict ? 409 : 400 }
         );
       }
 
       if (!rpcRes || !rpcRes.ok) {
+        const cleanMsg = sanitizeRpcError(rpcRes?.message || "Gagal memproses verifikasi transaksi.");
+        const isConflict = cleanMsg.toLowerCase().includes("sudah diproses");
         return NextResponse.json(
-          { ok: false, message: rpcRes?.message || "Gagal memproses verifikasi transaksi." },
-          { status: 400 }
+          { ok: false, message: cleanMsg },
+          { status: isConflict ? 409 : 400 }
         );
       }
 
+      const verifiedAt = new Date().toISOString();
       return NextResponse.json({
         ok: true,
+        transaksi_id: transaksiId,
         nomor_transaksi: rpcRes.nomor_transaksi,
-        status: rpcRes.status,
+        status: rpcRes.status || keputusan,
+        verified_at: verifiedAt,
+        verified_by_nama: profile.nama_lengkap,
+        catatan_verifikasi: catatan || (keputusan === "DISETUJUI" ? "Bukti transfer sah dan dana diterima." : "Ditolak oleh Bendahara."),
         message: rpcRes.message || `Transaksi ${rpcRes.nomor_transaksi} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan tagihan santri telah diperbarui" : "ditolak"}.`,
       });
     }
@@ -709,26 +731,38 @@ export async function POST(request: NextRequest) {
       });
 
       if (rpcErr) {
+        const cleanMsg = sanitizeRpcError(rpcErr.message);
+        const isConflict =
+          cleanMsg.toLowerCase().includes("sudah diverifikasi") ||
+          cleanMsg.toLowerCase().includes("sudah diproses") ||
+          cleanMsg.toLowerCase().includes("conflict");
         return NextResponse.json(
-          { ok: false, message: sanitizeRpcError(rpcErr.message) },
-          { status: 400 }
+          { ok: false, message: cleanMsg },
+          { status: isConflict ? 409 : 400 }
         );
       }
 
       if (!rpcRes || !rpcRes.ok) {
+        const cleanMsg = sanitizeRpcError(rpcRes?.message || "Gagal memproses verifikasi top-up.");
+        const isConflict = cleanMsg.toLowerCase().includes("sudah diverifikasi") || cleanMsg.toLowerCase().includes("sudah diproses");
         return NextResponse.json(
-          { ok: false, message: rpcRes?.message || "Gagal memproses verifikasi top-up." },
-          { status: 400 }
+          { ok: false, message: cleanMsg },
+          { status: isConflict ? 409 : 400 }
         );
       }
 
+      const verifiedAt = new Date().toISOString();
       return NextResponse.json({
         ok: true,
+        pengajuan_id: pengajuanId,
         nomor_pengajuan: rpcRes.nomor_pengajuan,
-        status: rpcRes.status,
+        status: rpcRes.status || keputusan,
         mutasi_id: rpcRes.mutasi_id,
         saldo_akhir: rpcRes.saldo_akhir,
-        message: rpcRes.message || `Pengajuan top-up ${rpcRes.nomor_pengajuan} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan saldo santri telah ditambahkan" : "ditolak"}.`,
+        verified_at: verifiedAt,
+        verified_by_nama: profile.nama_lengkap,
+        catatan_verifikasi: catatan || (keputusan === "DISETUJUI" ? "Top-up disetujui dan saldo santri telah ditambahkan." : "Ditolak oleh Bendahara."),
+        message: rpcRes.message || `Pengajuan top-up ${rpcRes.nomor_pengajuan || ""} berhasil ${keputusan === "DISETUJUI" ? "disetujui dan saldo santri ditambahkan" : "ditolak"}.`,
       });
     }
 

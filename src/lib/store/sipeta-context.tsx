@@ -41,6 +41,7 @@ import type {
   StatusSantri,
   StatusTagihan,
   StatusTindakLanjut,
+  StatusTransaksi,
   Tagihan,
   TahunAjaran,
   TingkatPrestasi,
@@ -365,7 +366,7 @@ interface SipetaContextValue {
   markAllNotifikasiRead: () => void;
 
   // Bendahara Actions (Eksklusif Verifikasi & Uang Keluar)
-  refreshAntreanBendaharaOnly: (force?: boolean) => Promise<void>;
+  refreshAntreanBendaharaOnly: (force?: boolean, mode?: "antrean_only" | "all") => Promise<void>;
   isAntreanLoading: boolean;
   verifyTransaksiPembayaran: (
     transaksiId: string,
@@ -581,49 +582,73 @@ export function SipetaProvider({
 
   // Kueri mandiri antrean verifikasi Bendahara: Terisolasi murni untuk memuat antrean pembayaran & top-up
   // seketika tanpa menunggu 23 kueri lain selesai dan tanpa me-refresh seluruh aplikasi.
-  const refreshAntreanBendaharaOnly = useCallback(async (force = false): Promise<void> => {
-    if (!isSupabaseConfigured() && authMode !== "supabase") {
-      return;
-    }
-    const now = Date.now();
-    // Request coalescing: jika ada request in-flight dan belum lewat 1.5 detik, gabungkan
-    if (!force && now - lastAntreanRefreshTimeRef.current < 1500 && inFlightAntreanRef.current) {
-      return inFlightAntreanRef.current;
-    }
+  const refreshAntreanBendaharaOnly = useCallback(
+    async (force = false, mode: "antrean_only" | "all" = "antrean_only"): Promise<void> => {
+      if (!isSupabaseConfigured() && authMode !== "supabase") {
+        return;
+      }
+      const now = Date.now();
+      // Request coalescing: jika ada request in-flight dan belum lewat 1.5 detik, gabungkan
+      if (!force && now - lastAntreanRefreshTimeRef.current < 1500 && inFlightAntreanRef.current) {
+        return inFlightAntreanRef.current;
+      }
 
-    const currentEpoch = sessionEpochRef.current;
-    setIsAntreanLoading(true);
-    lastAntreanRefreshTimeRef.current = now;
+      const currentEpoch = sessionEpochRef.current;
+      setIsAntreanLoading(true);
+      lastAntreanRefreshTimeRef.current = now;
 
-    const fetchPromise = safeFetchJson<{
-      ok: boolean;
-      transaksiPembayaranList?: TransaksiPembayaran[];
-      pengajuanUangSakuList?: PengajuanUangSaku[];
-    }>("/api/keuangan/transaksi")
-      .then((res) => {
-        if (sessionEpochRef.current !== currentEpoch) return;
-        if (res.ok && res.data?.ok) {
-          if (Array.isArray(res.data.transaksiPembayaranList)) {
-            setTransaksiPembayaranList(res.data.transaksiPembayaranList);
+      const endpoint =
+        mode === "antrean_only"
+          ? "/api/keuangan/transaksi?mode=antrean_only"
+          : "/api/keuangan/transaksi";
+
+      const fetchPromise = safeFetchJson<{
+        ok: boolean;
+        transaksiPembayaranList?: TransaksiPembayaran[];
+        pengajuanUangSakuList?: PengajuanUangSaku[];
+      }>(endpoint)
+        .then((res) => {
+          if (sessionEpochRef.current !== currentEpoch) return;
+          if (res.ok && res.data?.ok) {
+            if (Array.isArray(res.data.transaksiPembayaranList)) {
+              if (mode === "antrean_only") {
+                const incomingPending = res.data.transaksiPembayaranList;
+                setTransaksiPembayaranList((prev) => {
+                  const nonPending = prev.filter((t) => t.status !== "MENUNGGU_VERIFIKASI");
+                  return [...incomingPending, ...nonPending];
+                });
+              } else {
+                setTransaksiPembayaranList(res.data.transaksiPembayaranList);
+              }
+            }
+            if (Array.isArray(res.data.pengajuanUangSakuList)) {
+              if (mode === "antrean_only") {
+                const incomingPending = res.data.pengajuanUangSakuList;
+                setPengajuanUangSakuList((prev) => {
+                  const nonPending = prev.filter((p) => p.status !== "MENUNGGU_VERIFIKASI");
+                  return [...incomingPending, ...nonPending];
+                });
+              } else {
+                setPengajuanUangSakuList(res.data.pengajuanUangSakuList);
+              }
+            }
           }
-          if (Array.isArray(res.data.pengajuanUangSakuList)) {
-            setPengajuanUangSakuList(res.data.pengajuanUangSakuList);
+        })
+        .catch((e) => {
+          console.warn("Gagal memuat antrean Bendahara:", e);
+        })
+        .finally(() => {
+          if (sessionEpochRef.current === currentEpoch) {
+            setIsAntreanLoading(false);
           }
-        }
-      })
-      .catch((e) => {
-        console.warn("Gagal memuat antrean Bendahara:", e);
-      })
-      .finally(() => {
-        if (sessionEpochRef.current === currentEpoch) {
-          setIsAntreanLoading(false);
-        }
-        inFlightAntreanRef.current = null;
-      });
+          inFlightAntreanRef.current = null;
+        });
 
-    inFlightAntreanRef.current = fetchPromise;
-    return fetchPromise;
-  }, [authMode]);
+      inFlightAntreanRef.current = fetchPromise;
+      return fetchPromise;
+    },
+    [authMode]
+  );
 
   // Sinkronisasi data real-time dari Supabase secara progresif & non-blocking
   const runRefreshFromSupabase = useCallback(async () => {
@@ -4767,7 +4792,16 @@ export function SipetaProvider({
     }
 
     try {
-      const httpRes = await safeFetchJson<{ ok: boolean; message: string }>("/api/keuangan/transaksi", {
+      const httpRes = await safeFetchJson<{
+        ok: boolean;
+        message: string;
+        transaksi_id?: string;
+        nomor_transaksi?: string;
+        status?: StatusTransaksi;
+        verified_at?: string;
+        verified_by_nama?: string;
+        catatan_verifikasi?: string;
+      }>("/api/keuangan/transaksi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -4787,7 +4821,46 @@ export function SipetaProvider({
 
       const data = httpRes.data;
 
-      await refreshFromSupabase();
+      // 1. UPDATE STATE SECARA INSTAN TANPA MENUNGGU REFRESH GLOBAL 23 KUERI!
+      // Menghilangkan item dari antrean seketika (<1ms) dan mengupdate riwayat
+      setTransaksiPembayaranList((prev) =>
+        prev.map((t) =>
+          t.id === transaksiId
+            ? {
+                ...t,
+                status: (data.status || keputusan) as StatusTransaksi,
+                catatan_verifikasi: catatan,
+                verified_at: data.verified_at || new Date().toISOString(),
+                verified_by_nama: data.verified_by_nama || currentUser?.nama_lengkap || "Bendahara",
+              }
+            : t
+        )
+      );
+
+      // 2. Jika disetujui, update tagihanList terkait secara instan
+      if (keputusan === "DISETUJUI") {
+        const trx = transaksiPembayaranList.find((t) => t.id === transaksiId);
+        if (trx && Array.isArray(trx.alokasi)) {
+          setTagihanList((prev) =>
+            prev.map((bill) => {
+              const alk = trx.alokasi.find((a) => a.tagihan_id === bill.id);
+              if (!alk) return bill;
+              const totalTerbayarBaru = bill.total_terbayar + alk.nominal_alokasi;
+              const sisaBaru = bill.nominal_tagihan - totalTerbayarBaru;
+              return {
+                ...bill,
+                total_terbayar: totalTerbayarBaru,
+                sisa_tagihan: Math.max(0, sisaBaru),
+                status: (sisaBaru <= 0 ? "LUNAS" : "DIBAYAR_SEBAGIAN") as StatusTagihan,
+              };
+            })
+          );
+        }
+      }
+
+      // 3. Picu penyegaran antrean ringan terisolasi di latar belakang (non-blocking)
+      refreshAntreanBendaharaOnly(true, "antrean_only").catch(() => {});
+
       return {
         ok: true,
         message: data.message || `Transaksi berhasil ${keputusan === "DISETUJUI" ? "disetujui dan tagihan diperbarui" : "ditolak"}.`,
@@ -4833,7 +4906,16 @@ export function SipetaProvider({
     }
 
     try {
-      const httpRes = await safeFetchJson<{ ok: boolean; message: string }>("/api/keuangan/transaksi", {
+      const httpRes = await safeFetchJson<{
+        ok: boolean;
+        message: string;
+        pengajuan_id?: string;
+        nomor_pengajuan?: string;
+        status?: StatusTransaksi;
+        verified_at?: string;
+        verified_by_nama?: string;
+        catatan_verifikasi?: string;
+      }>("/api/keuangan/transaksi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -4853,7 +4935,24 @@ export function SipetaProvider({
 
       const data = httpRes.data;
 
-      await refreshFromSupabase();
+      // 1. UPDATE STATE SECARA INSTAN TANPA MENUNGGU REFRESH GLOBAL 23 KUERI!
+      setPengajuanUangSakuList((prev) =>
+        prev.map((p) =>
+          p.id === pengajuanId
+            ? {
+                ...p,
+                status: (data.status || keputusan) as StatusTransaksi,
+                catatan_verifikasi: catatan,
+                verified_at: data.verified_at || new Date().toISOString(),
+                verified_by_nama: data.verified_by_nama || currentUser?.nama_lengkap || "Bendahara",
+              }
+            : p
+        )
+      );
+
+      // 2. Picu penyegaran antrean ringan terisolasi di latar belakang (non-blocking)
+      refreshAntreanBendaharaOnly(true, "antrean_only").catch(() => {});
+
       return {
         ok: true,
         message: data.message || `Pengajuan top-up berhasil ${keputusan === "DISETUJUI" ? "disetujui dan saldo santri ditambahkan" : "ditolak"}.`,
