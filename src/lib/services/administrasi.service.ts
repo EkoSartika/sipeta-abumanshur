@@ -29,38 +29,73 @@ import type {
 
 export class AdministrasiService {
   private client = createSupabaseBrowserClient();
+  private static cachedRekeningList: RekeningPesantren[] | null = null;
+  private static lastRekeningFetch = 0;
+  private static inFlightRekeningPromise: Promise<RekeningPesantren[]> | null = null;
+
+  public static clearRekeningCache() {
+    AdministrasiService.cachedRekeningList = null;
+    AdministrasiService.lastRekeningFetch = 0;
+  }
 
   // --------------------------------------------------------------------------
   // MASTER DATA: REKENING RESMI & TAHUN AJARAN
   // --------------------------------------------------------------------------
-  async getRekeningList(): Promise<RekeningPesantren[]> {
+  async getRekeningList(force = false): Promise<RekeningPesantren[]> {
     if (!isSupabaseConfigured()) return [];
-    const { data, error } = await this.client
-      .from("rekening_pesantren")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && Array.isArray(data)) {
-      return data as RekeningPesantren[];
+
+    // Cache hit: kembalikan langsung jika data masih segar (<15s) dan tidak dipaksa refresh
+    if (!force && AdministrasiService.cachedRekeningList && (Date.now() - AdministrasiService.lastRekeningFetch < 15000)) {
+      return AdministrasiService.cachedRekeningList;
     }
-    try {
-      const res = await fetch("/api/admin/rekening", { method: "GET" });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.ok && Array.isArray(json.data)) {
-          return json.data as RekeningPesantren[];
+
+    // Coalescing in-flight request: cegah kueri berganda simultan
+    if (AdministrasiService.inFlightRekeningPromise) {
+      return AdministrasiService.inFlightRekeningPromise;
+    }
+
+    AdministrasiService.inFlightRekeningPromise = (async () => {
+      try {
+        const { data, error } = await this.client
+          .from("rekening_pesantren")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (!error && Array.isArray(data)) {
+          AdministrasiService.cachedRekeningList = data as RekeningPesantren[];
+          AdministrasiService.lastRekeningFetch = Date.now();
+          return data as RekeningPesantren[];
         }
+      } catch {
+        // Fallback ke server endpoint jika kueri direct client gagal
       }
-    } catch {
-      // Fallback jika di luar konteks browser fetch
-    }
-    return (data as RekeningPesantren[]) ?? [];
+
+      try {
+        const res = await fetch("/api/admin/rekening", { method: "GET" });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && Array.isArray(json.data)) {
+            AdministrasiService.cachedRekeningList = json.data as RekeningPesantren[];
+            AdministrasiService.lastRekeningFetch = Date.now();
+            return json.data as RekeningPesantren[];
+          }
+        }
+      } catch {
+        // Fallback jika di luar konteks browser fetch
+      }
+
+      return AdministrasiService.cachedRekeningList ?? [];
+    })().finally(() => {
+      AdministrasiService.inFlightRekeningPromise = null;
+    });
+
+    return AdministrasiService.inFlightRekeningPromise;
   }
 
   async getRekeningResmi(): Promise<RekeningPesantren | null> {
     const list = await this.getRekeningList();
     if (list.length === 0) return null;
     const active = list.find((r) => r.is_active);
-    return active || list[0] || null;
+    return active ?? null;
   }
 
   async createRekening(payload: {
@@ -71,6 +106,7 @@ export class AdministrasiService {
     catatan_instruksi?: string;
     alasan?: string;
   }): Promise<{ ok: boolean; message: string; data?: RekeningPesantren }> {
+    AdministrasiService.clearRekeningCache();
     if (!isSupabaseConfigured()) {
       return {
         ok: true,
@@ -97,6 +133,7 @@ export class AdministrasiService {
         }),
       });
       const json = await res.json();
+      AdministrasiService.clearRekeningCache();
       return json;
     } catch {
       // Fallback direct RPC jika dipanggil dari internal server context
@@ -108,6 +145,7 @@ export class AdministrasiService {
         p_catatan_instruksi: payload.catatan_instruksi || null,
         p_alasan: payload.alasan || "Penambahan rekening pesantren",
       });
+      AdministrasiService.clearRekeningCache();
       if (error) return { ok: false, message: error.message };
       return { ok: true, message: (data as any)?.message ?? "Rekening berhasil ditambahkan.", data: (data as any)?.data };
     }
@@ -124,6 +162,7 @@ export class AdministrasiService {
   }
 
   async updateRekeningById(id: string, payload: Partial<RekeningPesantren>): Promise<{ ok: boolean; message: string; data?: RekeningPesantren }> {
+    AdministrasiService.clearRekeningCache();
     if (!isSupabaseConfigured()) return { ok: true, message: "Rekening berhasil diperbarui (Demo Standalone)." };
 
     try {
@@ -141,6 +180,7 @@ export class AdministrasiService {
         }),
       });
       const json = await res.json();
+      AdministrasiService.clearRekeningCache();
       return json;
     } catch {
       const { data, error } = await this.client.rpc("rpc_update_rekening_pesantren_v1", {
@@ -152,19 +192,94 @@ export class AdministrasiService {
         p_catatan_instruksi: payload.catatan_instruksi || null,
         p_alasan: "Pembaruan data rekening pesantren via RPC atomik",
       });
+      AdministrasiService.clearRekeningCache();
       if (error) return { ok: false, message: error.message };
       return { ok: true, message: (data as any)?.message ?? "Rekening berhasil diperbarui secara atomik.", data: (data as any)?.data };
     }
   }
 
-  async setRekeningUtama(_id: string, _alasan?: string): Promise<{ ok: boolean; message: string }> {
-    return {
-      ok: false,
-      message: "Operasi perpindahan rekening aktif telah dinonaktifkan. Pengaturan rekening beroperasi murni sebagai daftar informasi.",
-    };
+  async activateRekening(id: string, alasan?: string): Promise<{ ok: boolean; message: string; data?: RekeningPesantren }> {
+    AdministrasiService.clearRekeningCache();
+    if (!isSupabaseConfigured()) {
+      return {
+        ok: true,
+        message: "Rekening berhasil diaktifkan sebagai rekening utama (Demo Standalone).",
+        data: { id, is_active: true } as any,
+      };
+    }
+
+    try {
+      const res = await fetch("/api/admin/rekening", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          action: "ACTIVATE",
+          alasan: alasan || "Aktivasi rekening utama pesantren",
+        }),
+      });
+      const json = await res.json();
+      AdministrasiService.clearRekeningCache();
+      return json;
+    } catch {
+      const { data, error } = await this.client.rpc("rpc_aktifkan_rekening_pesantren_v1", {
+        p_rekening_id: id,
+        p_alasan: alasan || "Aktivasi rekening utama pesantren",
+      });
+      AdministrasiService.clearRekeningCache();
+      if (error) return { ok: false, message: error.message };
+      return {
+        ok: true,
+        message: (data as any)?.message ?? "Rekening berhasil diaktifkan sebagai rekening utama.",
+        data: (data as any)?.data,
+      };
+    }
+  }
+
+  async deactivateRekening(id: string, alasan?: string): Promise<{ ok: boolean; message: string; data?: RekeningPesantren }> {
+    AdministrasiService.clearRekeningCache();
+    if (!isSupabaseConfigured()) {
+      return {
+        ok: true,
+        message: "Rekening berhasil dinonaktifkan (Demo Standalone).",
+        data: { id, is_active: false } as any,
+      };
+    }
+
+    try {
+      const res = await fetch("/api/admin/rekening", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          action: "DEACTIVATE",
+          alasan: alasan || "Penonaktifan rekening utama pesantren",
+        }),
+      });
+      const json = await res.json();
+      AdministrasiService.clearRekeningCache();
+      return json;
+    } catch {
+      const { data, error } = await this.client.rpc("rpc_nonaktifkan_rekening_pesantren_v1", {
+        p_rekening_id: id,
+        p_alasan: alasan || "Penonaktifan rekening utama pesantren",
+      });
+      AdministrasiService.clearRekeningCache();
+      if (error) return { ok: false, message: error.message };
+      return {
+        ok: true,
+        message: (data as any)?.message ?? "Rekening berhasil dinonaktifkan.",
+        data: (data as any)?.data,
+      };
+    }
+  }
+
+  async setRekeningUtama(id: string, alasan?: string): Promise<{ ok: boolean; message: string; data?: RekeningPesantren }> {
+    return this.activateRekening(id, alasan);
   }
 
   async deleteRekeningById(id: string, alasan?: string): Promise<{ ok: boolean; message: string }> {
+    AdministrasiService.clearRekeningCache();
     if (!isSupabaseConfigured()) return { ok: true, message: "Rekening berhasil dihapus (Demo Standalone)." };
 
     try {
@@ -172,6 +287,7 @@ export class AdministrasiService {
         method: "DELETE",
       });
       const json = await res.json();
+      AdministrasiService.clearRekeningCache();
       return json;
     } catch {
       // Fallback direct RPC
@@ -179,6 +295,7 @@ export class AdministrasiService {
         p_rekening_id: id,
         p_alasan: alasan || "Penghapusan rekening",
       });
+      AdministrasiService.clearRekeningCache();
       if (error) return { ok: false, message: error.message };
       return { ok: true, message: (data as any)?.message ?? "Rekening berhasil dihapus." };
     }

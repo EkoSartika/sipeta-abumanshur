@@ -28,3 +28,5 @@ yarn-error.log*
 # OS and Editor
 .DS_Store
 Thumbs.db
+
+.vercel

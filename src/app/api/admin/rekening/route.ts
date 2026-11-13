@@ -42,6 +42,13 @@ const hapusRekeningSchema = z.object({
   alasan: z.string().optional().nullable(),
 });
 
+// Skema Validasi Aktivasi / Penonaktifan Rekening Utama
+const patchRekeningSchema = z.object({
+  id: z.string().uuid("ID Rekening wajib berupa UUID yang valid."),
+  action: z.enum(["ACTIVATE", "DEACTIVATE"]),
+  alasan: z.string().optional().nullable(),
+});
+
 // Helper Verifikasi Autentikasi & Otorisasi Mutasi (Hanya Pengasuh / Superadmin)
 async function verifyPengasuhOrSuperadmin() {
   if (!isSupabaseConfigured()) {
@@ -361,6 +368,74 @@ export async function DELETE(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { ok: false, message: error.message || "Terjadi kesalahan server saat menghapus rekening." },
+      { status: 500 }
+    );
+  }
+}
+
+// ----------------------------------------------------------------------------
+// PATCH /api/admin/rekening
+// Mengaktifkan atau menonaktifkan rekening utama secara atomik via RPC
+// Sesuai Aturan Bisnis: Hanya Superadmin & Admin, maksimal 1 rekening aktif
+// ----------------------------------------------------------------------------
+export async function PATCH(request: NextRequest) {
+  try {
+    const authCheck = await verifyPengasuhOrSuperadmin();
+    if (!authCheck.ok) {
+      return NextResponse.json({ ok: false, message: authCheck.message }, { status: authCheck.status });
+    }
+
+    const body = await request.json();
+    const validation = patchRekeningSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { ok: false, message: validation.error.errors[0]?.message ?? "Input aktivasi rekening tidak valid." },
+        { status: 400 }
+      );
+    }
+
+    const { id, action, alasan } = validation.data;
+
+    if (authCheck.isDemo) {
+      return NextResponse.json({
+        ok: true,
+        message:
+          action === "ACTIVATE"
+            ? "Rekening berhasil diaktifkan sebagai rekening utama (Demo Standalone)."
+            : "Rekening utama berhasil dinonaktifkan (Demo Standalone).",
+        data: { id, is_active: action === "ACTIVATE" },
+      });
+    }
+
+    const rpcName =
+      action === "ACTIVATE"
+        ? "rpc_aktifkan_rekening_pesantren_v1"
+        : "rpc_nonaktifkan_rekening_pesantren_v1";
+
+    const { data: rpcRes, error: rpcErr } = await authCheck.client!.rpc(rpcName, {
+      p_rekening_id: id,
+      p_alasan: alasan || null,
+    });
+
+    if (rpcErr) {
+      return NextResponse.json(
+        { ok: false, message: rpcErr.message || `Gagal menjalankan aksi ${action} pada rekening.` },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message:
+        (rpcRes as any)?.message ??
+        (action === "ACTIVATE"
+          ? "Rekening berhasil diaktifkan sebagai rekening utama."
+          : "Rekening utama berhasil dinonaktifkan."),
+      data: (rpcRes as any)?.data,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { ok: false, message: error.message || "Terjadi kesalahan internal server saat mengubah status rekening." },
       { status: 500 }
     );
   }

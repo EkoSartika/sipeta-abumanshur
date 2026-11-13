@@ -64,6 +64,9 @@ export function SuperadminPortal({
     createRekening,
     updateRekening,
     deleteRekening,
+    setUtamaRekening,
+    toggleActiveRekening,
+    refreshRekeningOnly,
   } = useSipeta();
 
   useEffect(() => {
@@ -141,7 +144,62 @@ export function SuperadminPortal({
   const [editAccHolder, setEditAccHolder] = useState("");
   const [editInstructions, setEditInstructions] = useState("");
 
+  const [isRekeningLoading, setIsRekeningLoading] = useState(false);
+  const [rekeningActionId, setRekeningActionId] = useState<string | null>(null);
   const [rekeningFeedback, setRekeningFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Muat rekening seketika secara mandiri begitu tab rekening dibuka
+  useEffect(() => {
+    if (activeTab === "rekening") {
+      setIsRekeningLoading(true);
+      refreshRekeningOnly().finally(() => setIsRekeningLoading(false));
+    }
+  }, [activeTab, refreshRekeningOnly]);
+
+  const handleManualRefreshRekening = async () => {
+    setIsRekeningLoading(true);
+    setRekeningFeedback(null);
+    try {
+      await refreshRekeningOnly();
+    } finally {
+      setIsRekeningLoading(false);
+    }
+  };
+
+  const handleActivateRekening = async (r: RekeningPesantren) => {
+    const confirmMsg = `Jadikan rekening ${r.nama_bank} (${r.nomor_rekening}) sebagai Rekening Utama? Rekening aktif sebelumnya akan dinonaktifkan secara otomatis.`;
+    if (!confirm(confirmMsg)) return;
+
+    setRekeningFeedback(null);
+    setRekeningActionId(r.id);
+    try {
+      const res = await setUtamaRekening(
+        r.id,
+        `Aktivasi rekening utama oleh ${currentUser?.nama_lengkap || "Superadmin"}`
+      );
+      setRekeningFeedback({ ok: res.ok, text: res.message });
+    } finally {
+      setRekeningActionId(null);
+    }
+  };
+
+  const handleDeactivateRekening = async (r: RekeningPesantren) => {
+    const confirmMsg = `Nonaktifkan rekening utama ${r.nama_bank} (${r.nomor_rekening})? Perhatian: Pembayaran transfer wali santri akan ditahan sementara sampai rekening baru diaktifkan.`;
+    if (!confirm(confirmMsg)) return;
+
+    setRekeningFeedback(null);
+    setRekeningActionId(r.id);
+    try {
+      const res = await toggleActiveRekening(
+        r.id,
+        false,
+        `Penonaktifan rekening oleh ${currentUser?.nama_lengkap || "Superadmin"}`
+      );
+      setRekeningFeedback({ ok: res.ok, text: res.message });
+    } finally {
+      setRekeningActionId(null);
+    }
+  };
 
   const handleStartEdit = (r: RekeningPesantren) => {
     setEditingRekening(r);
@@ -1758,14 +1816,60 @@ export function SuperadminPortal({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsAddingRekening(!isAddingRekening)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
-            >
-              <Plus className="h-4 w-4" />
-              Tambah Rekening
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleManualRefreshRekening}
+                disabled={isRekeningLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition disabled:opacity-50"
+                title="Muat ulang rekening langsung dari database tanpa me-refresh seluruh aplikasi"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isRekeningLoading ? "animate-spin text-emerald-700" : "text-slate-500"}`} />
+                <span>{isRekeningLoading ? "Memuat..." : "Perbarui Data"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddingRekening(!isAddingRekening)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
+              >
+                <Plus className="h-4 w-4" />
+                Tambah Rekening
+              </button>
+            </div>
+          </div>
+
+          {/* Banner Status Rekening Utama Aktif Saat Ini */}
+          <div className="rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-900 p-5 text-white shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Rekening Utama Aktif (Digunakan Checkout &amp; Pembayaran)</span>
+                </div>
+                {rekeningResmi && rekeningResmi.is_active ? (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-base sm:text-lg font-extrabold text-white">
+                      {rekeningResmi.nama_bank} {rekeningResmi.kode_bank ? `(Kode: ${rekeningResmi.kode_bank})` : ""}
+                    </p>
+                    <p className="font-mono text-xl sm:text-2xl font-black text-amber-300 tracking-wider">
+                      {rekeningResmi.nomor_rekening}
+                    </p>
+                    <p className="text-xs text-emerald-100 font-medium">
+                      Atas Nama: <strong className="text-white">{rekeningResmi.atas_nama}</strong>
+                    </p>
+                    {rekeningResmi.catatan_instruksi && (
+                      <p className="text-[11px] text-emerald-200/80 italic mt-1 max-w-2xl">
+                        &ldquo;{rekeningResmi.catatan_instruksi}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-2 p-3 bg-rose-900/50 border border-rose-500/50 rounded-xl text-xs text-rose-200">
+                    ⚠️ <strong>Belum ada rekening resmi yang aktif!</strong> Pembayaran via transfer wali santri ditahan secara otomatis hingga salah satu rekening diaktifkan.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Feedback Notifikasi */}
@@ -1965,31 +2069,58 @@ export function SuperadminPortal({
           {/* Daftar Seluruh Rekening Pesantren */}
           <div className="space-y-3 pt-2">
             <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center justify-between">
-              <span>Daftar Rekening Terdaftar ({rekeningList.length})</span>
+              <div className="flex items-center gap-2">
+                <span>Daftar Rekening Terdaftar ({rekeningList.length})</span>
+                {isRekeningLoading && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-semibold normal-case">
+                    <RefreshCw className="h-3 w-3 animate-spin" /> Memperbarui...
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] text-slate-400 font-normal lowercase">
+                *hanya satu rekening yang dapat aktif sebagai rekening utama
+              </span>
             </h4>
 
             {rekeningList.length === 0 ? (
-              <div className="text-center py-10 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs">
-                <p>Belum ada rekening yang terdaftar di database.</p>
-                <button
-                  type="button"
-                  onClick={() => setIsAddingRekening(true)}
-                  className="mt-2 text-emerald-700 font-bold hover:underline"
-                >
-                  + Tambah Rekening Pertama
-                </button>
-              </div>
+              isRekeningLoading ? (
+                <div className="text-center py-10 rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                  <RefreshCw className="h-5 w-5 animate-spin mx-auto text-emerald-700 mb-2" />
+                  <p>Memuat data rekening pesantren dari database...</p>
+                </div>
+              ) : (
+                <div className="text-center py-10 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                  <p>Belum ada rekening yang terdaftar di database.</p>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingRekening(true)}
+                    className="mt-2 text-emerald-700 font-bold hover:underline"
+                  >
+                    + Tambah Rekening Pertama
+                  </button>
+                </div>
+              )
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {rekeningList.map((r) => {
+                  const isUtama = r.is_active;
+                  const isProcessing = rekeningActionId === r.id;
                   return (
                     <div
                       key={r.id}
-                      className="rounded-2xl border border-slate-200 bg-white hover:border-slate-300 p-4 transition space-y-3"
+                      className={`rounded-2xl border p-4 transition space-y-3 ${
+                        isUtama
+                          ? "border-emerald-300 bg-emerald-50/30 ring-1 ring-emerald-300 shadow-sm"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <div className="p-2 rounded-xl bg-slate-100 text-slate-600">
+                          <div
+                            className={`p-2 rounded-xl ${
+                              isUtama ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
                             <Landmark className="h-4 w-4" />
                           </div>
                           <div>
@@ -2001,6 +2132,17 @@ export function SuperadminPortal({
                             )}
                           </div>
                         </div>
+
+                        {isUtama ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-600 text-white shadow-xs">
+                            <Check className="h-3 w-3" />
+                            Rekening Utama (Aktif)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
+                            Nonaktif
+                          </span>
+                        )}
                       </div>
 
                       <div className="rounded-xl bg-slate-50 p-2.5 space-y-0.5 border border-slate-100">
@@ -2035,6 +2177,33 @@ export function SuperadminPortal({
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
+                        </div>
+
+                        {/* Tombol Aksi Aktivasi / Penonaktifan Rekening */}
+                        <div>
+                          {isUtama ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDeactivateRekening(r)}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold transition disabled:opacity-50"
+                              title="Nonaktifkan rekening utama ini"
+                            >
+                              <X className="h-3 w-3" />
+                              <span>{isProcessing ? "Memproses..." : "Nonaktifkan"}</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleActivateRekening(r)}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold transition shadow-xs disabled:opacity-50"
+                              title="Jadikan rekening ini sebagai Rekening Utama aktif"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              <span>{isProcessing ? "Mengaktifkan..." : "Aktifkan"}</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
