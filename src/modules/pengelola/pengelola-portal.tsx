@@ -81,8 +81,20 @@ export function PengelolaPortal({
   };
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // State Kelas & Santri Form Selection (Alur: Pilih Kelas -> Pilih Santri)
+  const [kelasMengaji, setKelasMengaji] = useState<string>("");
+  const [santriMengaji, setSantriMengaji] = useState<string>("");
+
+  const [kelasTahfidz, setKelasTahfidz] = useState<string>("");
+  const [santriTahfidz, setSantriTahfidz] = useState<string>("");
+
+  const [kelasPrestasi, setKelasPrestasi] = useState<string>("");
+  const [santriPrestasi, setSantriPrestasi] = useState<string>("");
+
+  const [kelasDisiplin, setKelasDisiplin] = useState<string>("");
+  const [santriDisiplin, setSantriDisiplin] = useState<string>("");
+
   // State Mengaji Form (Bab 2 PRD: Evaluasi Mengaji A-D & Tanggal & Petugas)
-  const [santriMengaji, setSantriMengaji] = useState(santriList[0]?.id ?? "snt-001");
   const [tanggalPenilaianMengaji, setTanggalPenilaianMengaji] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -106,7 +118,6 @@ export function PengelolaPortal({
   const [modalRiwayatSantriId, setModalRiwayatSantriId] = useState<string | null>(null);
 
   // State Tahfidz
-  const [santriTahfidz, setSantriTahfidz] = useState(santriList[0]?.id ?? "snt-001");
   const [jenisSetoran, setJenisSetoran] = useState<JenisSetoranTahfidz>("HAFALAN_BARU");
   const [namaSurah, setNamaSurah] = useState("QS. Al-Qalam");
   const [juz, setJuz] = useState("29");
@@ -118,7 +129,6 @@ export function PengelolaPortal({
   );
 
   // State Prestasi
-  const [santriPrestasi, setSantriPrestasi] = useState(santriList[0]?.id ?? "snt-001");
   const [namaKegiatan, setNamaKegiatan] = useState(
     "Olimpiade Bahasa Arab & Nahwu Shorof Tingkat Provinsi"
   );
@@ -130,7 +140,6 @@ export function PengelolaPortal({
   );
 
   // State Kedisiplinan
-  const [santriDisiplin, setSantriDisiplin] = useState(santriList[0]?.id ?? "snt-001");
   const [kategoriDisiplinId, setKategoriDisiplinId] = useState(
     masterPelanggaranList.find((k) => k.is_active !== false)?.id ?? masterPelanggaranList[0]?.id ?? "kat-dis-01"
   );
@@ -147,18 +156,7 @@ export function PengelolaPortal({
     controlledTab === "master_kategori_pelanggaran" ? "master" : "catatan"
   );
 
-  // Sinkronisasi otomatis pilihan santri dan master kategori saat data termuat dari Supabase
-  useEffect(() => {
-    if (santriList.length > 0) {
-      const s0 = santriList[0];
-      if (s0) {
-        if (!santriList.some((s) => s.id === santriMengaji)) setSantriMengaji(s0.id);
-        if (!santriList.some((s) => s.id === santriTahfidz)) setSantriTahfidz(s0.id);
-        if (!santriList.some((s) => s.id === santriPrestasi)) setSantriPrestasi(s0.id);
-        if (!santriList.some((s) => s.id === santriDisiplin)) setSantriDisiplin(s0.id);
-      }
-    }
-  }, [santriList]);
+  // Pilihan santri mengikuti pemilihan kelas secara eksplisit (Alur: Pilih Kelas -> Pilih Nama Santri)
 
   useEffect(() => {
     if (masterPelanggaranList.length > 0) {
@@ -300,6 +298,12 @@ export function PengelolaPortal({
     } finally {
       setBulkDeleteKatSubmitting(false);
     }
+  };
+
+  // Filter Santri Berdasarkan Kelas yang Dipilih
+  const getSantriByKelas = (kelasId: string) => {
+    if (!kelasId) return [];
+    return santriList.filter((s) => s.kelas_id === kelasId);
   };
 
   const getSantriName = (id: string) => {
@@ -529,6 +533,10 @@ export function PengelolaPortal({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (!kelasMengaji || !santriMengaji) {
+                    setFeedback({ ok: false, text: "Harap pilih kelas dan nama santri terlebih dahulu." });
+                    return;
+                  }
                   const res = recordPerkembanganMengaji({
                     santri_id: santriMengaji,
                     tanggal_penilaian: tanggalPenilaianMengaji,
@@ -545,19 +553,57 @@ export function PengelolaPortal({
                 }}
                 className="mt-4 space-y-3.5 text-xs"
               >
-                <div>
-                  <label className="font-semibold text-slate-700">Pilih Santri *</label>
-                  <select
-                    value={santriMengaji}
-                    onChange={(e) => setSantriMengaji(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium"
-                  >
-                    {santriList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nis} — {s.nama_lengkap} ({getSantriKelas(s.id)})
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label htmlFor="select-kelas-mengaji" className="block font-semibold text-slate-700 mb-1">
+                      Kelas <span className="text-rose-600">*</span>
+                    </label>
+                    <select
+                      id="select-kelas-mengaji"
+                      required
+                      value={kelasMengaji}
+                      onChange={(e) => {
+                        setKelasMengaji(e.target.value);
+                        setSantriMengaji("");
+                      }}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium text-slate-800 focus:border-[#1D6B59] focus:outline-none"
+                    >
+                      <option value="">-- Pilih Kelas --</option>
+                      {kelasList.map((k) => (
+                        <option key={k.id} value={k.id}>
+                          {k.nama_kelas} ({k.tingkat})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="select-santri-mengaji" className="block font-semibold text-slate-700 mb-1">
+                      Nama Santri <span className="text-rose-600">*</span>
+                    </label>
+                    <select
+                      id="select-santri-mengaji"
+                      required
+                      disabled={!kelasMengaji}
+                      value={santriMengaji}
+                      onChange={(e) => setSantriMengaji(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed focus:border-[#1D6B59] focus:outline-none"
+                    >
+                      {!kelasMengaji ? (
+                        <option value="">Pilih kelas terlebih dahulu</option>
+                      ) : getSantriByKelas(kelasMengaji).length === 0 ? (
+                        <option value="">Belum ada santri pada kelas ini</option>
+                      ) : (
+                        <>
+                          <option value="">-- Pilih Santri --</option>
+                          {getSantriByKelas(kelasMengaji).map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.nis} — {s.nama_lengkap}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -908,6 +954,10 @@ export function PengelolaPortal({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                if (!kelasTahfidz || !santriTahfidz) {
+                  setFeedback({ ok: false, text: "Harap pilih kelas dan nama santri terlebih dahulu." });
+                  return;
+                }
                 const res = recordSetoranTahfidz({
                   santri_id: santriTahfidz,
                   tanggal_setoran: new Date().toISOString().slice(0, 10),
@@ -924,19 +974,57 @@ export function PengelolaPortal({
               }}
               className="mt-3 space-y-3 text-xs"
             >
-              <div>
-                <label className="font-semibold text-slate-700">Santri</label>
-                <select
-                  value={santriTahfidz}
-                  onChange={(e) => setSantriTahfidz(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-                >
-                  {santriList.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nis} — {s.nama_lengkap}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label htmlFor="select-kelas-tahfidz" className="block font-semibold text-slate-700 mb-1">
+                    Kelas <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    id="select-kelas-tahfidz"
+                    required
+                    value={kelasTahfidz}
+                    onChange={(e) => {
+                      setKelasTahfidz(e.target.value);
+                      setSantriTahfidz("");
+                    }}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium text-slate-800 focus:border-[#1D6B59] focus:outline-none"
+                  >
+                    <option value="">-- Pilih Kelas --</option>
+                    {kelasList.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.nama_kelas} ({k.tingkat})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="select-santri-tahfidz" className="block font-semibold text-slate-700 mb-1">
+                    Nama Santri <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    id="select-santri-tahfidz"
+                    required
+                    disabled={!kelasTahfidz}
+                    value={santriTahfidz}
+                    onChange={(e) => setSantriTahfidz(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed focus:border-[#1D6B59] focus:outline-none"
+                  >
+                    {!kelasTahfidz ? (
+                      <option value="">Pilih kelas terlebih dahulu</option>
+                    ) : getSantriByKelas(kelasTahfidz).length === 0 ? (
+                      <option value="">Belum ada santri pada kelas ini</option>
+                    ) : (
+                      <>
+                        <option value="">-- Pilih Santri --</option>
+                        {getSantriByKelas(kelasTahfidz).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nis} — {s.nama_lengkap}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -1057,6 +1145,10 @@ export function PengelolaPortal({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                if (!kelasPrestasi || !santriPrestasi) {
+                  setFeedback({ ok: false, text: "Harap pilih kelas dan nama santri terlebih dahulu." });
+                  return;
+                }
                 const res = recordPrestasiSantri({
                   santri_id: santriPrestasi,
                   tanggal_prestasi: new Date().toISOString().slice(0, 10),
@@ -1070,19 +1162,57 @@ export function PengelolaPortal({
               }}
               className="mt-3 space-y-3 text-xs"
             >
-              <div>
-                <label className="font-semibold text-slate-700">Santri</label>
-                <select
-                  value={santriPrestasi}
-                  onChange={(e) => setSantriPrestasi(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-                >
-                  {santriList.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nis} — {s.nama_lengkap}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label htmlFor="select-kelas-prestasi" className="block font-semibold text-slate-700 mb-1">
+                    Kelas <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    id="select-kelas-prestasi"
+                    required
+                    value={kelasPrestasi}
+                    onChange={(e) => {
+                      setKelasPrestasi(e.target.value);
+                      setSantriPrestasi("");
+                    }}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium text-slate-800 focus:border-[#1D6B59] focus:outline-none"
+                  >
+                    <option value="">-- Pilih Kelas --</option>
+                    {kelasList.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.nama_kelas} ({k.tingkat})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="select-santri-prestasi" className="block font-semibold text-slate-700 mb-1">
+                    Nama Santri <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    id="select-santri-prestasi"
+                    required
+                    disabled={!kelasPrestasi}
+                    value={santriPrestasi}
+                    onChange={(e) => setSantriPrestasi(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed focus:border-[#1D6B59] focus:outline-none"
+                  >
+                    {!kelasPrestasi ? (
+                      <option value="">Pilih kelas terlebih dahulu</option>
+                    ) : getSantriByKelas(kelasPrestasi).length === 0 ? (
+                      <option value="">Belum ada santri pada kelas ini</option>
+                    ) : (
+                      <>
+                        <option value="">-- Pilih Santri --</option>
+                        {getSantriByKelas(kelasPrestasi).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nis} — {s.nama_lengkap}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="font-semibold text-slate-700">Nama Kegiatan / Lomba</label>
@@ -1210,6 +1340,10 @@ export function PengelolaPortal({
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
+                      if (!kelasDisiplin || !santriDisiplin) {
+                        setFeedback({ ok: false, text: "Harap pilih kelas dan nama santri terlebih dahulu." });
+                        return;
+                      }
                       const res = recordCatatanKedisiplinan({
                         santri_id: santriDisiplin,
                         tanggal_kejadian: new Date().toISOString().slice(0, 10),
@@ -1225,19 +1359,57 @@ export function PengelolaPortal({
                     }}
                     className="mt-3 space-y-3 text-xs"
                   >
-                    <div>
-                      <label className="font-semibold text-slate-700">Santri</label>
-                      <select
-                        value={santriDisiplin}
-                        onChange={(e) => setSantriDisiplin(e.target.value)}
-                        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"
-                      >
-                        {santriList.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.nis} — {s.nama_lengkap}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label htmlFor="select-kelas-disiplin" className="block font-semibold text-slate-700 mb-1">
+                          Kelas <span className="text-rose-600">*</span>
+                        </label>
+                        <select
+                          id="select-kelas-disiplin"
+                          required
+                          value={kelasDisiplin}
+                          onChange={(e) => {
+                            setKelasDisiplin(e.target.value);
+                            setSantriDisiplin("");
+                          }}
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium text-slate-800 focus:border-[#1D6B59] focus:outline-none"
+                        >
+                          <option value="">-- Pilih Kelas --</option>
+                          {kelasList.map((k) => (
+                            <option key={k.id} value={k.id}>
+                              {k.nama_kelas} ({k.tingkat})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="select-santri-disiplin" className="block font-semibold text-slate-700 mb-1">
+                          Nama Santri <span className="text-rose-600">*</span>
+                        </label>
+                        <select
+                          id="select-santri-disiplin"
+                          required
+                          disabled={!kelasDisiplin}
+                          value={santriDisiplin}
+                          onChange={(e) => setSantriDisiplin(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 bg-white font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed focus:border-[#1D6B59] focus:outline-none"
+                        >
+                          {!kelasDisiplin ? (
+                            <option value="">Pilih kelas terlebih dahulu</option>
+                          ) : getSantriByKelas(kelasDisiplin).length === 0 ? (
+                            <option value="">Belum ada santri pada kelas ini</option>
+                          ) : (
+                            <>
+                              <option value="">-- Pilih Santri --</option>
+                              {getSantriByKelas(kelasDisiplin).map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.nis} — {s.nama_lengkap}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
                     </div>
                     <div>
                       <label className="font-semibold text-slate-700">
