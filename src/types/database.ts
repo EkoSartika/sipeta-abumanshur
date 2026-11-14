@@ -98,6 +98,8 @@ export interface TahunAjaran {
 
 export interface ProfilPesantren {
   id: string;
+  nama_yayasan?: string;
+  logo_yayasan_url?: string;
   nama_resmi: string;
   nspp: string;
   npsn?: string;
@@ -110,9 +112,12 @@ export interface ProfilPesantren {
   provinsi: string;
   kode_pos: string;
   no_telepon: string;
+  no_wa?: string;
   email: string;
   website: string;
   nama_pengasuh: string;
+  jabatan_penandatangan?: string;
+  logo_pesantren_url?: string;
   tahun_pelajaran_aktif: string;
   semester_aktif: "Ganjil" | "Genap";
   informasi_umum: string;

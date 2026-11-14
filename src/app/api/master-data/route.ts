@@ -455,7 +455,8 @@ export async function POST(request: NextRequest) {
       delete safePayload.semester_aktif;
       delete safePayload.npsn; // HILANGKAN NPSN SESUAI INSTRUKSI 1
 
-      const { error } = await adminClient
+      // Coba simpan seluruh field terlebih dahulu (jika migration 026 sudah dieksekusi di Supabase Cloud)
+      let updateResult = await adminClient
         .from("profil_pesantren")
         .update({
           ...safePayload,
@@ -463,7 +464,25 @@ export async function POST(request: NextRequest) {
         })
         .eq("id", targetId);
 
-      if (error) return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
+      // Jika kolom ekstensi migration 026 (nama_yayasan, logo_yayasan_url, dll) belum ada di DB Cloud, fallback secara anggun
+      if (updateResult.error && updateResult.error.message.includes("does not exist")) {
+        const legacyPayload = { ...safePayload };
+        delete legacyPayload.nama_yayasan;
+        delete legacyPayload.logo_yayasan_url;
+        delete legacyPayload.logo_pesantren_url;
+        delete legacyPayload.no_wa;
+        delete legacyPayload.jabatan_penandatangan;
+
+        updateResult = await adminClient
+          .from("profil_pesantren")
+          .update({
+            ...legacyPayload,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", targetId);
+      }
+
+      if (updateResult.error) return NextResponse.json({ ok: false, message: updateResult.error.message }, { status: 400 });
       return NextResponse.json({ ok: true, message: "Profil pesantren berhasil disimpan ke database." });
     }
 

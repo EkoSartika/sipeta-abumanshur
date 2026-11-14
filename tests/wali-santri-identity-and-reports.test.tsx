@@ -80,6 +80,7 @@ describe("Portal Orang Tua & Pusat Laporan Pengasuh Test Suite", () => {
 
     // Memverifikasi kop resmi cetak
     expect(html).toContain("YAYASAN PONDOK PESANTREN MODERN ABU MANSHUR");
-    expect(html).toContain("Unduh Dokumen PDF (A4 Portrait)");
+    // Memverifikasi tombol Unduh PDF langsung
+    expect(html).toContain("Unduh PDF");
   });
 });

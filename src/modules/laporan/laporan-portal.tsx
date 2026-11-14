@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Layers,
   Printer,
+  RefreshCw,
   Search,
   ShieldAlert,
   Sparkles,
@@ -35,6 +36,7 @@ import {
 } from "@/lib/utils/format";
 import { canRoleViewFinancialDetails } from "@/lib/validations/schemas";
 import type { StatusTagihan } from "@/types/database";
+import { generateAndDownloadLaporanPdf } from "@/lib/utils/pdf-report-generator";
 
 export type KategoriLaporanPengasuh =
   | "pembayaran"
@@ -223,8 +225,242 @@ export function LaporanPortal() {
     setSearchQuery("");
   };
 
-  const handlePrintPdf = () => {
-    window.print();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [downloadFeedback, setDownloadFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleDownloadDirectPdf = async () => {
+    if (isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+    setDownloadFeedback(null);
+
+    try {
+      const taNama = tahunAjaranAktif?.nama || profilPesantren?.tahun_pelajaran_aktif || "2024/2025";
+      const semAktif = profilPesantren?.semester_aktif || "Ganjil";
+      const petugas = currentUser?.nama_lengkap || "Pengasuh Pondok";
+
+      // Keterangan filter aktif
+      const filterParts: string[] = [];
+      if (filterKelasId !== "ALL") {
+        const k = kelasList.find((kl) => kl.id === filterKelasId);
+        if (k) filterParts.push(`Kelas: ${k.nama_kelas}`);
+      }
+      if (filterKamarId !== "ALL") {
+        const km = kamarList.find((k) => k.id === filterKamarId);
+        if (km) filterParts.push(`Kamar: ${km.nama_kamar}`);
+      }
+      if (filterSantriId !== "ALL") {
+        const s = santriList.find((st) => st.id === filterSantriId);
+        if (s) filterParts.push(`Santri: ${s.nama_lengkap}`);
+      }
+      if (filterRentangMulai || filterRentangSelesai) {
+        filterParts.push(`Rentang: ${filterRentangMulai || "-"} s/d ${filterRentangSelesai || "-"}`);
+      }
+      const filterDeskripsi = filterParts.length > 0 ? filterParts.join(" • ") : "Semua Data";
+
+      let columns: string[] = [];
+      let rows: (string | number)[][] = [];
+      let columnStyles: Record<number, { halign?: "left" | "center" | "right"; cellWidth?: number | "auto" | "wrap" }> = {};
+
+      switch (activeKategori) {
+        case "pembayaran": {
+          columns = ["No", "No Tagihan", "NIS & Nama Santri", "Kelas", "Judul Tagihan", "Jatuh Tempo", "Nominal", "Terbayar", "Sisa", "Status"];
+          columnStyles = {
+            0: { halign: "center", cellWidth: 10 },
+            1: { cellWidth: 22 },
+            2: { cellWidth: 32 },
+            3: { cellWidth: 14 },
+            4: { cellWidth: 28 },
+            5: { halign: "center", cellWidth: 18 },
+            6: { halign: "right", cellWidth: 18 },
+            7: { halign: "right", cellWidth: 18 },
+            8: { halign: "right", cellWidth: 18 },
+            9: { halign: "center", cellWidth: 16 },
+          };
+          rows = filteredTagihan.map((t, idx) => {
+            const snt = santriMap.get(t.santri_id);
+            return [
+              idx + 1,
+              t.nomor_tagihan,
+              `${snt?.nama_lengkap || "-"} (${snt?.nis || "-"})`,
+              snt?.kelas_id ? kelasMap.get(snt.kelas_id) || "-" : "-",
+              t.judul_tagihan,
+              formatTanggal(t.tanggal_jatuh_tempo),
+              formatRupiah(t.nominal_tagihan),
+              formatRupiah(t.total_terbayar),
+              formatRupiah(t.sisa_tagihan),
+              t.status.replace(/_/g, " "),
+            ];
+          });
+          break;
+        }
+
+        case "uang_saku": {
+          columns = ["No", "NIS", "Nama Lengkap Santri", "Kelas", "Kamar / Asrama", "Total Masuk", "Total Penarikan", "Penyesuaian", "Saldo Terkini"];
+          columnStyles = {
+            0: { halign: "center", cellWidth: 10 },
+            1: { halign: "center", cellWidth: 18 },
+            2: { cellWidth: 38 },
+            3: { cellWidth: 18 },
+            4: { cellWidth: 26 },
+            5: { halign: "right", cellWidth: 22 },
+            6: { halign: "right", cellWidth: 22 },
+            7: { halign: "right", cellWidth: 20 },
+            8: { halign: "right", cellWidth: 22 },
+          };
+          rows = filteredSantri.map((s, idx) => {
+            const ldg = getSaldoSantri(s.id);
+            return [
+              idx + 1,
+              s.nis,
+              s.nama_lengkap,
+              s.kelas_id ? kelasMap.get(s.kelas_id) || "-" : "-",
+              s.kamar_id ? kamarMap.get(s.kamar_id) || "-" : "-",
+              formatRupiah(ldg.total_masuk),
+              formatRupiah(ldg.total_keluar),
+              formatRupiah(ldg.total_penyesuaian),
+              formatRupiah(ldg.saldo_saat_ini),
+            ];
+          });
+          break;
+        }
+
+        case "mengaji": {
+          columns = ["No", "Tanggal", "NIS & Nama Santri", "Kelas", "Jilid / Kitab", "Materi / Halaman", "Kelancaran", "Catatan Pembimbing"];
+          columnStyles = {
+            0: { halign: "center", cellWidth: 10 },
+            1: { halign: "center", cellWidth: 20 },
+            2: { cellWidth: 36 },
+            3: { cellWidth: 16 },
+            4: { cellWidth: 22 },
+            5: { cellWidth: 26 },
+            6: { halign: "center", cellWidth: 18 },
+            7: { cellWidth: "wrap" },
+          };
+          rows = filteredMengaji.map((m, idx) => {
+            const snt = santriMap.get(m.santri_id);
+            return [
+              idx + 1,
+              formatTanggal(m.tanggal_penilaian),
+              `${snt?.nama_lengkap || "-"} (${snt?.nis || "-"})`,
+              snt?.kelas_id ? kelasMap.get(snt.kelas_id) || "-" : "-",
+              m.tingkat_jilid,
+              m.materi_terakhir,
+              m.kelancaran_bacaan || "Lancar",
+              m.catatan_perkembangan || "-",
+            ];
+          });
+          break;
+        }
+
+        case "tahfidz": {
+          columns = ["No", "Tanggal", "NIS & Nama Santri", "Kelas", "Surah & Ayat", "Juz", "Jumlah Ayat", "Kualitas Hafalan"];
+          columnStyles = {
+            0: { halign: "center", cellWidth: 10 },
+            1: { halign: "center", cellWidth: 22 },
+            2: { cellWidth: 42 },
+            3: { cellWidth: 18 },
+            4: { cellWidth: 38 },
+            5: { halign: "center", cellWidth: 14 },
+            6: { halign: "center", cellWidth: 18 },
+            7: { halign: "center", cellWidth: 24 },
+          };
+          rows = filteredTahfidz.map((t, idx) => {
+            const snt = santriMap.get(t.santri_id);
+            return [
+              idx + 1,
+              formatTanggal(t.tanggal_setoran),
+              `${snt?.nama_lengkap || "-"} (${snt?.nis || "-"})`,
+              snt?.kelas_id ? kelasMap.get(snt.kelas_id) || "-" : "-",
+              `${t.nama_surah} (Ayat ${t.ayat_awal}-${t.ayat_akhir})`,
+              t.juz,
+              `${t.jumlah_ayat} Ayat`,
+              t.kualitas_hafalan,
+            ];
+          });
+          break;
+        }
+
+        case "kedisiplinan": {
+          columns = ["No", "Tanggal Kejadian", "NIS & Nama Santri", "Kelas", "Kategori Pelanggaran", "Tingkat", "Deskripsi & Tindak Lanjut", "Status"];
+          columnStyles = {
+            0: { halign: "center", cellWidth: 10 },
+            1: { halign: "center", cellWidth: 22 },
+            2: { cellWidth: 36 },
+            3: { cellWidth: 16 },
+            4: { cellWidth: 26 },
+            5: { halign: "center", cellWidth: 16 },
+            6: { cellWidth: "wrap" },
+            7: { halign: "center", cellWidth: 18 },
+          };
+          rows = filteredKedisiplinan.map((k, idx) => {
+            const snt = santriMap.get(k.santri_id);
+            return [
+              idx + 1,
+              `${formatTanggal(k.tanggal_kejadian)} ${k.waktu_kejadian || ""}`.trim(),
+              `${snt?.nama_lengkap || "-"} (${snt?.nis || "-"})`,
+              snt?.kelas_id ? kelasMap.get(snt.kelas_id) || "-" : "-",
+              k.nama_kategori,
+              k.tingkat_pelanggaran,
+              `${k.deskripsi} (Tindak Lanjut: ${k.tindak_lanjut || "-"})`,
+              k.status_tindak_lanjut,
+            ];
+          });
+          break;
+        }
+
+        case "prestasi": {
+          columns = ["No", "Tanggal", "NIS & Nama Santri", "Kelas", "Nama Kegiatan / Prestasi", "Kategori", "Tingkat", "Peringkat"];
+          columnStyles = {
+            0: { halign: "center", cellWidth: 10 },
+            1: { halign: "center", cellWidth: 20 },
+            2: { cellWidth: 38 },
+            3: { cellWidth: 16 },
+            4: { cellWidth: 42 },
+            5: { cellWidth: 22 },
+            6: { halign: "center", cellWidth: 20 },
+            7: { halign: "center", cellWidth: 18 },
+          };
+          rows = filteredPrestasi.map((p, idx) => {
+            const snt = santriMap.get(p.santri_id);
+            return [
+              idx + 1,
+              formatTanggal(p.tanggal_prestasi),
+              `${snt?.nama_lengkap || "-"} (${snt?.nis || "-"})`,
+              snt?.kelas_id ? kelasMap.get(snt.kelas_id) || "-" : "-",
+              p.nama_kegiatan,
+              p.kategori,
+              p.tingkat_prestasi,
+              p.peringkat || "Juara",
+            ];
+          });
+          break;
+        }
+      }
+
+      if (rows.length === 0) {
+        setDownloadFeedback({ ok: false, text: "Tidak ada data pada filter aktif untuk dibuatkan dokumen PDF." });
+        return;
+      }
+
+      const res = await generateAndDownloadLaporanPdf({
+        kategori: activeKategori,
+        profilPesantren,
+        periodeLabel: taNama,
+        semesterAktif: semAktif,
+        petugasName: petugas,
+        filterDeskripsi,
+        columns,
+        rows,
+        columnStyles,
+      });
+
+      setDownloadFeedback({ ok: res.ok, text: res.message });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setDownloadFeedback({ ok: false, text: `Gagal memproses dokumen PDF: ${msg}` });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
@@ -300,14 +536,46 @@ export function LaporanPortal() {
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
-              onClick={handlePrintPdf}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#123C35] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1D6B59] transition"
+              disabled={isGeneratingPdf}
+              onClick={handleDownloadDirectPdf}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#123C35] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1D6B59] transition disabled:opacity-50 cursor-pointer"
             >
-              <Download className="h-4 w-4" />
-              <span>Unduh Dokumen PDF (A4 Portrait)</span>
+              {isGeneratingPdf ? (
+                <RefreshCw className="h-4 w-4 animate-spin text-emerald-300" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              <span>{isGeneratingPdf ? "Menyiapkan Dokumen PDF..." : "Unduh PDF"}</span>
             </button>
           </div>
         </div>
+
+        {/* Notifikasi Status Unduhan Langsung */}
+        {downloadFeedback && (
+          <div
+            className={`mt-4 flex items-center justify-between rounded-xl border px-4 py-3 text-xs ${
+              downloadFeedback.ok
+                ? "border-emerald-200 bg-emerald-50 text-[#123C35]"
+                : "border-rose-200 bg-rose-50 text-rose-900"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {downloadFeedback.ok ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" />
+              ) : (
+                <XCircle className="h-4 w-4 shrink-0 text-rose-700" />
+              )}
+              <span>{downloadFeedback.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDownloadFeedback(null)}
+              className="text-xs font-semibold underline ml-4 cursor-pointer"
+            >
+              Tutup
+            </button>
+          </div>
+        )}
 
         {/* 6 KATEGORI LAPORAN (TABS NAVIGASI UTAMA) */}
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">

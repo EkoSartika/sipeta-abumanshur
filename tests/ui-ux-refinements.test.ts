@@ -86,18 +86,21 @@ describe("SIPETA UI/UX Refinements & Pesantren Profile Suite", () => {
     expect(pageView).not.toContain("1 Santri = 1 Akun Wali • Rekening Resmi BSI • Ledger Uang Saku & SPP");
   });
 
-  it("6. Menu Tahfidz dan Kedisiplinan pada Pengasuh telah terpisah mandiri", () => {
+  it("6. Menu Tahfidz dan Kedisiplinan pada Pengasuh telah disatukan ke Pusat Laporan 6 Kategori dan Profil Pesantren tersedia", () => {
     const fs = require("fs");
     const adminPortal = fs.readFileSync("src/modules/admin/admin-portal.tsx", "utf8");
     const pageView = fs.readFileSync("src/app/page.tsx", "utf8");
 
-    expect(adminPortal).toContain("TAB 3: LAPORAN TAHFIDZ AL-QUR'AN (PENGASUH PONDOK)");
-    expect(adminPortal).toContain("TAB 3.5: LAPORAN KEDISIPLINAN SANTRI (PENGASUH PONDOK)");
-    expect(adminPortal).toContain('activeTab === "laporan_tahfidz"');
-    expect(adminPortal).toContain('activeTab === "laporan_kedisiplinan"');
+    // Sesuai Instruksi Penyempurnaan Menu Pengasuh:
+    // Menu terpisah laporan_tahfidz & laporan_kedisiplinan dihapus dari sidebar Pengasuh,
+    // digantikan Pusat Laporan & Analitik (6 Kategori) dan menu Profil Pesantren.
+    expect(pageView).not.toContain('{ id: "laporan_tahfidz", label: "Laporan Tahfidz", icon: Sparkles }');
+    expect(pageView).not.toContain('{ id: "laporan_kedisiplinan", label: "Laporan Kedisiplinan", icon: ShieldAlert }');
+    expect(pageView).toContain('{ id: "laporan", label: "Pusat Laporan & Analitik (6 Kategori)", icon: BarChart3 }');
+    expect(pageView).toContain('{ id: "profil_pesantren", label: "Profil Pesantren", icon: Building2 }');
 
-    expect(pageView).toContain('{ id: "laporan_tahfidz", label: "Laporan Tahfidz", icon: Sparkles }');
-    expect(pageView).toContain('{ id: "laporan_kedisiplinan", label: "Laporan Kedisiplinan", icon: ShieldAlert }');
+    expect(adminPortal).toContain('activeTab === "profil_pesantren"');
+    expect(adminPortal).toContain("ProfilPesantrenView");
   });
 
   it("7. Menu Pengaturan Profil Pesantren tersedia pada portal TU", () => {

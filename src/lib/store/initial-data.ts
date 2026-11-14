@@ -195,6 +195,8 @@ export const INITIAL_TAHUN_AJARAN: TahunAjaran[] = [
 
 export const INITIAL_PROFIL_PESANTREN: ProfilPesantren = {
   id: "profil-pesantren-01",
+  nama_yayasan: "YAYASAN PONDOK PESANTREN MODERN ABU MANSHUR",
+  logo_yayasan_url: "/images/logo-abu-manshur.png",
   nama_resmi: "Pondok Pesantren Modern Abu Manshur",
   nspp: "510032090045",
   npsn: "69982412",
@@ -207,9 +209,12 @@ export const INITIAL_PROFIL_PESANTREN: ProfilPesantren = {
   provinsi: "Jawa Barat",
   kode_pos: "45652",
   no_telepon: "(0231) 8303388",
+  no_wa: "081234567890",
   email: "sekretariat@abumanshur.sch.id",
   website: "https://abumanshur.sch.id",
   nama_pengasuh: "Kyai Abu Manshur",
+  jabatan_penandatangan: "Pengasuh Pondok Pesantren",
+  logo_pesantren_url: "/images/logo-abu-manshur.png",
   tahun_pelajaran_aktif: "2024/2025",
   semester_aktif: "Ganjil",
   informasi_umum:
