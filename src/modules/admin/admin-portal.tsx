@@ -590,7 +590,19 @@ export function AdminPortal({
 
               <button
                 type="button"
-                onClick={() => setActiveTab("laporan_tahfidz")}
+                onClick={() => setActiveTab("laporan" as any)}
+                className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-left hover:bg-emerald-100 transition min-h-[44px] cursor-pointer"
+              >
+                <BarChart3 className="h-4 w-4 text-[#123C35] shrink-0" />
+                <div>
+                  <span className="block text-xs font-bold text-[#123C35]">Pusat Laporan &amp; Analitik</span>
+                  <span className="text-[11px] text-emerald-800">6 Kategori Lengkap &amp; Cetak PDF A4</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("laporan" as any)}
                 className="flex items-center gap-2.5 rounded-xl border border-[#E5E7EB] p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
               >
                 <Sparkles className="h-4 w-4 text-amber-700 shrink-0" />
@@ -602,7 +614,7 @@ export function AdminPortal({
 
               <button
                 type="button"
-                onClick={() => setActiveTab("laporan_kedisiplinan")}
+                onClick={() => setActiveTab("laporan" as any)}
                 className="flex items-center gap-2.5 rounded-xl border border-[#E5E7EB] p-3 text-left hover:bg-slate-50 transition min-h-[44px] cursor-pointer"
               >
                 <ShieldAlert className="h-4 w-4 text-rose-700 shrink-0" />

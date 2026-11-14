@@ -713,6 +713,20 @@ export function WaliPortal({
               <p className="mt-0.5 text-xs sm:text-sm text-emerald-100/90">
                 {kelas?.nama_kelas ?? "-"} • {kamar?.nama_kamar ?? "-"} ({kamar?.gedung_asrama}) • TP {profilPesantren?.tahun_pelajaran_aktif || "2024/2025"} (Semester {profilPesantren?.semester_aktif || "Ganjil"})
               </p>
+              <div className="mt-2.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetEditForm();
+                    setIsEditingProfile(true);
+                    setActiveTab("profil_santri");
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 backdrop-blur-sm border border-white/25 shadow-xs transition"
+                >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  <span>Ubah Identitas Santri &amp; Keluarga</span>
+                </button>
+              </div>
             </div>
           </div>
 

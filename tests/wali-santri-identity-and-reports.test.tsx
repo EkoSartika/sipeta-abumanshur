@@ -52,7 +52,7 @@ describe("Portal Orang Tua & Pusat Laporan Pengasuh Test Suite", () => {
 
   it("2. WaliPortal merender tab profil_santri lengkap dengan rincian penanggung jawab dan tombol edit", () => {
     const html = renderToString(
-      <SipetaProvider useDemoInitialData={true}>
+      <SipetaProvider initialAuthMode="demo">
         <WaliPortal activeTab="profil_santri" />
       </SipetaProvider>
     );
@@ -65,7 +65,7 @@ describe("Portal Orang Tua & Pusat Laporan Pengasuh Test Suite", () => {
 
   it("3. LaporanPortal merender 6 kategori laporan pengasuh dan kop surat resmi A4 Portrait", () => {
     const html = renderToString(
-      <SipetaProvider useDemoInitialData={true}>
+      <SipetaProvider initialAuthMode="demo">
         <LaporanPortal />
       </SipetaProvider>
     );

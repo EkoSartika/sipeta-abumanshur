@@ -193,11 +193,11 @@ export default function SipetaHomePage() {
           { id: "keuangan", label: "Pengawasan & Persetujuan Keuangan", icon: Wallet, badge: pendingAdminFeeCount || undefined },
           { id: "rekening", label: "Pengaturan Rekening Pesantren", icon: Landmark },
           { id: "tahun_ajaran", label: "Master Tahun Pelajaran", icon: Calendar },
+          { id: "laporan", label: "Pusat Laporan & Analitik (6 Kategori)", icon: BarChart3 },
           { id: "laporan_tahfidz", label: "Laporan Tahfidz", icon: Sparkles },
           { id: "laporan_kedisiplinan", label: "Laporan Kedisiplinan", icon: ShieldAlert },
           { id: "pengumuman", label: "Pengumuman Pondok", icon: Megaphone },
           { id: "audit_log", label: "Jejak Aktivitas Staf", icon: FileText, badge: auditLogs.length },
-          { id: "laporan", label: "Pusat Laporan & Analitik", icon: BarChart3 },
           { id: "profile", label: "Profil Saya", icon: UserCheck },
         ];
 
@@ -1043,7 +1043,7 @@ export default function SipetaHomePage() {
         {/* Main Body Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full">
           {activeTab === "profile" ? (
-            <UserProfileView />
+            <UserProfileView onNavigateTab={(tab) => setActiveTab(tab as any)} />
           ) : activeTab === "laporan" ? (
             <LaporanPortal />
           ) : (

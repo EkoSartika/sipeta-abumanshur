@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  Edit3,
   Eye,
   EyeOff,
   GraduationCap,
@@ -21,7 +22,7 @@ import { useSipeta } from "@/lib/store/sipeta-context";
 import { formatTanggal, getRoleLabel } from "@/lib/utils/format";
 import { validatePasswordStrength } from "@/lib/utils/auth-mapping";
 
-export function UserProfileView() {
+export function UserProfileView({ onNavigateTab }: { onNavigateTab?: (tab: string) => void }) {
   const { currentUser, santriList, kelasList, kamarList, updateMyProfile } = useSipeta();
 
   // State Ubah Data Pribadi
@@ -283,6 +284,19 @@ export function UserProfileView() {
                       </p>
                     </div>
                   </div>
+
+                  {onNavigateTab && (
+                    <div className="pt-2 border-t border-emerald-200/60">
+                      <button
+                        type="button"
+                        onClick={() => onNavigateTab("profil_santri")}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 shadow-xs transition cursor-pointer"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                        <span>Kelola &amp; Ubah Identitas Santri</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="mt-3 text-xs text-emerald-800 italic">
